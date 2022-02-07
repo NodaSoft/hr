@@ -1,3 +1,10 @@
+// Мы ожидаем, что Вы исправите синтаксические ошибки, сделаете перехват возможных исключений и улучшите читаемость кода.
+// А так же, напишите кастомный хук useThrottle и используете его там где это нужно.
+// Желательно использование React.memo и React.useCallback там где это имеет смысл.
+// Будет большим плюсом, если Вы сможете закэшировать получение случайного пользователя.
+// Если Вы понимаете TypeScript, то наведите порядок с типами. Если у Вас нет опыта с TypeScript - ничего страшного, оставьте типизацию как есть.
+// По возможности пришлите Ваш вариант в https://codesandbox.io
+
 import React, { useState } from "react";
 
 const URL = "https://jsonplaceholder.typicode.com/users";
@@ -16,26 +23,26 @@ type User = {
   username: string;
   website: string;
   company: Company;
-  address: any;
+  address: any
 };
 
 interface IButtonProps {
   onClick: any;
 }
 
-function Button ({ onClick }: IButtonProps): JSX.Element {
+function Button({ onClick }: IButtonProps): JSX.Element {
   return (
     <button type="button" onClick={onClick}>
       get random user
     </button>
   );
-};
+}
 
 interface IUserInfoProps {
   user: User;
 }
 
-function UserInfo ({ user }: IUserInfoProps): JSX.Element {
+function UserInfo({ user }: IUserInfoProps): JSX.Element {
   return (
     <table>
       <thead>
@@ -52,10 +59,10 @@ function UserInfo ({ user }: IUserInfoProps): JSX.Element {
       </tbody>
     </table>
   );
-};
+}
 
 function App(): JSX.Element {
-  const [item, setItem] = useState<User[] | null>(null);
+  const [item, setItem] = useState<Record<number, User>>(null);
 
   const receiveRandomUser = async () => {
     const id = Math.floor(Math.random() * (10 - 1)) + 1;
@@ -81,4 +88,3 @@ function App(): JSX.Element {
 }
 
 export default App;
-
