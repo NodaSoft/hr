@@ -6,10 +6,11 @@ use PDO;
 
 class User
 {
+
     /**
      * @var PDO
      */
-    public static $instance;
+    private static $instance;
 
     /**
      * Реализация singleton
@@ -18,10 +19,16 @@ class User
     public static function getInstance(): PDO
     {
         if (is_null(self::$instance)) {
-            $dsn = 'mysql:dbname=db;host=127.0.0.1';
+            // Настройки остаются здесь только для упрощения. В пром. исполнении им здесь не место.
+            $dsn = 'mysql:dbname=db;host=127.0.0.1;charset=utf8';
             $user = 'dbuser';
             $password = 'dbpass';
-            self::$instance = new PDO($dsn, $user, $password);
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // несмотря на данную настройку, нигде по коду не убираю явное назначение режима, т.к. это не ошибка.
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            self::$instance = new PDO($dsn, $user, $password, $options);
         }
 
         return self::$instance;
@@ -34,17 +41,17 @@ class User
      */
     public static function getUsers(int $ageFrom): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > {$ageFrom} LIMIT " . \Manager\User::limit);
-        $stmt->execute();
+        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, userFrom, age, settings FROM Users WHERE age > :ageFrom LIMIT " . \Manager\User::LIMIT); //Допускаю формирование запроса в части LIMIT через конкатенацию, т.к. в значении константа класса. В ином случае требует назначения через bindValue c указанием типа
+        $stmt->execute(['ageFrom' => $ageFrom]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $users = [];
         foreach ($rows as $row) {
-            $settings = json_decode($row['settings']);
+            $settings = json_decode($row['settings']); //Тип поля в бд?
             $users[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
                 'lastName' => $row['lastName'],
-                'from' => $row['from'],
+                'from' => $row['userFrom'],
                 'age' => $row['age'],
                 'key' => $settings['key'],
             ];
@@ -60,15 +67,15 @@ class User
      */
     public static function user(string $name): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE name = {$name}");
-        $stmt->execute();
+        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, userFrom, age FROM Users WHERE name = :name");
+        $stmt->execute(['name' => $name]);
         $user_by_name = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return [
             'id' => $user_by_name['id'],
             'name' => $user_by_name['name'],
             'lastName' => $user_by_name['lastName'],
-            'from' => $user_by_name['from'],
+            'from' => $user_by_name['userFrom'], //если заменить ключ с from на userFrom, то можно будет просто возвращать результат от $stmt->fetch(PDO::FETCH_ASSOC);
             'age' => $user_by_name['age'],
         ];
     }
@@ -87,4 +94,6 @@ class User
 
         return self::getInstance()->lastInsertId();
     }
+
 }
+
