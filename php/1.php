@@ -4,28 +4,28 @@ namespace Manager;
 
 class User
 {
-
-    const LIMIT = 10;
+    const limit = 10;
 
     /**
      * Возвращает пользователей старше заданного возраста.
      * @param int $ageFrom
      * @return array
      */
-    public static function getUsersByAgeFrom(int $ageFrom): array
+    function getUsers(int $ageFrom): array
     {
+        $ageFrom = (int)trim($ageFrom);
+
         return \Gateway\User::getUsers($ageFrom);
     }
 
     /**
      * Возвращает пользователей по списку имен.
-     * @param array $names
      * @return array
      */
-    public static function getUsersByName(array $names): array
+    public static function getByNames(): array
     {
         $users = [];
-        foreach ($names as $name) {
+        foreach ($_GET['names'] as $name) {
             $users[] = \Gateway\User::user($name);
         }
 
@@ -37,22 +37,20 @@ class User
      * @param $users
      * @return array
      */
-    public static function addUsers($users): array
+    public function users($users): array
     {
         $ids = [];
-        try {
-            \Gateway\User::getInstance()->beginTransaction();
-            foreach ($users as $user) {
-                $ids[] = \Gateway\User::add($user['name'], $user['lastName'], $user['age']);
+        \Gateway\User::getInstance()->beginTransaction();
+        foreach ($users as $user) {
+            try {
+                \Gateway\User::add($user['name'], $user['lastName'], $user['age']);
+                \Gateway\User::getInstance()->commit();
+                $ids[] = \Gateway\User::getInstance()->lastInsertId();
+            } catch (\Exception $e) {
+                \Gateway\User::getInstance()->rollBack();
             }
-            \Gateway\User::getInstance()->commit();
-        } catch (\Exception $e) {
-            \Gateway\User::getInstance()->rollBack();
-            $ids = [];
         }
 
         return $ids;
     }
-
 }
-
