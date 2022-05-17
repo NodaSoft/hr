@@ -6,10 +6,7 @@ use PDO;
 
 class User
 {
-    /**
-     * @var PDO
-     */
-    public static $instance;
+    private static PDO $instance;
 
     /**
      * Реализация singleton
@@ -29,25 +26,22 @@ class User
 
     /**
      * Возвращает список пользователей старше заданного возраста.
-     * @param int $ageFrom
+     * @param int $age
+     * @param int $limit
      * @return array
      */
-    public static function getUsers(int $ageFrom): array
+    public static function getOlderThan(int $age, int $limit): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > {$ageFrom} LIMIT " . \Manager\User::limit);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $users = [];
-        foreach ($rows as $row) {
-            $settings = json_decode($row['settings']);
-            $users[] = [
-                'id' => $row['id'],
-                'name' => $row['name'],
-                'lastName' => $row['lastName'],
-                'from' => $row['from'],
-                'age' => $row['age'],
-                'key' => $settings['key'],
-            ];
+        $stmt = self::executeSql(
+            'SELECT id, name, lastName, `from`, age, settings FROM Users WHERE age > :age LIMIT :limit',
+            compact('age', 'limit')
+        );
+
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($users as $i => $user) {
+            $settings = json_decode($user['settings']);
+            $users[$i]['key'] = $settings->key;
         }
 
         return $users;
@@ -58,19 +52,14 @@ class User
      * @param string $name
      * @return array
      */
-    public static function user(string $name): array
+    public static function findByName(string $name): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE name = {$name}");
-        $stmt->execute();
-        $user_by_name = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = self::executeSql(
+            'SELECT id, name, lastName, `from`, age FROM Users WHERE name = :name',
+            compact('name')
+        );
 
-        return [
-            'id' => $user_by_name['id'],
-            'name' => $user_by_name['name'],
-            'lastName' => $user_by_name['lastName'],
-            'from' => $user_by_name['from'],
-            'age' => $user_by_name['age'],
-        ];
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -80,11 +69,49 @@ class User
      * @param int $age
      * @return string
      */
-    public static function add(string $name, string $lastName, int $age): string
+    public static function create(string $name, string $lastName, int $age): string
     {
-        $sth = self::getInstance()->prepare("INSERT INTO Users (name, lastName, age) VALUES (:name, :age, :lastName)");
-        $sth->execute([':name' => $name, ':age' => $age, ':lastName' => $lastName]);
+        self::executeSql(
+            'INSERT INTO Users (name, lastName, age) VALUES (:name, :lastName, :age)',
+            compact('name', 'lastName', 'age')
+        );
 
         return self::getInstance()->lastInsertId();
+    }
+
+    /**
+     * Добавляет несколько пользователей в базу данных.
+     * @param \Closure $callback
+     * @return array
+     * @throws \Exception
+     */
+    public static function transaction(\Closure $callback): array
+    {
+        \Gateway\User::getInstance()->beginTransaction();
+
+        try {
+            $result = $callback();
+
+            \Gateway\User::getInstance()->commit();
+        } catch (\Exception $e) {
+            \Gateway\User::getInstance()->rollBack();
+            throw $e;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Выполняет sql
+     * @param string $sql
+     * @param array $params
+     * @return false|\PDOStatement
+     */
+    private static function executeSql(string $sql, array $params = []): bool|\PDOStatement
+    {
+        $stmt = self::getInstance()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt;
     }
 }
