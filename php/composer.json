@@ -1,0 +1,16 @@
+{
+    "name": "anoshin/managers",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Anoshin\\Managers\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Artem Anoshin",
+            "email": "artem.anoshin@gmail.com"
+        }
+    ],
+    "require": {}
+}
