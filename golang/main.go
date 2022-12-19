@@ -1,7 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -14,91 +21,181 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A taskT represents a meaninglessness of our life
+type taskT struct { // The trailing "T" is recommended here
+	id            int64
+	creationTime  time.Time // время создания
+	executionTime time.Time // время выполнения
+	result        string
+}
+
+type (
+	taskC  = chan *taskT // Trailing letters is not necessarily my way of coding.
+	taskWG = *sync.WaitGroup
+)
+
+const delta = 1
+
+func isNanosecondEven(nanoSecond int) bool { // I hope you just want me to copy the condition
+	return nanoSecond^delta == nanoSecond+delta // but not to do some fancy stuff
+}
+
+func startTaskCreator(ctx context.Context, c taskC, wg taskWG) {
+	wg.Add(delta)
+
+	go func() {
+		log.Printf("INFO: Task creator started!")
+		defer log.Printf("INFO: Task creator finished!")
+
+		defer wg.Done()
+
+		taskTicker := time.NewTicker(time.Second) // to prevent ID duplication
+		defer taskTicker.Stop()
+
+		defer close(c)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tick := <-taskTicker.C:
+				id := tick.Unix()
+
+				if !isNanosecondEven(tick.Nanosecond()) {
+					tick = time.Time{} // zero time.Time struct represents creation error
+
+					taskTicker.Reset(time.Second) // to prevent nanosecond duplication
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case c <- &taskT{id: id, creationTime: tick}:
+					if !tick.IsZero() {
+						log.Printf("INFO: Task with ID %d created at %s", id, tick)
+
+						continue
+					}
+
+					log.Printf("ERROR: Error creating task with id %d", id)
+				}
+			}
+		}
+	}()
+}
+
+func startTaskWorker(c taskC, wg taskWG) (finished taskC) {
+	const jobDuration = time.Second * 2
+
+	wg.Add(delta)
+
+	fC := make(taskC)
+
+	go func() {
+		defer wg.Done()
+		defer close(fC)
+
+		finishedTasks := make([]*taskT, 0)
+
+		for {
+			task, ok := <-c
+			if !ok {
+				break
+			}
+
+			if task.creationTime.IsZero() {
+				task.result = "job failed"
+				finishedTasks = append(finishedTasks, task)
+
+				continue
+			}
+
+			time.Sleep(jobDuration) // the job itself
+
+			task.result = "job succeeded"
+			task.executionTime = time.Now()
+
+			finishedTasks = append(finishedTasks, task)
+		}
+
+		for _, task := range finishedTasks {
+			fC <- task
+		}
+	}()
+
+	return fC
+}
+
+func startTaskSorter(finishedTasksC []taskC, wg taskWG) {
+	wg.Add(delta)
+
+	go func() {
+		succeededTasks := make([]*taskT, 0)
+		failedTasks := make([]*taskT, 0)
+
+		defer wg.Done()
+
+		for _, taskChan := range finishedTasksC {
+			for task := range taskChan {
+				if !task.creationTime.IsZero() && !task.executionTime.IsZero() {
+					succeededTasks = append(succeededTasks, task)
+
+					continue
+				}
+
+				failedTasks = append(failedTasks, task)
+			}
+		}
+
+		bldr := strings.Builder{}
+		bldr.WriteString(fmt.Sprintf("INFO: Succeeded tasks:\n"))
+
+		for _, task := range succeededTasks {
+			bldr.WriteString(fmt.Sprintf("ID: %d, Result: %s, Creation Time: %s, Execution Time: %s\n",
+				task.id, task.result, task.creationTime, task.executionTime))
+		}
+
+		log.Print(bldr.String())
+
+		bldr.Reset()
+		bldr.WriteString(fmt.Sprintf("INFO: Failed tasks:\n"))
+
+		for _, task := range failedTasks {
+			bldr.WriteString(fmt.Sprintf("ID: %d, Result: %s\n", task.id, task.result))
+		}
+
+		log.Print(bldr.String())
+	}()
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+	const (
+		workers = 10
+	)
+
+	var (
+		wg            sync.WaitGroup
+		taskChan      = make(taskC) // is buffer here needed?
+		finishedTasks = make([]taskC, 0, workers)
+	)
+
+	globalCtx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	for ctr := 0; ctr < workers; ctr++ {
+		finishedTasks = append(finishedTasks, startTaskWorker(taskChan, &wg))
 	}
 
-	superChan := make(chan Ttype, 10)
+	startTaskCreator(globalCtx, taskChan, &wg)
 
-	go taskCreturer(superChan)
+	startTaskSorter(finishedTasks, &wg)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 
-		time.Sleep(time.Millisecond * 150)
+	<-sig
 
-		return a
-	}
+	cancelFunc()
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	wg.Wait()
 }
