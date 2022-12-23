@@ -19,17 +19,17 @@ class User
     /**
      * @var string
      */
-    private static $dsn = 'mysql:host=localhost;dbname=db;';
+    private const DSN = 'mysql:host=localhost;dbname=db;';
 
     /**
      * @var string
      */
-    private static $db_user = 'dbuser';
+    private const DB_USER = 'dbuser';
 
     /**
      * @var string
      */
-    private static $db_pass = 'dbpass';
+    private const DB_PASS = 'dbpass';
 
     /**
      * Реализация singleton
@@ -40,7 +40,7 @@ class User
     {
         if (!self::$instance) {
             try {
-                self::$instance = new PDO(self::$dsn, self::$db_user, self::$db_pass);
+                self::$instance = new PDO(self::DSN, self::DB_USER, self::DB_PASS);
                 self::$instance->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             } catch (PDOException $e) {
                 throw new Exception($e->getMessage());
@@ -136,7 +136,7 @@ class User
                 $stmt->bindValue(':lastName', $lastName);
                 $stmt->bindValue(':age', $age, PDO::PARAM_INT);
                 $stmt->execute();
-                
+
                 $dbh->commit();
                 $id = $dbh->lastInsertId();
             } catch (Exception $e) {
