@@ -74,7 +74,7 @@ class User
                 $settings = $row['settings'] ?? null;
 
                 if(null !== $settings){
-                    $settings = json_decode($settings);
+                    $settings = json_decode($settings, true);
                 }
 
                 $result[] = [
