@@ -10,11 +10,6 @@ use Gateway\User as Gateway;
 class User
 {
     /**
-     * @var string
-     */
-    public const limit = 10;
-
-    /**
      * Возвращает пользователей старше заданного возраста.
      * @param int $age
      * @return array

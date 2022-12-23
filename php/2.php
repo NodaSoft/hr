@@ -32,6 +32,11 @@ class User
     private const DB_PASS = 'dbpass';
 
     /**
+     * @var string
+     */
+    public const LIMIT = 10;
+
+    /**
      * Реализация singleton
      * @return PDO
      * @throws Exception
@@ -61,7 +66,7 @@ class User
         try {
             $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > :age LIMIT :limit");
             $stmt->bindValue(':age', $age, PDO::PARAM_INT);
-            $stmt->bindValue(':limit', Manager::limit, PDO::PARAM_INT);
+            $stmt->bindValue(':limit', self::LIMIT, PDO::PARAM_INT);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
