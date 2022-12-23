@@ -14,7 +14,7 @@ class User
     /**
      * @var PDO
      */
-    public static $instance = null;
+    private static PDO $instance;
 
     /**
      * @var string
