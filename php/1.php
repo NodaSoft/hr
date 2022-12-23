@@ -1,56 +1,81 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Manager;
+
+use Exception;
+use Gateway\User as Gateway;
 
 class User
 {
-    const limit = 10;
+    /**
+     * @var string
+     */
+    public const limit = 10;
 
     /**
      * Возвращает пользователей старше заданного возраста.
-     * @param int $ageFrom
+     * @param int $age
      * @return array
+     * @throws Exception
      */
-    function getUsers(int $ageFrom): array
+    public static function getUsers(int $age): array
     {
-        $ageFrom = (int)trim($ageFrom);
-
-        return \Gateway\User::getUsers($ageFrom);
+        return Gateway::getUsers($age);
     }
 
     /**
      * Возвращает пользователей по списку имен.
      * @return array
+     * @throws Exception
      */
     public static function getByNames(): array
     {
-        $users = [];
-        foreach ($_GET['names'] as $name) {
-            $users[] = \Gateway\User::user($name);
+        $names = $_GET['names'] ?? null;
+
+        if(is_array($names)){
+            $names = array_filter(
+                $names,
+                static function (string $name) {
+                    return '' !== trim($name);
+                }
+            );
+
+            foreach ($names as $name) {
+                $name = filter_var($name, FILTER_SANITIZE_STRING);
+
+                if('' === $name){
+                    continue;
+                }
+
+                $users[] = Gateway::getUser($name);
+            }
         }
 
-        return $users;
+        return $users ?? [];
     }
 
     /**
      * Добавляет пользователей в базу данных.
-     * @param $users
+     * @param array $users
      * @return array
+     * @throws Exception
      */
-    public function users($users): array
+    public static function addUsers(array $users): array
     {
-        $ids = [];
-        \Gateway\User::getInstance()->beginTransaction();
-        foreach ($users as $user) {
-            try {
-                \Gateway\User::add($user['name'], $user['lastName'], $user['age']);
-                \Gateway\User::getInstance()->commit();
-                $ids[] = \Gateway\User::getInstance()->lastInsertId();
-            } catch (\Exception $e) {
-                \Gateway\User::getInstance()->rollBack();
+        try {
+            foreach ($users as $user) {
+                $userId = Gateway::add($user['name'], $user['lastName'], $user['age']);
+
+                if('' !== $userId){
+                    $result[] = $userId;
+                }
             }
+        } catch (Exception $e) {
+            throw new Exception($e->getMessage());
         }
 
-        return $ids;
+        return $result ?? [];
     }
 }

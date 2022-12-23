@@ -1,27 +1,50 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Gateway;
 
+use Exception;
+use Manager\User as Manager;
 use PDO;
+use PDOException;
 
 class User
 {
     /**
      * @var PDO
      */
-    public static $instance;
+    public static $instance = null;
+
+    /**
+     * @var string
+     */
+    private static $dsn = 'mysql:host=localhost;dbname=db;';
+
+    /**
+     * @var string
+     */
+    private static $db_user = 'dbuser';
+
+    /**
+     * @var string
+     */
+    private static $db_pass = 'dbpass';
 
     /**
      * Реализация singleton
      * @return PDO
+     * @throws Exception
      */
     public static function getInstance(): PDO
     {
-        if (is_null(self::$instance)) {
-            $dsn = 'mysql:dbname=db;host=127.0.0.1';
-            $user = 'dbuser';
-            $password = 'dbpass';
-            self::$instance = new PDO($dsn, $user, $password);
+        if (!self::$instance) {
+            try {
+                self::$instance = new PDO(self::$dsn, self::$db_user, self::$db_pass);
+                self::$instance->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            } catch (PDOException $e) {
+                throw new Exception($e->getMessage());
+            }
         }
 
         return self::$instance;
@@ -29,48 +52,69 @@ class User
 
     /**
      * Возвращает список пользователей старше заданного возраста.
-     * @param int $ageFrom
+     * @param int $age
      * @return array
+     * @throws Exception
      */
-    public static function getUsers(int $ageFrom): array
+    public static function getUsers(int $age): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > {$ageFrom} LIMIT " . \Manager\User::limit);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $users = [];
-        foreach ($rows as $row) {
-            $settings = json_decode($row['settings']);
-            $users[] = [
-                'id' => $row['id'],
-                'name' => $row['name'],
-                'lastName' => $row['lastName'],
-                'from' => $row['from'],
-                'age' => $row['age'],
-                'key' => $settings['key'],
-            ];
+        try {
+            $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > :age LIMIT :limit");
+            $stmt->bindValue(':age', $age, PDO::PARAM_INT);
+            $stmt->bindValue(':limit', Manager::limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($rows as $row) {
+                $settings = $row['settings'] ?? null;
+
+                if(null !== $settings){
+                    $settings = json_decode($settings);
+                }
+
+                $result[] = [
+                    'id' => $row['id'],
+                    'name' => $row['name'],
+                    'lastName' => $row['lastName'],
+                    'from' => $row['from'],
+                    'age' => $row['age'],
+                    'key' => $settings['key'] ?? null,
+                ];
+            }
+        } catch (Exception $e) {
+            throw new Exception($e->getMessage());
         }
 
-        return $users;
+        return $result ?? [];
     }
 
     /**
      * Возвращает пользователя по имени.
      * @param string $name
      * @return array
+     * @throws Exception
      */
-    public static function user(string $name): array
+    public static function getUser(string $name): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE name = {$name}");
-        $stmt->execute();
-        $user_by_name = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age FROM Users WHERE name = :name");
+            $stmt->bindValue(':name', $name);
+            $stmt->execute();
 
-        return [
-            'id' => $user_by_name['id'],
-            'name' => $user_by_name['name'],
-            'lastName' => $user_by_name['lastName'],
-            'from' => $user_by_name['from'],
-            'age' => $user_by_name['age'],
-        ];
+            if($user = $stmt->fetch(PDO::FETCH_ASSOC)){
+                $result = [
+                    'id' => $user['id'],
+                    'name' => $user['name'],
+                    'lastName' => $user['lastName'],
+                    'from' => $user['from'],
+                    'age' => $user['age']
+                ];
+            }
+        } catch (Exception $e) {
+            throw new Exception($e->getMessage());
+        }
+
+        return $result ?? [];
     }
 
     /**
@@ -79,12 +123,31 @@ class User
      * @param string $lastName
      * @param int $age
      * @return string
+     * @throws Exception
      */
     public static function add(string $name, string $lastName, int $age): string
     {
-        $sth = self::getInstance()->prepare("INSERT INTO Users (name, lastName, age) VALUES (:name, :age, :lastName)");
-        $sth->execute([':name' => $name, ':age' => $age, ':lastName' => $lastName]);
+        $dbh = self::getInstance();
 
-        return self::getInstance()->lastInsertId();
+        if ($dbh->beginTransaction()){
+            try {
+                $stmt = $dbh->prepare("INSERT INTO Users (name, lastName, age) VALUES (:name, :lastName, :age)");
+                $stmt->bindValue(':name', $name);
+                $stmt->bindValue(':lastName', $lastName);
+                $stmt->bindValue(':age', $age, PDO::PARAM_INT);
+                $stmt->execute();
+                
+                $dbh->commit();
+                $id = $dbh->lastInsertId();
+            } catch (Exception $e) {
+                if ($dbh->inTransaction()){
+                    $dbh->rollBack();
+                }
+
+                throw new Exception($e->getMessage());
+            }
+        }
+
+        return $id ?? '';
     }
 }
