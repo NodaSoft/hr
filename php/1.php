@@ -33,17 +33,12 @@ class User
             $names = array_filter(
                 $names,
                 static function (string $name) {
+                    $name = filter_var($name, FILTER_SANITIZE_STRING);
                     return '' !== trim($name);
                 }
             );
 
             foreach ($names as $name) {
-                $name = filter_var($name, FILTER_SANITIZE_STRING);
-
-                if('' === $name){
-                    continue;
-                }
-
                 $users[] = Gateway::getUser($name);
             }
         }
