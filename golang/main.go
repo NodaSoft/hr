@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -14,83 +16,112 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+type Task struct {
+	Id          int
+	CreateTime  string // время создания
+	ProcessTime string // время выполнения
+	TaskResult  []byte
+}
+
+func taskCreturer(ctx context.Context) <-chan Task {
+	superChan := make(chan Task, 10)
+	go func() {
+		defer close(superChan)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				cT := time.Now().Format(time.RFC3339)
+				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					cT = "Some error occurred"
+				}
+				superChan <- Task{CreateTime: cT, Id: int(time.Now().Unix())} // передаем таск на выполнение
+				time.Sleep(1 * time.Microsecond)
+			}
+		}
+	}()
+	return superChan
+}
+
+func taskWorker(t Task) Task {
+	tt, err := time.Parse(time.RFC3339, t.CreateTime)
+
+	if err != nil {
+		t.TaskResult = []byte("invalid parse task create time")
+		return t
+	}
+	if tt.After(time.Now().Add(-20 * time.Second)) {
+		t.TaskResult = []byte("task has been successed")
+	} else {
+		t.TaskResult = []byte("invalid task create time")
+	}
+
+	t.ProcessTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return t
+}
+
+func taskSorter(t Task, done chan<- Task, undone chan<- error) {
+
+	if string(t.TaskResult[14:]) == "successed" {
+		done <- t
+	} else {
+		undone <- fmt.Errorf("Task id %d time %s, error %s", t.Id, t.CreateTime, string(t.TaskResult))
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	doneTasks := make(chan Task, 100)
+	undoneTasks := make(chan error, 100)
+	defer close(doneTasks)
+	defer close(undoneTasks)
 
-	superChan := make(chan Ttype, 10)
+	superChan := taskCreturer(ctx)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+	wg := sync.WaitGroup{}
 
 	go func() {
 		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case task := <-superChan:
+				go func() {
+					wg.Add(1)
+					processed := taskWorker(task)
+					taskSorter(processed, doneTasks, undoneTasks)
+					wg.Done()
+				}()
+
+			}
 		}
-		close(superChan)
+
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+	result := map[int]Task{}
+	err := make([]error, 0, 16)
+	go func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case r := <-doneTasks:
+				result[r.Id] = r
+			case er := <-undoneTasks:
+				err = append(err, er)
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	}(ctx)
 
 	time.Sleep(time.Second * 3)
+	cancel()
+	wg.Wait()
 
 	println("Errors:")
 	for r := range err {
