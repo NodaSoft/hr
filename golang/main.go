@@ -1,120 +1,144 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
-
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
+// статусы выполнения задачи
+const (
+	// C - style константы используются чтобы визуально отделить константы от обычных переменных
+	STATUS_CREATED uint = iota
+	STATUS_CREATION_ERROR
+	STATUS_EXECUTED
+	STATUS_EXECUTION_ERROR
+)
 
 // A Ttype represents a meaninglessness of our life
-
-// Review: переименовать структуру и поля
-type Ttype struct {
-	id int
-	cT string // время создания // Review: время должно быть в юникс тайме
-	fT string // время выполнения // Review: время должно быть в юникс тайме
-	// Review: разбить на структуру с кодом выполнения и ошибкой
-	taskRESULT []byte // Review: переделать в строку
+type TaskContext struct {
+	ID            int
+	CreationTime  time.Time
+	ExecutionTime time.Time
+	Status        uint
 }
 
 func main() {
-	// Review: грамматическая ошибка в названии переменной.
-	// вынести в отдельную функцию
-	// сделать конвейер
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					// Review: в одной переменной хранится и время и ошибка, при чем не информативная
-					// исправить
-					ft = "Some error occured"
-				}
-				// Review: ft - присваивается cT. Переделать
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	// чтобы программа сама завершалась был использован контекст с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	createdTasksChan := TaskCreator(ctx)
+	executedTasksChan := TaskWorker(createdTasksChan)
+	successfulTasks, errorTasks := TaskSorter(executedTasksChan)
+
+	<-ctx.Done()
+
+	PrintTasks(successfulTasks, errorTasks)
+}
+
+// TaskCreator создает задачи и передает дальше по пайплайну
+// создание задач искусственно ограничено в 1 миллисекунду
+func TaskCreator(ctx context.Context) chan TaskContext {
+	out := make(chan TaskContext)
+
+	go func() {
+		defer close(out)
+
+		tasksCounter := 0
+		// искусственное замедление создание тасок по 1 в миллисекунду. Это сделано чтобы проще можно было тестировать
+		// вручную
+		ticker := time.NewTicker(time.Millisecond * 1)
+
+		for range ticker.C {
+			tasksCounter++
+			now := time.Now()
+
+			task := TaskContext{ID: tasksCounter, CreationTime: now, Status: STATUS_CREATED}
+
+			// на ОС Ventura 13 (macOS) наносекунды округляются. Вот ишью https://github.com/golang/go/issues/22037
+			// исходя из вышеописанной проблемы допущу вольность и поменяю наносекунды на милисекунды
+			// само условие требуется сохранить по задаче
+			if now.UnixMilli()%2 > 0 {
+				task.Status = STATUS_CREATION_ERROR
 			}
-		}()
-	}
 
-	// Review: переименовать
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		// Review: игнорирование ошибки. Плохо
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+			select {
+			case <-ctx.Done():
+				return
+			case out <- task:
+			}
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		// Review: вероятно это имитация обработки. Надо сохранить
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	// Review: убрать замыкания
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			// Review: воркеры блочат друг друга. Распараллелить
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	// Review: избавиться от этого механизма, а параллельно выполнять вывод состояния задач
-	result := map[int]Ttype{}
-	err := []error{}
+	return out
+}
+
+// TaskWorker получает задачи по пайплайну и пере дает дальше
+// исполнение задачи искусственно установлено 150 миллисекунд
+func TaskWorker(in <-chan TaskContext) chan TaskContext {
+	out := make(chan TaskContext)
+
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		defer close(out)
+
+		wg := &sync.WaitGroup{}
+
+		for task := range in {
+			if task.Status != STATUS_CREATED {
+				task.Status = STATUS_EXECUTION_ERROR
+				out <- task
+				continue
+			}
+
+			wg.Add(1)
+			go func(t TaskContext) {
+				defer wg.Done()
+				// иммитация выполнения процесса
+				time.Sleep(time.Millisecond * 150)
+				t.ExecutionTime = time.Now()
+				t.Status = STATUS_EXECUTED
+				out <- t
+			}(task)
 		}
-		for r := range undoneTasks {
-			go func() {
-				// Review: гонка
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+
+		wg.Wait()
 	}()
 
-	time.Sleep(time.Second * 3)
+	return out
+}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+// TaskSorter получает выполненные задачи по пайплайну и сохраняет в 2 отдельные массивы.
+// Первый для успешных, воторой для неуспешных.
+// это сделано для сохранения логики вывода в оригинале
+func TaskSorter(in <-chan TaskContext) ([]TaskContext, []TaskContext) {
+	successfulTasks := make([]TaskContext, 0)
+	errorTasks := make([]TaskContext, 0)
+
+	for task := range in {
+		if task.Status == STATUS_EXECUTED {
+			successfulTasks = append(successfulTasks, task)
+			continue
+		}
+
+		errorTasks = append(errorTasks, task)
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	return successfulTasks, errorTasks
+}
+
+// PrintTasks выводит на экран успешные и неуспешные задачи
+// время выводится в милисекундах чтобы было проще взглядом проверить
+func PrintTasks(successfulTasks, errorTasks []TaskContext) {
+	fmt.Println("Done tasks:")
+	for _, task := range successfulTasks {
+		fmt.Printf("ID: %d, created: %d, executed: %d, status: %d\n",
+			task.ID, task.CreationTime.UnixMilli(), task.ExecutionTime.UnixMilli(), task.Status)
+	}
+
+	errorMsg := "something went wrong"
+	for _, task := range errorTasks {
+		fmt.Printf("Task id %d time %d, error %s\n", task.ID, task.CreationTime.UnixMilli(), errorMsg)
 	}
 }
