@@ -111,7 +111,7 @@ func TaskWorker(in <-chan TaskContext) chan TaskContext {
 
 // TaskSorter получает выполненные задачи по пайплайну и сохраняет в 2 отдельные массивы.
 // Первый для успешных, воторой для неуспешных.
-// это сделано для сохранения логики вывода в оригинале
+// это сделано для сохранения логики вывода в оригинале“
 func TaskSorter(in <-chan TaskContext) ([]TaskContext, []TaskContext) {
 	successfulTasks := make([]TaskContext, 0)
 	errorTasks := make([]TaskContext, 0)
