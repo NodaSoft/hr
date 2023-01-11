@@ -1,104 +1,161 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+type TaskStatus string
+type TaskFailedReason string
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
+const (
+	TaskStatusSuccess TaskStatus = "success"
+	TaskStatusFailed  TaskStatus = "failed"
+)
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+const (
+	Timeout     = 3 * time.Second
+	TickerCycle = 150 * time.Millisecond
+)
+
+const NullDivision TaskFailedReason = "nullDivision"
+const NumWorkers = 10
+
+type Task struct {
+	id           int
+	createdAt    string
+	doneAt       string
+	result       TaskStatus
+	failedReason TaskFailedReason
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	defer cancel()
+
+	taskChannel := make(chan Task, NumWorkers)
+	go TaskCreator(ctx, taskChannel)
+
+	successChannels := make([]<-chan Task, NumWorkers)
+	errorChannels := make([]<-chan Task, NumWorkers)
+
+	for i := 0; i < NumWorkers; i++ {
+		successChannel, errorsChannel := Worker(ctx, taskChannel)
+		successChannels[i] = successChannel
+		errorChannels[i] = errorsChannel
+	}
+
+	successChannel := MergeChannels(successChannels)
+	errorsChannel := MergeChannels(errorChannels)
+
+	successTasks, errorTasks := TasksProcessing(successChannel, errorsChannel)
+
+	fmt.Println("Errors:")
+	for _, errorTask := range errorTasks {
+		fmt.Println(errorTask)
+	}
+
+	fmt.Println("Done tasks:")
+	for _, successTask := range successTasks {
+		fmt.Println(successTask.failedReason)
+	}
+}
+
+func TaskCreator(ctx context.Context, taskChannel chan Task) {
+	defer close(taskChannel)
+	for {
+		start := time.Now()
+		currentTime := start.Format(time.RFC3339Nano)
+		task := Task{createdAt: currentTime, id: int(time.Now().Unix())}
+		if time.Since(start).Nanoseconds()%2 > 0 {
+			task.failedReason = NullDivision
+		}
+
+		select {
+		case taskChannel <- task:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func Worker(ctx context.Context, taskChannel <-chan Task) (<-chan Task, <-chan Task) {
+	doneTasks := make(chan Task)
+	errorTasks := make(chan Task)
+
+	go func() {
+		ticker := time.NewTicker(TickerCycle)
+		defer close(doneTasks)
+		defer close(errorTasks)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				task, _ := <-taskChannel
+				if task.failedReason != NullDivision {
+					task.result = TaskStatusSuccess
+					doneTasks <- task
+				} else {
+					task.result = TaskStatusFailed
+					errorTasks <- task
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				task.doneAt = time.Now().Format(time.RFC3339Nano)
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	}()
 
-		time.Sleep(time.Millisecond * 150)
+	return doneTasks, errorTasks
+}
 
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
+func MergeChannels(channels []<-chan Task) <-chan Task {
+	wg := sync.WaitGroup{}
+	outer := make(chan Task)
+	for _, channel := range channels {
+		wg.Add(1)
+		go func(inner <-chan Task) {
+			for {
+				task, ok := <-inner
+				if ok == false {
+					wg.Done()
+					break
+				}
+				outer <- task
+			}
+		}(channel)
 	}
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
+		wg.Wait()
+		close(outer)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	return outer
+}
+
+func TasksProcessing(successChannel <-chan Task, errorsChannel <-chan Task) ([]Task, []Task) {
+	successTasks := make([]Task, 0)
+	errorTasks := make([]Task, 0)
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		for task := range successChannel {
+			successTasks = append(successTasks, task)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+		wg.Done()
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		for task := range errorsChannel {
+			errorTasks = append(errorTasks, task)
+		}
+		wg.Done()
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	wg.Wait()
+	return successTasks, errorTasks
 }
