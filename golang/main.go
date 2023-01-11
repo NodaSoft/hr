@@ -40,7 +40,7 @@ func main() {
 
 // TaskCreator создает задачи и передает дальше по пайплайну
 // создание задач искусственно ограничено в 1 миллисекунду
-func TaskCreator(ctx context.Context) chan TaskContext {
+func TaskCreator(ctx context.Context) <-chan TaskContext {
 	out := make(chan TaskContext)
 
 	go func() {
@@ -77,7 +77,7 @@ func TaskCreator(ctx context.Context) chan TaskContext {
 
 // TaskWorker получает задачи по пайплайну и пере дает дальше
 // исполнение задачи искусственно установлено 150 миллисекунд
-func TaskWorker(in <-chan TaskContext) chan TaskContext {
+func TaskWorker(in <-chan TaskContext) <-chan TaskContext {
 	out := make(chan TaskContext)
 
 	go func() {
