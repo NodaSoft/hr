@@ -16,7 +16,6 @@ const (
 	STATUS_EXECUTION_ERROR
 )
 
-// A Ttype represents a meaninglessness of our life
 type TaskContext struct {
 	ID            int
 	CreationTime  time.Time
