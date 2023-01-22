@@ -20,8 +20,8 @@ import (
 // A Task represents a meaninglessness of our life
 type Task struct {
 	id           int64
-	creationTime string // время создания
-	finishedTime string // время выполнения
+	creationTime time.Time // время создания
+	finishedTime time.Time // время выполнения
 	result       string
 }
 
@@ -36,7 +36,7 @@ func NewTaskManager() *taskManager {
 	}
 }
 
-func (t *taskManager) CreateTask(creationTime string) Task {
+func (t *taskManager) CreateTask(creationTime time.Time) Task {
 	return Task{
 		id:           atomic.AddInt64(&t.id, 1),
 		creationTime: creationTime,
@@ -68,9 +68,9 @@ func main() {
 			case <-ctx.Done():
 				return
 			default:
-				creationTime := time.Now().Format(time.RFC3339)
+				creationTime := time.Now()
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					creationTime = "Some error occured"
+					creationTime = time.Time{}
 				}
 
 				taskWorkerChan <- taskManager.CreateTask(creationTime) // передаем таск на выполнение
@@ -143,16 +143,14 @@ func taskWorkers(ctx context.Context, workChan <-chan Task, result chan<- Task) 
 }
 
 func taskWorker(task Task) Task {
-	tt, _ := time.Parse(time.RFC3339, task.creationTime)
-
 	goal := time.Now().Add(-20 * time.Second)
 
 	task.result = "task has been successed"
-	if !tt.After(goal) {
+	if !task.creationTime.After(goal) {
 		task.result = "something went wrong"
 	}
 
-	task.finishedTime = time.Now().Format(time.RFC3339Nano)
+	task.finishedTime = time.Now()
 
 	time.Sleep(time.Millisecond * 150)
 
