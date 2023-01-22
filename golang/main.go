@@ -81,18 +81,14 @@ func main() {
 	completeTasksChan := make(chan Task)
 	errorsChan := make(chan error)
 
-	taskSorter := func(task Task) {
-		if task.successed {
-			completeTasksChan <- task
-		} else {
-			errorsChan <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
-		}
-	}
-
 	//receiving result from workers pool
 	go func() {
 		for task := range taskResultChan {
-			taskSorter(task)
+			if task.successed {
+				completeTasksChan <- task
+			} else {
+				errorsChan <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
+			}
 		}
 	}()
 
