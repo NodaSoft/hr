@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -19,10 +18,11 @@ import (
 
 // A Task represents a meaninglessness of our life
 type Task struct {
+	successed    bool
 	id           int64
+	result       string
 	creationTime time.Time // время создания
 	finishedTime time.Time // время выполнения
-	result       string
 }
 
 // TODO: can store complete tasks and failed tasks
@@ -79,13 +79,13 @@ func main() {
 	}()
 
 	completeTasksChan := make(chan Task)
-	failedTasksChan := make(chan error)
+	errorsChan := make(chan error)
 
 	taskSorter := func(task Task) {
-		if strings.Contains(task.result, "successed") {
+		if task.successed {
 			completeTasksChan <- task
 		} else {
-			failedTasksChan <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
+			errorsChan <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
 		}
 	}
 
@@ -102,14 +102,14 @@ func main() {
 	go func() {
 		defer func() {
 			close(completeTasksChan)
-			close(failedTasksChan)
+			close(errorsChan)
 		}()
 
 		for {
 			select {
 			case task := <-completeTasksChan:
 				completeTasks[task.id] = task
-			case err := <-failedTasksChan:
+			case err := <-errorsChan:
 				errs = append(errs, err)
 			case <-ctx.Done():
 				return
@@ -145,9 +145,10 @@ func taskWorkers(ctx context.Context, workChan <-chan Task, result chan<- Task) 
 func taskWorker(task Task) Task {
 	goal := time.Now().Add(-20 * time.Second)
 
-	task.result = "task has been successed"
-	if !task.creationTime.After(goal) {
-		task.result = "something went wrong"
+	task.result = "something went wrong"
+	if task.creationTime.After(goal) {
+		task.result = "task has been successed"
+		task.successed = true
 	}
 
 	task.finishedTime = time.Now()
