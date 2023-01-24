@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,6 +24,12 @@ type Ttype struct {
 }
 
 func main() {
+
+	// ID задачи формируется int(time.Now().Unix()) при таком подходе мы получаем дубли
+	// решил использовать счетчик (конечно для промышленного решение не очень, для данной задачи подходит)
+	var id int64
+	id = 0
+
 	taskCreturer := func(a chan Ttype) {
 		go func() {
 			for {
@@ -30,7 +37,8 @@ func main() {
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 					ft = "Some error occured"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				// через atomic увеличиваем номер таска и передаём в канал для исполнения
+				a <- Ttype{cT: ft, id: int(atomic.AddInt64(&id, 1))} // передаем таск на выполнение
 			}
 		}()
 	}
@@ -39,6 +47,7 @@ func main() {
 
 	go taskCreturer(superChan)
 
+	// воркер эмитирует обработку, его не трогал
 	task_worker := func(a Ttype) Ttype {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
@@ -53,8 +62,9 @@ func main() {
 		return a
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	// добавил буфер в каналы, так как ниже будем создавать несколько горутин с воркерами
+	doneTasks := make(chan Ttype, 10)
+	undoneTasks := make(chan error, 10)
 
 	tasksorter := func(t Ttype) {
 		if string(t.taskRESULT[14:]) == "successed" {
@@ -64,30 +74,44 @@ func main() {
 		}
 	}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+	// запускаем 10 горутин для обработки канала superChan
+	// 10 штук согласно буферу канала superChan, тут есть поле для развития, нужно учитывать наполнение канала
+	for i := 0; i < 10; i++ {
+		go func() {
+			// получение тасков
+			for {
+				// range поменял на select для работы с каналом в несколько горутин
+				select {
+				case <-superChan:
+					t := task_worker(<-superChan)
+					go tasksorter(t)
+				default:
+				}
+			}
+			// конечно этот код никогда не исполнится, но закрывать канал читателем не верно, может быть паника
+			//close(superChan)
+		}()
+	}
 
-	result := map[int]Ttype{}
+	// map сразу делаем с выделением памяти, чтобы не алоцировать при вставке
+	result := make(map[int]Ttype, 100)
 	err := []error{}
+	// осталась 1на горутина читатель, операции простые обрабатываются по поступлению (наполнятся длолжны медленне чем читаться из канала)
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
+		for {
+			// select  в данном случае удобен, так как мы можем обрабатывать несколько каналов
+			select {
+			case <-undoneTasks:
+				r := <-undoneTasks
 				err = append(err, r)
-			}()
+			case <-doneTasks:
+				r := <-doneTasks
+				result[r.id] = r
+			default:
+			}
 		}
-		close(doneTasks)
-		close(undoneTasks)
+		//close(doneTasks)
+		//close(undoneTasks)
 	}()
 
 	time.Sleep(time.Second * 3)
@@ -101,4 +125,9 @@ func main() {
 	for r := range result {
 		println(r)
 	}
+	// добавил общее количество обработанных тасков (просто удобно смотреть при запусках)
+	println("=======")
+	println(len(result))
+
+	//P.S. Старался вносить в код минимум изменений, так конечно он требует рефакторинга. И есть огромное поле для развития с количеством воркеров и наполнением каналов и т.д.
 }
