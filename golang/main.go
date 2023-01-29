@@ -3,9 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // ЗАДАНИЕ:
@@ -25,13 +24,21 @@ type Ttype struct {
 	taskResult []byte
 }
 
+func NewTtype() *Ttype {
+	t := time.Now()
+	ct := t.Format(time.RFC3339)
+	if t.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков (странное условие но пусть будет)
+		ct = "Some error occured"
+	}
+	return &Ttype{cT: ct, id: int(t.Unix())}
+}
+
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	superChan := make(chan *Ttype, 10)
 	doneTasks := make(chan *Ttype)
 	undoneTasks := make(chan error)
-
 	go createTask(ctx, superChan)
 
 	result := map[int]Ttype{}
@@ -46,18 +53,10 @@ func main() {
 			err = append(err, r)
 		}
 	}()
-
-	workerNumber := 5
-	g := errgroup.Group{}
-	for i := 0; i < workerNumber; i++ {
-		w := task_worker{
-			ch:          superChan,
-			doneTasks:   doneTasks,
-			undoneTasks: undoneTasks,
-		}
-		g.Go(w.do)
-	}
-	g.Wait()
+	w := &sync.WaitGroup{}
+	w.Add(1)
+	go taskWorker(superChan, doneTasks, undoneTasks, w)
+	w.Wait()
 	close(undoneTasks)
 	close(doneTasks)
 
@@ -72,8 +71,30 @@ func main() {
 	}
 }
 
+func taskWorker(ch <-chan *Ttype, doneTasks chan<- *Ttype, undoneTasks chan<- error, w *sync.WaitGroup) {
+	defer w.Done()
+	wg := sync.WaitGroup{}
+	for t := range ch {
+		wg.Add(1)
+		go func(a *Ttype, doneTasks chan<- *Ttype, undoneTasks chan<- error) {
+			defer wg.Done()
+			if !IsTaskValid(a) {
+				a.taskResult = []byte("something went wrong")
+				undoneTasks <- fmt.Errorf("task id %d time %s, error %s", a.id, a.cT, a.taskResult)
+				return
+			}
+			a.taskResult = []byte("task has been successed")
+			a.fT = time.Now().Format(time.RFC3339Nano)
+			time.Sleep(time.Millisecond * 1500)
+			doneTasks <- a
+		}(t, doneTasks, undoneTasks)
+	}
+	wg.Wait()
+}
+
 func createTask(ctx context.Context, a chan<- *Ttype) {
 	//чтобы таски не дублировались с одинаковым ID будем их запускать через 1с
+	a <- NewTtype()
 	t := time.NewTicker(time.Second)
 	for {
 		select {
@@ -85,43 +106,16 @@ func createTask(ctx context.Context, a chan<- *Ttype) {
 			}
 		case <-t.C:
 			{
-				t := time.Now()
-				ct := t.Format(time.RFC3339)
-				if t.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков (странное условие но пусть будет)
-					ct = "Some error occured"
-				}
-				a <- &Ttype{cT: ct, id: int(t.Unix())} // передаем таск на выполнение
+				a <- NewTtype() // передаем таск на выполнение
 			}
 		}
 	}
-
 }
 
-type task_worker struct {
-	ch          <-chan *Ttype
-	doneTasks   chan<- *Ttype
-	undoneTasks chan<- error
-}
-
-func (t *task_worker) do() error {
-	for a := range t.ch {
-		isErr := false
-		tt, err := time.Parse(time.RFC3339, a.cT)
-		if err != nil || !tt.After(time.Now().Add(-20*time.Second)) {
-			a.taskResult = []byte("something went wrong")
-			isErr = true
-			//return err
-		} else {
-			a.taskResult = []byte("task has been successed")
-		}
-
-		a.fT = time.Now().Format(time.RFC3339Nano)
-		time.Sleep(time.Millisecond * 1500)
-		if isErr {
-			t.undoneTasks <- fmt.Errorf("task id %d time %s, error %s", a.id, a.cT, a.taskResult)
-		} else {
-			t.doneTasks <- a
-		}
+func IsTaskValid(a *Ttype) bool {
+	t, err := time.Parse(time.RFC3339, a.cT)
+	if err != nil || !t.After(time.Now().Add(-20*time.Second)) {
+		return false
 	}
-	return nil
+	return true
 }
