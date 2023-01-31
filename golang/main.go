@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,11 @@ type Task struct {
 	created, carried, result string
 }
 
+type CMap struct {
+	sync.Mutex
+	res map[string][]interface{}
+}
+
 func tasksCreator(a chan<- Task, l int) {
 	for ; l > 0; l-- {
 		ft := time.Now().Format(time.RFC3339)
@@ -30,20 +36,25 @@ func tasksCreator(a chan<- Task, l int) {
 	close(a)
 }
 
-func tasksWorker(s <-chan Task, done chan<- bool, r map[string][]interface{}) {
+func tasksWorker(s <-chan Task, done chan<- bool, r *CMap) {
 	for {
 		task, open := <-s
+
 		if open {
 			t := handleTask(task)
 
 			if string(t.result[14:]) == "successed" {
-				r["Done tasks"] = append(r["Done tasks"], t.id)
+				r.Lock()
+				r.res["Done tasks"] = append(r.res["Done tasks"], t.id)
+				r.Unlock()
 			} else {
-				r["Errors"] = append(
-					r["Errors"],
+				r.Lock()
+				r.res["Errors"] = append(
+					r.res["Errors"],
 					fmt.Errorf("task id %d time %s, error %s",
 						t.id, t.created, t.result),
 				)
+				r.Unlock()
 			}
 
 		} else {
@@ -70,17 +81,21 @@ func handleTask(a Task) Task {
 func main() {
 	tasksLen := 10
 	created, done := make(chan Task), make(chan bool)
-	result := map[string][]interface{}{
-		"Errors":     make([]interface{}, 0),
-		"Done tasks": make([]interface{}, 0),
+
+	result := CMap{
+		Mutex: sync.Mutex{},
+		res: map[string][]interface{}{
+			"Errors":     make([]interface{}, 0),
+			"Done tasks": make([]interface{}, 0),
+		},
 	}
 
 	go tasksCreator(created, tasksLen)
-	go tasksWorker(created, done, result)
+	go tasksWorker(created, done, &result)
 
 	<-done
 
-	for k, v := range result {
+	for k, v := range result.res {
 		fmt.Println(k + ":")
 		for _, el := range v {
 			fmt.Println(el)
