@@ -1,0 +1,17 @@
+{
+    "autoload": {
+        "psr-4": {
+            "NodaSoft\\": "php"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true
+        },
+        "sort-packages": true
+    },
+    "require": {
+        "php": "^8.0",
+        "ext-pdo": "*"
+    }
+}
