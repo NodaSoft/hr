@@ -14,7 +14,7 @@ use PDOException;
 /**
  * Извлечение поля "key" из JSON-строки "settings" производится средствами PHP
  */
-final class UserMySqlRepository implements UserRepositoryInterface
+final class UserMySqlRepository1 implements UserRepositoryInterface
 {
     /**
      * @param PDO $dbh
