@@ -1,0 +1,15 @@
+{
+    "name": "denis/testtask",
+    "autoload": {
+        "psr-4": {
+            "": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Denis Oleshkevich",
+            "email": "denis@oleshkevich.ru"
+        }
+    ],
+    "require": {}
+}
