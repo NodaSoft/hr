@@ -1,0 +1,20 @@
+{
+    "name": "aivazoff/noda_soft",
+    "type": "project",
+    "license": "mit",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Arthur Aivazoff",
+            "email": "arthur.aivazoff@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo": "*"
+    }
+}
