@@ -6,6 +6,7 @@ use \App\Entity\User;
 
 $userManager = new \App\Manager\User();
 
+// Добавляение пользователей в базу данных.
 try {
 
     $ids = $userManager->addUsers(
@@ -17,12 +18,14 @@ try {
 
     var_dump($ids);
 
-} catch(\App\Exception\EntityManagerException $e) {
+} catch(\Exception $e) {
     exit($e->getMessage());
 }
 
+// Получаем пользователей по списку имен.
 if($names = filter_input(INPUT_GET, 'names', FILTER_DEFAULT, FILTER_REQUIRE_ARRAY)) {
     var_dump($userManager->getByNames($names));
 }
 
-var_dump($userManager->getUsers(2, 5));
+// Получаем пользователей старше заданного возраста.
+var_dump($userManager->getUsers(21, 5));
