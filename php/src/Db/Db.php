@@ -7,13 +7,13 @@ use PDO;
 class Db
 {
     /**
-     * @var static
+     * @var static|null
      */
-    private static $instance;
+    private static ?Db $instance = null;
     /**
-     * @var \PDO
+     * @var \PDO|null
      */
-    private $pdo;
+    private ?PDO $pdo = null;
 
     public static function i(): self
     {
