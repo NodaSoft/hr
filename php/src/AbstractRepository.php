@@ -26,12 +26,12 @@ abstract class AbstractRepository
         return $this->em;
     }
 
-    public function find(int $id)
+    public function find(int $id): object
     {
         return $this->em->find($this->entityName, $id);
     }
 
-    public function findOnBy(array $criteria, array $orderBy = [])
+    public function findOnBy(array $criteria, array $orderBy = []): object
     {
         return $this->em->findOnBy($this->entityName, ...func_get_args());
     }

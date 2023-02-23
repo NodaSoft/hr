@@ -2,10 +2,6 @@
 
 namespace App\ORM;
 
-use App\ORM\Column;
-use App\ORM\ColumnType;
-use App\ORM\ID;
-use ReflectionException;
 use ReflectionObject;
 use ReflectionProperty;
 
@@ -20,10 +16,8 @@ class EntityMetadata extends EntityClassMetadata
     {
         $values = [];
 
-        foreach($this->reflect->getProperties() as $prop) {
-            if(!($attrs = $prop->getAttributes(Column::class))) {
-                continue;
-            }
+        foreach($this->getProps() as $prop) {
+            $attrs = $prop->getAttributes(Column::class);
 
             /** @var Column $attr */
             $attr = $attrs[0]->newInstance();
@@ -40,6 +34,16 @@ class EntityMetadata extends EntityClassMetadata
         }
 
         return $values;
+    }
+
+    /**
+     * @return \ReflectionProperty[]
+     */
+    public function getProps(): array
+    {
+        return array_filter($this->reflect->getProperties(), function($prop){
+            return count($prop->getAttributes(Column::class)) > 0;
+        });
     }
 
     public function getIdProperty(): ?ReflectionProperty

@@ -15,6 +15,11 @@ class EntityManager
     private static ?PDO $_connection = null;
 
     /**
+     * @psalm-var  array<[string, callable]>
+     */
+    private array $eventHandlers = [];
+
+    /**
      * @var UnitOfWork[]
      */
     private array $units = [];
@@ -122,6 +127,11 @@ class EntityManager
         $this->addUnit($entity);
     }
 
+    public function onUpdate(callable $fn): void
+    {
+        $this->eventHandlers[] = ['update', $fn];
+    }
+
     /**
      * @throws Exception
      */
@@ -146,6 +156,7 @@ class EntityManager
                             $idProp = $meta->getIdProperty()->getName();
                             $values = array_filter($meta->getValues(), fn($k) => $k !== $idProp, ARRAY_FILTER_USE_KEY);
                             $builder->update($values, [$idProp => $meta->getIdPropertyValue()])->query();
+                            $this->dispatch('update', $unit->entity);
                         }
                         break;
 
@@ -156,8 +167,15 @@ class EntityManager
                 }
             }
         });
+    }
 
-        $this->units = [];
+    private function dispatch(string $event, ...$args): void
+    {
+        foreach($this->eventHandlers as list($ev, $fn)) {
+            if($ev === $event) {
+                call_user_func_array($fn, $args);
+            }
+        }
     }
 
     public function lastInsertId(): string|bool {

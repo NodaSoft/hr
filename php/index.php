@@ -36,7 +36,7 @@ if($names = filter_input(INPUT_GET, 'names', FILTER_DEFAULT, FILTER_REQUIRE_ARRA
 
 $user = $userManager->getUser(2);
 
-var_dump($user);
+var_dump(spl_object_id($user), $user);
 
 $user->setName('Arthur');
 $user->setLastName('Aivazov');
@@ -45,4 +45,5 @@ $user->setSettings(['foo' => 'bar']);
 $userManager->getEntityManager()->flush();;
 
 
-var_dump($userManager->getUser(2));
+$user2 = $userManager->getUser(2);
+var_dump(spl_object_id($user2), $user2);

@@ -14,6 +14,11 @@ class UnitOfWork
     ){
         $this->entityMetadata = $em->getEntityMetadata($entity);
         $this->values = $this->entityMetadata->getValues();
+        $em->onUpdate(function(object $entity){
+            if($entity === $this->entity) {
+                $this->values = $this->entityMetadata->getValues();
+            }
+        });
     }
 
     public function isModified(): bool {
