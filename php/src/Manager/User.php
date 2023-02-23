@@ -11,11 +11,33 @@ use Exception;
 
 class User
 {
+    private readonly EntityManager $em;
     private readonly UserRepository $repo;
 
     public function __construct()
     {
-        $this->repo = new UserRepository(new EntityManager());
+        $this->em = new EntityManager();
+        $this->repo = new UserRepository($this->em);
+    }
+
+    public function getUser(int $id): Entity\User {
+        return $this->repo->find($id);
+    }
+
+    /**
+     * @return EntityManager
+     */
+    public function getEntityManager(): EntityManager
+    {
+        return $this->em;
+    }
+
+    /**
+     * @return UserRepository
+     */
+    public function getRepository(): UserRepository
+    {
+        return $this->repo;
     }
 
     /**

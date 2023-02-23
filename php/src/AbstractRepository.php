@@ -9,15 +9,13 @@ abstract class AbstractRepository
 {
     public function __construct(
         protected readonly EntityManager $em,
-        private readonly string $entityClass
+        private readonly string $entityName
     ){
     }
 
     public function queryBuilder(): ORM\QueryBuilder
     {
-        $em = $this->getEntityManager();
-        $meta = $em->getEntityClassMetadata($this->entityClass);
-        return $em->queryBuilder()->from($this->entityClass, $meta->from);
+        return $this->getEntityManager()->queryBuilder()->from($this->entityName);
     }
 
     /**
@@ -28,40 +26,18 @@ abstract class AbstractRepository
         return $this->em;
     }
 
-    public function find(int $id) {
-        return $this->queryBuilder()->where('id', $id)->fetchOne();
+    public function find(int $id)
+    {
+        return $this->em->find($this->entityName, $id);
     }
 
-    public function findOnBy(array $criteria, array $orderBy = []) {
-        $builder = $this->queryBuilder();
-
-        foreach($criteria as $param => $value) {
-            $builder->where($param, $value);
-        }
-
-        foreach($orderBy as $col => $order) {
-            $builder->orderBy($col, $order);
-        }
-
-        return $builder->fetchOne();
+    public function findOnBy(array $criteria, array $orderBy = [])
+    {
+        return $this->em->findOnBy($this->entityName, ...func_get_args());
     }
 
-    public function findAll(array $criteria, array $orderBy = [], int $limit = null): array {
-
-        $builder = $this->queryBuilder();
-
-        foreach($criteria as $param => $value) {
-            $builder->where($param, $value);
-        }
-
-        foreach($orderBy as $col => $order) {
-            $builder->orderBy($col, $order);
-        }
-
-        if($limit) {
-            $builder->limit($limit);
-        }
-
-        return $builder->fetchAll();
+    public function findAll(array $criteria = [], array $orderBy = [], int $limit = null): array
+    {
+        return $this->em->findAll($this->entityName, ...func_get_args());
     }
 }

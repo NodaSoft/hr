@@ -6,6 +6,6 @@ class SelectBuilder extends AbstractBuilder
 {
     protected function preBuild(): string
     {
-        return "SELECT * FROM `{$this->queryBuilder->getFrom()}` WHERE 1";
+        return "SELECT * FROM `{$this->queryBuilder->getFrom()}`";
     }
 }

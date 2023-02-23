@@ -1,6 +1,6 @@
 <?php
 
-namespace App;
+namespace App\ORM;
 
 use App\ORM\Column;
 use App\ORM\ColumnType;
@@ -42,11 +42,29 @@ class EntityMetadata extends EntityClassMetadata
         return $values;
     }
 
-    public function getIdProperty(): ?ReflectionProperty {
+    public function getIdProperty(): ?ReflectionProperty
+    {
         foreach($this->reflect->getProperties() as $prop){
             if($prop->getAttributes(ID::class)){
                 return $prop;
             }
         }
+
+        return null;
+    }
+
+    public function getIdPropertyValue(): int | string | null
+    {
+        foreach($this->reflect->getProperties() as $prop){
+            if($prop->getAttributes(ID::class)){
+                return $prop->getValue($this->entity);
+            }
+        }
+
+        return null;
+    }
+
+    public function getEntityObjectId(): string {
+        return spl_object_id($this->entity);
     }
 }

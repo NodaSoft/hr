@@ -15,7 +15,7 @@ class QueryBuilder
     private array $conds = [];
     private array $params = [];
     private string $type = SelectBuilder::class;
-    private $entityClass;
+    private $entityName;
     private $from;
 
     public function __construct(public readonly EntityManager $em)
@@ -33,16 +33,17 @@ class QueryBuilder
     /**
      * @return string
      */
-    public function getEntityClass(): string
+    public function getEntityName(): string
     {
-        return $this->entityClass;
+        return $this->entityName;
     }
 
 
-    public function from(string $entityClass, string $from): static
+    public function from(string $entityName): static
     {
-        $this->entityClass = $entityClass;
-        $this->from = $from;
+        $meta = $this->em->getEntityClassMetadata($entityName);
+        $this->entityName = $entityName;
+        $this->from = $meta->from;
         return $this;
     }
 
@@ -104,27 +105,27 @@ class QueryBuilder
         return $this;
     }
 
-    public function where(string $col, mixed $synbolOrValue, mixed $value = null): static {
+    public function where(string $col, mixed $operatorOrValue, mixed $value = null): static {
         return $this->andWhere(...func_get_args());
     }
 
-    public function andWhere(string $col, mixed $synbolOrValue, mixed $value = null): static {
+    public function andWhere(string $col, mixed $operatorOrValue, mixed $value = null): static {
         if(func_num_args() == 2) {
-            $value = $synbolOrValue;
-            $synbolOrValue = '=';
+            $value = $operatorOrValue;
+            $operatorOrValue = '=';
         }
         $this->params[$col] = $value;
-        $this->conds[] = ['and', $synbolOrValue, $col];
+        $this->conds[] = ['and', $operatorOrValue, $col];
         return $this;
     }
 
-    public function orWhere(string $col, mixed $synbolOrValue, mixed $value = null): static {
+    public function orWhere(string $col, mixed $operatorOrValue, mixed $value = null): static {
         if(func_num_args() == 2) {
-            $value = $synbolOrValue;
-            $synbolOrValue = '=';
+            $value = $operatorOrValue;
+            $operatorOrValue = '=';
         }
         $this->params[$col] = $value;
-        $this->conds[] = ['or', $synbolOrValue, $col];
+        $this->conds[] = ['or', $operatorOrValue, $col];
         return $this;
     }
 
@@ -138,8 +139,12 @@ class QueryBuilder
         return $this;
     }
 
-    public function update(): static {
+    public function update(array $data, array $where): static {
         $this->type = UpdateBuilder::class;
+        $this->setParams($data);
+        foreach($where as $col => $value) {
+            $this->where($col, $value);
+        }
         return $this;
     }
 
@@ -163,16 +168,17 @@ class QueryBuilder
         return (new $this->type($this))->build();
     }
 
-    public function fetchOne() {
-        if($item = $this->query()->fetchObject($this->getEntityClass())) {
-            $item = $this->normalizeObject($item);
+    public function fetchOne(): object {
+        if($item = $this->query()->fetchObject($this->getEntityName())) {
+            $item = $this->em->hydration($item);
         }
+
         return $item;
     }
 
     public function fetchAll(): array {
-        if($items = $this->query()->fetchAll(PDO::FETCH_CLASS, $this->getEntityClass())) {
-            $items = array_map(fn($it) => $this->normalizeObject($it), $items);
+        if($items = $this->query()->fetchAll(PDO::FETCH_CLASS, $this->getEntityName())) {
+            $items = $this->em->hydrationAll($items);
         }
 
         return $items;
@@ -180,26 +186,5 @@ class QueryBuilder
 
     public function query(): \PDOStatement {
         return $this->em->query($this->build(), $this->params);
-    }
-
-    private function normalizeObject(object $obj): object {
-        $reflect = new \ReflectionObject($obj);
-
-        foreach($reflect->getProperties() as $prop) {
-            if(!($attrs = $prop->getAttributes(Column::class))) {
-                continue;
-            }
-
-            /**
-             * @var Column $attr
-             */
-            $attr = $attrs[0]->newInstance();
-
-            if($attr->type == ColumnType::JSON and ($json = $prop->getValue($obj))) {
-                $prop->setValue($obj, json_decode($json));
-            }
-        }
-
-        return $obj;
     }
 }

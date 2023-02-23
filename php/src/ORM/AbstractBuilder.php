@@ -15,18 +15,25 @@ abstract class AbstractBuilder
         $params = $this->queryBuilder->getParams();
         $conn = $this->queryBuilder->em->connection;
 
-        foreach($this->queryBuilder->getConds() as list($cond, $synbol, $col)) {
-            $key = ":$col";
+        if($conds = $this->queryBuilder->getConds()) {
 
-            if(is_array($params[$col])) {
-                $in = join(', ', array_map([$conn, 'quote'], $params[$col]));
-                unset($params[$col]);
-                $this->queryBuilder->setParams($params);
-                $key = "($in)";
-                $synbol = 'IN';
+            $sql .= " WHERE 1";
+
+            foreach($conds as list($cond, $operator, $col)) {
+
+                $cond = strtoupper($cond);
+                $key = ":$col";
+
+                if(is_array($params[$col])) {
+                    $in = join(', ', array_map([$conn, 'quote'], $params[$col]));
+                    unset($params[$col]);
+                    $this->queryBuilder->setParams($params);
+                    $key = "($in)";
+                    $operator = 'IN';
+                }
+
+                $sql .= " $cond `$col` $operator $key ";
             }
-
-            $sql .= " $cond `$col` $synbol $key ";
         }
 
         if($orderBy = $this->queryBuilder->getOrderBy()) {

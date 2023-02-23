@@ -7,7 +7,7 @@ use \App\Entity\User;
 $userManager = new \App\Manager\User();
 
 // Добавляение пользователей в базу данных.
-try {
+/*try {
 
     $ids = $userManager->addUsers(
         (new User())->setName('User 1')->setAge(21)->setSettings([]),
@@ -16,11 +16,9 @@ try {
         (new User())->setName('User 4')->setAge(20)
     );
 
-    var_dump($ids);
-
 } catch(\Exception $e) {
     exit($e->getMessage());
-}
+}*/
 
 // Получаем пользователей по списку имен.
 if($names = filter_input(INPUT_GET, 'names', FILTER_DEFAULT, FILTER_REQUIRE_ARRAY)) {
@@ -28,4 +26,23 @@ if($names = filter_input(INPUT_GET, 'names', FILTER_DEFAULT, FILTER_REQUIRE_ARRA
 }
 
 // Получаем пользователей старше заданного возраста.
-var_dump($userManager->getUsers(21, 5));
+// var_dump($userManager->getUsers(21, 5));
+
+
+/*foreach($userManager->getRepository()->findAll() as $i => $user) {
+    $user->setName("User {$i}");
+    $user->setAge(rand(18, 70));
+}*/
+
+$user = $userManager->getUser(2);
+
+var_dump($user);
+
+$user->setName('Arthur');
+$user->setLastName('Aivazov');
+$user->setAge(45);
+$user->setSettings(['foo' => 'bar']);
+$userManager->getEntityManager()->flush();;
+
+
+var_dump($userManager->getUser(2));

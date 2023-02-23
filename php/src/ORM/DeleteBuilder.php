@@ -6,6 +6,6 @@ class DeleteBuilder extends AbstractBuilder
 {
     function preBuild(): string
     {
-        return "DELETE FROM `{$this->queryBuilder->getFrom()}` WHERE 1";
+        return "DELETE FROM `{$this->queryBuilder->getFrom()}`";
     }
 }

@@ -9,7 +9,7 @@ use App\ORM\OrderBy;
 /**
  * @method User find(int $id)
  * @method User findOnBy(array $criteria, array $orderBy = [])
- * @method User[] findAll(array $criteria, array $orderBy = [], int $limit = null)
+ * @method User[] findAll(array $criteria = [], array $orderBy = [], int $limit = null)
  */
 class UserRepository extends \App\AbstractRepository
 {
