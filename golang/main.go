@@ -14,83 +14,83 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id            int
+	createTime    string
+	executionTime string
+	taskResult    []byte
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	taskCreator := func(a chan Task) {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
+				createTime := time.Now().Format(time.RFC3339)
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+					createTime = "Some error occured"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- Task{id: int(time.Now().Unix()), createTime: createTime} // передаем таск на выполнение
 			}
 		}()
 	}
 
-	superChan := make(chan Ttype, 10)
+	taskChan := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskCreator(taskChan)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
+	taskWorker := func(a Task) Task {
+		tt, _ := time.Parse(time.RFC3339, a.createTime)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+			a.taskResult = []byte("task has been successed")
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			a.taskResult = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+		a.executionTime = time.Now().Format(time.RFC3339Nano)
 
-		time.Sleep(time.Millisecond * 150)
+		//time.Sleep(time.Millisecond * 150)
 
 		return a
 	}
 
-	doneTasks := make(chan Ttype)
+	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
+	taskSorter := func(t Task) {
+		if string(t.taskResult[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.createTime, t.taskResult)
 		}
 	}
 
 	go func() {
 		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		for task := range taskChan {
+			task = taskWorker(task)
+			go taskSorter(task)
 		}
-		close(superChan)
+		close(taskChan)
 	}()
 
-	result := map[int]Ttype{}
+	result := map[int]Task{}
 	err := []error{}
 	go func() {
-		for r := range doneTasks {
+		for doneTask := range doneTasks {
 			go func() {
-				result[r.id] = r
+				result[doneTask.id] = doneTask
 			}()
 		}
-		for r := range undoneTasks {
+		for undoneTask := range undoneTasks {
 			go func() {
-				err = append(err, r)
+				err = append(err, undoneTask)
 			}()
 		}
 		close(doneTasks)
 		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	//time.Sleep(time.Second * 3)
 
 	println("Errors:")
 	for r := range err {
