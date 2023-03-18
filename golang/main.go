@@ -33,38 +33,6 @@ func init() {
 	undoneTasks = make(chan error)
 }
 
-func taskCreator(taskChan chan Task) {
-	for {
-		createTime := time.Now().Format(time.RFC3339)
-		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-			createTime = "Some error occured"
-		}
-		taskChan <- Task{id: int(time.Now().Unix()), createTime: createTime} // передаем таск на выполнение
-	}
-}
-
-func taskWorker(task Task) Task {
-	taskTime, _ := time.Parse(time.RFC3339, task.createTime)
-	if taskTime.After(time.Now().Add(-20 * time.Second)) {
-		task.taskResult = []byte("task has been successed")
-	} else {
-		task.taskResult = []byte("something went wrong")
-	}
-	task.executionTime = time.Now().Format(time.RFC3339Nano)
-
-	time.Sleep(time.Millisecond * 150)
-
-	return task
-}
-
-func taskSorter(task Task) {
-	if string(task.taskResult[14:]) == "successed" {
-		doneTasks <- task
-	} else {
-		undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.createTime, task.taskResult)
-	}
-}
-
 func main() {
 	println("Please wait 3 seconds")
 
@@ -106,6 +74,42 @@ func main() {
 	close(doneTasks)
 	close(undoneTasks)
 
+	outputResult(result, err)
+}
+
+func taskCreator(taskChan chan Task) {
+	for {
+		createTime := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			createTime = "Some error occured"
+		}
+		taskChan <- Task{id: int(time.Now().Unix()), createTime: createTime} // передаем таск на выполнение
+	}
+}
+
+func taskWorker(task Task) Task {
+	taskTime, _ := time.Parse(time.RFC3339, task.createTime)
+	if taskTime.After(time.Now().Add(-20 * time.Second)) {
+		task.taskResult = []byte("task has been successed")
+	} else {
+		task.taskResult = []byte("something went wrong")
+	}
+	task.executionTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return task
+}
+
+func taskSorter(task Task) {
+	if string(task.taskResult[14:]) == "successed" {
+		doneTasks <- task
+	} else {
+		undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.createTime, task.taskResult)
+	}
+}
+
+func outputResult(result map[int]Task, err []error) {
 	println("Done tasks:")
 	for val := range result {
 		println(val)
