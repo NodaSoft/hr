@@ -1,0 +1,20 @@
+2023/04/19 10:35:12 Creator 2 ended 4
+2023/04/19 10:35:12 Creator 1 ended 4
+2023/04/19 10:35:12 Creator 3 ended 4
+
+Errors: 6
+Task id 1681889712351113961 time Some error occured, error something went wrong, ct=Some error occured
+Task id 1681889712353407423 time Some error occured, error something went wrong, ct=Some error occured
+Task id 1681889712353412816 time Some error occured, error something went wrong, ct=Some error occured
+Task id 1681889712353396318 time Some error occured, error something went wrong, ct=Some error occured
+Task id 1681889712354508683 time Some error occured, error something went wrong, ct=Some error occured
+Task id 1681889712354526078 time Some error occured, error something went wrong, ct=Some error occured
+
+Done tasks: 6
+1681889712351119180: task has been successed
+1681889712351136253: task has been successed
+1681889712352304025: task has been successed
+1681889712352309121: task has been successed
+1681889712352282082: task has been successed
+1681889712354521824: task has been successed
+Process finished with the exit code 0
