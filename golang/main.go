@@ -22,7 +22,7 @@ import (
 const (
 	AppLifetime  = time.Second * 3
 	TaskDuration = time.Millisecond * 150
-	MaxTaskCount = AppLifetime/TaskDuration + 1
+	MaxTaskCount = int(AppLifetime/TaskDuration) + 1
 )
 
 // A Task represents a meaninglessness of our life
@@ -55,12 +55,12 @@ func (manager *TaskManager) NewTask() *Task {
 
 func (manager *TaskManager) PrintResult() {
 	fmt.Println("Errors:")
-	for err := range manager.errors {
+	for _, err := range manager.errors {
 		fmt.Println(err)
 	}
 
 	fmt.Println("Done tasks:")
-	for task := range manager.result {
+	for _, task := range manager.result {
 		fmt.Println(task)
 	}
 }
@@ -169,7 +169,7 @@ func (manager *TaskManager) waitForClose() {
 
 func main() {
 	taskManager := &TaskManager{
-		result: make([]*Task, 0, int(MaxTaskCount)),
+		result: make([]*Task, 0, MaxTaskCount),
 		errors: make([]error, 0, int(MaxTaskCount/10)),
 	}
 
