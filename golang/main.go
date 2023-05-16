@@ -69,7 +69,7 @@ func main() {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
-	ctx, _ := context.WithTimeout(context.Background(), Timout)
+	ctx, cancel := context.WithTimeout(context.Background(), Timout)
 
 	workerWg := &sync.WaitGroup{}
 	workerWg.Add(WorkersCount)
@@ -133,4 +133,5 @@ func main() {
 	for r := range result {
 		println(r)
 	}
+	cancel()
 }
