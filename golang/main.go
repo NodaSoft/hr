@@ -69,9 +69,9 @@ func main() {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), Timout)
+	ctx, cancel := context.WithTimeout(context.Background(), Timout) // контекст для остановки всех воркеров по требованию или таймауту
 
-	workerWg := &sync.WaitGroup{}
+	workerWg := &sync.WaitGroup{} // считаем включеные воркеры
 	workerWg.Add(WorkersCount)
 	for i := 0; i < WorkersCount; i++ {
 		go func(ctx context.Context) {
@@ -90,12 +90,12 @@ func main() {
 		}(ctx)
 	}
 	go func() {
-		workerWg.Wait()
+		workerWg.Wait() //если все воркеры закончили работу, закрываем выходной канал
 		close(handledTasks)
 	}()
 
 	go func() {
-		defer close(doneTasks)
+		defer close(doneTasks) //если обработанных таск больше нет то и сортированные больше не появятся, закрываем
 		defer close(undoneTasks)
 		for t := range handledTasks {
 			tasksorter(t)
@@ -107,6 +107,8 @@ func main() {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+
+	// редюссер
 	go func() {
 		defer wg.Done()
 		for r := range doneTasks {
@@ -120,9 +122,9 @@ func main() {
 			err = append(err, r)
 		}
 	}()
-
+	//
 	<-ctx.Done()
-	wg.Wait()
+	wg.Wait() //ждем пока редюсерр закончит с завершающими задачи после таймаута/отмены
 
 	println("Errors:")
 	for r := range err {
