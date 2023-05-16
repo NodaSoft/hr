@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -21,6 +23,9 @@ type Ttype struct {
 	fT         string // время выполнения
 	taskRESULT []byte
 }
+
+const WorkersCount = 70000
+const Timout = 3 * time.Second
 
 func main() {
 	taskCreturer := func(a chan Ttype) {
@@ -53,6 +58,7 @@ func main() {
 		return a
 	}
 
+	handledTasks := make(chan Ttype)
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
 
@@ -63,34 +69,60 @@ func main() {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
+	ctx, _ := context.WithTimeout(context.Background(), Timout)
+
+	workerWg := &sync.WaitGroup{}
+	workerWg.Add(WorkersCount)
+	for i := 0; i < WorkersCount; i++ {
+		go func(ctx context.Context) {
+			defer workerWg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case t, ok := <-superChan:
+					if !ok {
+						return
+					}
+					handledTasks <- task_worker(t)
+				}
+			}
+		}(ctx)
+	}
+	go func() {
+		workerWg.Wait()
+		close(handledTasks)
+	}()
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		defer close(doneTasks)
+		defer close(undoneTasks)
+		for t := range handledTasks {
+			tasksorter(t)
 		}
-		close(superChan)
 	}()
 
 	result := map[int]Ttype{}
 	err := []error{}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+			result[r.id] = r
 		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+			err = append(err, r)
 		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	<-ctx.Done()
+	wg.Wait()
 
 	println("Errors:")
 	for r := range err {
