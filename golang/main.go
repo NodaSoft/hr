@@ -2,101 +2,95 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 )
 
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнения остальных тасков
+// в конце должно выводить успешные таски и ошибки выполнения остальных тасков
 
 // A Task represents a meaninglessness of our life
 type Task struct {
-	CreationTime string // время создания
+	CreationTime string
 	ID           int
-	TaskResult   []byte
-	FinishTime   string // время выполнения
+	Result       []byte
+	FinishTime   string
 }
 
 func main() {
-	taskCreator := func(taskChan chan Task) {
+	createTask := func(taskChan chan Task) {
 		go func() {
 			for {
-				formattedTime := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 {
-					formattedTime = "Some error occurred"
+				creationTime := time.Now().Format(time.RFC3339)
+				id := int(time.Now().UnixMicro())
+				if id%2 > 0 {
+					creationTime = "Some error occurred"
 				}
-				taskChan <- Task{CreationTime: formattedTime, ID: int(time.Now().Unix())}
+				taskChan <- Task{CreationTime: creationTime, ID: id, Result: nil, FinishTime: ""}
 			}
 		}()
 	}
 
-	taskChan := make(chan Task, 10)
-
-	go taskCreator(taskChan)
-
-	var wg sync.WaitGroup
-	wg.Add(10)
-
-	doneTasks := make(chan Task)
-	undoneTasks := make(chan error)
-	taskWorker := func(task Task, wg *sync.WaitGroup, doneTasks chan Task, undoneTasks chan error) {
-		defer wg.Done()
-		taskTime, _ := time.Parse(time.RFC3339, task.CreationTime)
-		if taskTime.After(time.Now().Add(-20 * time.Second)) {
-			task.TaskResult = []byte("task has been succeeded")
-			select {
-			case doneTasks <- task:
-			default:
-			}
+	processTask := func(task Task) Task {
+		taskTime, err := time.Parse(time.RFC3339, task.CreationTime)
+		if err == nil && taskTime.After(time.Now().Add(-20*time.Second)) {
+			task.Result = []byte("task has been succeeded")
 		} else {
-			task.TaskResult = []byte("something went wrong")
-			select {
-			case undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.ID, task.CreationTime, task.TaskResult):
-			default:
-			}
+			task.Result = []byte("something went wrong")
 		}
 		task.FinishTime = time.Now().Format(time.RFC3339Nano)
 		time.Sleep(time.Millisecond * 150)
+		return task
 	}
+
+	doneTasks := make(chan Task)
+	defer close(doneTasks)
+
+	undoneTasks := make(chan error)
+	defer close(undoneTasks)
+
+	sortTasks := func(task Task) {
+		if string(task.Result[14:]) == "succeeded" {
+			doneTasks <- task
+		} else {
+			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.ID, task.CreationTime, task.Result)
+		}
+	}
+
+	result := map[int]Task{}
+	go func() {
+		for task := range doneTasks {
+			result[task.ID] = task
+		}
+	}()
+
+	errors := []error{}
+	go func() {
+		for err := range undoneTasks {
+			errors = append(errors, err)
+		}
+	}()
+
+	taskChan := make(chan Task, 10)
+	defer close(taskChan)
 
 	go func() {
 		for task := range taskChan {
-			go taskWorker(task, &wg, doneTasks, undoneTasks)
-		}
-		wg.Wait()
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	var mu sync.Mutex
-	result := map[int]Task{}
-	errors := []error{}
-
-	go func() {
-		for task := range doneTasks {
-			mu.Lock()
-			result[task.ID] = task
-			mu.Unlock()
+			task = processTask(task)
+			sortTasks(task)
 		}
 	}()
 
-	go func() {
-		for err := range undoneTasks {
-			mu.Lock()
-			errors = append(errors, err)
-			mu.Unlock()
-		}
-	}()
+	createTask(taskChan)
 
 	time.Sleep(time.Second * 3)
 
-	println("Errors:")
-	for _, err := range errors {
-		println(err)
+	fmt.Println("Done tasks:")
+	for id := range result {
+		fmt.Println(id)
 	}
 
-	println("Done tasks:")
-	for id := range result {
-		println(id)
+	fmt.Println("Errors:")
+	for _, err := range errors {
+		fmt.Println(err)
 	}
 }
