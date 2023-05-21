@@ -19,6 +19,7 @@ type Task struct {
 func main() {
 	createTask := func(taskChan chan Task) {
 		for {
+			time.Sleep(1 * time.Microsecond)
 			creationTime := time.Now().Format(time.RFC3339)
 			id := int(time.Now().UnixMicro())
 			if id%2 > 0 {
