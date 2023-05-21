@@ -18,16 +18,14 @@ type Task struct {
 
 func main() {
 	createTask := func(taskChan chan Task) {
-		go func() {
-			for {
-				creationTime := time.Now().Format(time.RFC3339)
-				id := int(time.Now().UnixMicro())
-				if id%2 > 0 {
-					creationTime = "Some error occurred"
-				}
-				taskChan <- Task{CreationTime: creationTime, ID: id, Result: nil, FinishTime: ""}
+		for {
+			creationTime := time.Now().Format(time.RFC3339)
+			id := int(time.Now().UnixMicro())
+			if id%2 > 0 {
+				creationTime = "Some error occurred"
 			}
-		}()
+			taskChan <- Task{CreationTime: creationTime, ID: id, Result: nil, FinishTime: ""}
+		}
 	}
 
 	processTask := func(task Task) Task {
@@ -80,7 +78,7 @@ func main() {
 		}
 	}()
 
-	createTask(taskChan)
+	go createTask(taskChan)
 
 	time.Sleep(time.Second * 3)
 
