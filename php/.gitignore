@@ -1,0 +1,5 @@
+*.log
+/.idea
+*.cache
+/composer.lock
+/.env

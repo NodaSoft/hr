@@ -1,0 +1,28 @@
+{
+  "name": "onnov/noda_soft_hr",
+  "description": "hr test",
+  "type": "test",
+  "license": "proprietary",
+  "require": {
+    "php": "^8.2",
+    "ext-pdo": "*",
+    "ext-mbstring": "*"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.17",
+    "phpmd/phpmd": "^2.13",
+    "phpstan/phpstan": "^1.10",
+    "squizlabs/php_codesniffer": "^3.7",
+    "vimeo/psalm": "^5.12"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "App\\Tests\\": "tests/"
+    }
+  }
+}

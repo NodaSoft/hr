@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+
+  ns_php:
+    container_name: ns_php
+    build:
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    restart: always
+#    command: php -S 0.0.0.0:8000 public/index.php
+    command: tail -f /dev/null
+#    ports :
+#      - "8080:8080"
+    volumes:
+      - ".:/var/www/ns"
+      - "~/.ssh/:/home/www-data/.ssh"
+    environment:
+      PDO_DSN: mysql:dbname=${SQL_DATABASE};host=ns_db
+      PDO_USER: ${SQL_USER}
+      PDO_PASSWORD: ${SQL_PASSWORD}
+
+  ns_db:
+    container_name: ns_db
+    image: yobasystems/alpine-mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${SQL_DATABASE}
+      MYSQL_USER: ${SQL_USER}
+      MYSQL_PASSWORD: ${SQL_PASSWORD}
+
+  ns_pma:
+    container_name: ns_pma
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: ns_db
+      PMA_PORT: 3306
+#      PMA_ARBITRARY: 1
+    ports:
+      - "8181:80"
