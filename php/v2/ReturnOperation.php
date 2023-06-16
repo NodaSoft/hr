@@ -1,6 +1,6 @@
 <?php
 
-namespace NS\WebService\References\Operations\Notification;
+namespace NW\WebService\References\Operations\Notification;
 
 class TsReturnOperation extends ReferencesOperation
 {
@@ -25,7 +25,8 @@ class TsReturnOperation extends ReferencesOperation
         ];
 
         if (empty((int)$resellerId)) {
-            throw new \Exception('Empty resellerId', 400);
+            $result['notificationClientBySms']['message'] = 'Empty resellerId';
+            return $result;
         }
 
         if (empty((int)$notificationType)) {
@@ -59,9 +60,9 @@ class TsReturnOperation extends ReferencesOperation
 
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
-            $differences = __('orderNotifications:tsNewPositionAdded', null, $resellerId);
+            $differences = __('NewPositionAdded', null, $resellerId);
         } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
-            $differences = __('orderNotifications:tsPositionStatusHasChanged', [
+            $differences = __('PositionStatusHasChanged', [
                     'FROM' => Status::getName((int)$data['differences']['from']),
                     'TO'   => Status::getName((int)$data['differences']['to']),
                 ], $resellerId);

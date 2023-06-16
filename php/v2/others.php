@@ -1,6 +1,6 @@
 <?php
 
-namespace NS\WebService\References\Operations\Notification;
+namespace NW\WebService\References\Operations\Notification;
 
 /**
  * @property Seller $Seller
