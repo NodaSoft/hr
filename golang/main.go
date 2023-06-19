@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -21,6 +23,9 @@ type Ttype struct {
 	fT         string // время выполнения
 	taskRESULT []byte
 }
+
+const WorkersCount = 70000
+const Timout = 3 * time.Second
 
 func main() {
 	taskCreturer := func(a chan Ttype) {
@@ -53,6 +58,7 @@ func main() {
 		return a
 	}
 
+	handledTasks := make(chan Ttype)
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
 
@@ -63,34 +69,62 @@ func main() {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), Timout) // контекст для остановки всех воркеров по требованию или таймауту
+
+	workerWg := &sync.WaitGroup{} // считаем включеные воркеры
+	workerWg.Add(WorkersCount)
+	for i := 0; i < WorkersCount; i++ {
+		go func(ctx context.Context) {
+			defer workerWg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case t, ok := <-superChan:
+					if !ok {
+						return
+					}
+					handledTasks <- task_worker(t)
+				}
+			}
+		}(ctx)
+	}
+	go func() {
+		workerWg.Wait() //если все воркеры закончили работу, закрываем выходной канал
+		close(handledTasks)
+	}()
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		defer close(doneTasks) //если обработанных таск больше нет то и сортированные больше не появятся, закрываем
+		defer close(undoneTasks)
+		for t := range handledTasks {
+			tasksorter(t)
 		}
-		close(superChan)
 	}()
 
 	result := map[int]Ttype{}
 	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
 
-	time.Sleep(time.Second * 3)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	// редюссер
+	go func() {
+		defer wg.Done()
+		for r := range doneTasks {
+			result[r.id] = r
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for r := range undoneTasks {
+			err = append(err, r)
+		}
+	}()
+	//
+	<-ctx.Done()
+	wg.Wait() //ждем пока редюсерр закончит с завершающими задачи после таймаута/отмены
 
 	println("Errors:")
 	for r := range err {
@@ -101,4 +135,5 @@ func main() {
 	for r := range result {
 		println(r)
 	}
+	cancel()
 }
