@@ -77,11 +77,9 @@ func main() {
 	}
 
 	tasksSorted := make(chan struct{})
-	countGotten := 0
 	go func() {
 		var sortWg sync.WaitGroup
 		for t := range superChan {
-			countGotten++
 			t = taskWorker(t)
 			sortWg.Add(1)
 			go taskSorter(t, &sortWg)
