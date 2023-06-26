@@ -2,103 +2,91 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
-
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
+type Task struct {
+	id         int64
+	cT         string
+	fT         string
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+func taskCreator(taskChan chan<- Task) {
+	for {
+		createTime := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 { // условие появления ошибочных заданий
+			createTime = "Some error occurred"
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+		taskChan <- Task{cT: createTime, id: time.Now().Unix()} // передаем задание на выполнение
+		time.Sleep(time.Second) // добавляем задержку, чтобы избежать бесконечного цикла
 	}
+}
 
-	doneTasks := make(chan Ttype)
+func taskWorker(task Task) Task {
+	taskTime, _ := time.Parse(time.RFC3339, task.cT)
+	if taskTime.After(time.Now().Add(-20 * time.Second)) {
+		task.taskRESULT = []byte("task has been successed")
+	} else {
+		task.taskRESULT = []byte("something went wrong")
+	}
+	task.fT = time.Now().Format(time.RFC3339Nano)
+	time.Sleep(time.Millisecond * 150)
+	return task
+}
+
+func taskSorter(doneTasks chan<- Task, undoneTasks chan<- error, task Task) {
+	if string(task.taskRESULT[14:]) == "successed" {
+		doneTasks <- task
+	} else {
+		undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.cT, string(task.taskRESULT))
+	}
+}
+
+func main() {
+	taskChan := make(chan Task, 10)
+	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+	go taskCreator(taskChan)
+
+	var wg sync.WaitGroup
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		for task := range taskChan {
+			wg.Add(1)
+			go func(t Task) {
+				defer wg.Done()
+				t = taskWorker(t)
+				taskSorter(doneTasks, undoneTasks, t)
+			}(task)
 		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
+		wg.Wait()
 		close(doneTasks)
 		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	result := map[int64]Task{}
+	err := []error{}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+	for r := range doneTasks {
+		result[r.id] = r
+	}
+	for r := range undoneTasks {
+		err = append(err, r)
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Println("Errors:")
+	for _, e := range err {
+		fmt.Println(e)
+	}
+
+	fmt.Println("Done tasks:")
+	for _, r := range result {
+		fmt.Printf("Task id: %d, create time: %s, finish time: %s, result: %s\n", r.id, r.cT, r.fT, string(r.taskRESULT))
 	}
 }
