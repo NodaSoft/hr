@@ -6,7 +6,32 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
+
+const debug = false
+
+// Простите за глобал, но логгер чисто для дебага
+var log = func() *zap.Logger {
+	lc := zap.NewDevelopmentConfig()
+	lc.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+	if debug {
+		lc.Level.SetLevel(zap.DebugLevel)
+	} else {
+		lc.Level.SetLevel(zap.InfoLevel)
+	}
+
+	log, err := lc.Build()
+	if err != nil {
+		panic(err.Error())
+	}
+	return log
+}()
 
 // ЗАДАНИЕ:
 // * сделать из плохого кода хороший;
@@ -17,8 +42,8 @@ import (
 // Приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме.
 // В конце должно выводить успешные таски и ошибки при выполнении остальных тасков.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A TimeTask represents a meaninglessness of our life
+type TimeTask struct {
 	id           int
 	creationTime string // время создания
 	finishTime   string // время выполнения
@@ -26,32 +51,32 @@ type Ttype struct {
 }
 
 // spamTasks яростно спамит тасками в Processor.
-func spamTasks(ctx context.Context, p *Processor[Ttype]) {
+func spamTasks(ctx context.Context, p *Processor[TimeTask]) {
 	for {
 		now := time.Now()
 		ft := now.Format(time.RFC3339)
 		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 			ft = "Some error occured"
 		}
-		println("SPAM")
+		log.Debug("SPAM")
 		// передаем таск на выполнение
-		if err := p.AddTask(ctx, Ttype{creationTime: ft, id: int(now.Unix())}); err != nil {
+		if err := p.AddTask(ctx, TimeTask{creationTime: ft, id: int(now.Unix())}); err != nil {
 			// Ну эту ошибку я считай сам придумал, поэтому особо умно обрабатывать её не нужно.
-			if errors.Is(err, ErrStopping) {
+			if errors.Is(err, ErrStopped) {
 				return
 			}
 			if ctx.Err() != nil {
 				return
 			}
 			// all other unexpected err
-			panic(err)
+			log.Panic("unexpected error in spammer", zap.Error(err))
 		}
 	}
 }
 
 // StupidWorker пинает SmartWorker чтобы он работал, а потом тупит 150мс.
-func StupidWorker(data Ttype) (Ttype, error) {
-	println("WORK")
+func StupidWorker(data TimeTask) (TimeTask, error) {
+	log.Debug("WORK")
 	res, err := smartWorker(data)
 
 	// В любом случае это костыль чтобы проц не сгорел, поэтому без разницы куда его пихать.
@@ -61,7 +86,7 @@ func StupidWorker(data Ttype) (Ttype, error) {
 }
 
 // smartWorker описывает какую-то умную логику обработки задачи.
-func smartWorker(t Ttype) (_ Ttype, err error) {
+func smartWorker(t TimeTask) (_ TimeTask, err error) {
 	// Запись времени окончания обработки даже в случае ошибки
 	defer func() {
 		t.finishTime = time.Now().Format(time.RFC3339Nano)
@@ -88,7 +113,7 @@ func smartWorker(t Ttype) (_ Ttype, err error) {
 
 func main() {
 	var (
-		p = NewProcessor[Ttype](ProcessorParams[Ttype]{
+		p = NewProcessor[TimeTask](ProcessorParams[TimeTask]{
 			RunnerFunc: StupidWorker,
 			NumWorkers: 10,
 			InputCap:   10,
@@ -98,7 +123,7 @@ func main() {
 
 		wg sync.WaitGroup
 
-		taskResults = make(map[int]Ttype)
+		taskResults = make(map[int]TimeTask)
 		taskErrors  []error
 	)
 
@@ -108,185 +133,68 @@ func main() {
 	// Запуск обрабатывателя.
 	results, errs, done := p.Start()
 
-	// Запуск спаммера.
-	println("START SPAM")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		spamTasks(spamCtx, p)
 	}()
 
-	println("START READ")
 	// Обработка результата.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
 		for {
 			select {
 			case <-done:
 				return
 			case res := <-results:
-				println("READED RESULT ", res.id)
+				log.Debug("READED RESULT", zap.Int("id", res.id))
 				taskResults[res.id] = res
+			}
+		}
+	}()
+
+	// Обработка ошибок
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
 			case err := <-errs:
-				println("READED ERROR ", err.Error())
+				log.Debug("READED ERROR ", zap.Error(err))
 				taskErrors = append(taskErrors, err)
 			}
 		}
 	}()
 
+	sleep := time.Now()
+	log.Info("start sleep")
 	time.Sleep(time.Second * 3) // Ждун
-	println("CANCEL SPAM")
+	log.Info("stop sleep", zap.Duration("time", time.Since(sleep)))
 	spamCancel() // отмена спаммера
 
-	// Задачи блокируются на 150мс, я решил их подождать 200мс.
-	stopCtx, stopCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	start := time.Now()
+	log.Info("start wait")
+	// Максимум возможно 10 успешныз задач, каждая из которых блокируются на 150мс,
+	// я решил подождать 11 задач чтоб наверняка.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 11*150*time.Millisecond)
 	defer stopCancel()
 	if err := p.Stop(stopCtx); err != nil {
-		panic("unable to stop properly: " + err.Error())
+		log.Fatal("unable to stop processor properly", zap.Error(err))
 	}
 
 	// Дожидаемся пока обработается результат и ошибки
 	wg.Wait()
+	log.Info("stop wait", zap.Duration("time", time.Since(start)))
 
 	// Я подумал что важно выводить информацию именно после окончания работы, а не в процессе.
-	println("Errors:", len(taskErrors))
-	for r := range taskErrors {
-		println(r)
-	}
 
-	println("Done tasks:")
-	for r := range taskResults {
-		println(r)
-	}
-}
+	log.Info("Errors:", zap.Int("total", len(taskErrors)))
 
-// функция-обработчик задачи
-type ProcessorFunc[T any] func(task T) (T, error)
+	taskIDs := maps.Keys(taskResults)
+	slices.Sort(taskIDs)
 
-type Processor[T any] struct {
-	params ProcessorParams[T]
-
-	// superChan принимает все входящие задачи, из него читают запущеные воркеры.
-	superChan chan T
-	// resultChan отдает задачи, которые были обработаны воркерами без ошибок.
-	resultChan chan T
-	// errChan возвращает ошибки, полученные в процессе обработки задач.
-	errChan chan error
-
-	// stop сигнализирует воркерам о необходимости завершиться.
-	stop chan struct{}
-	// done закрывается когда все воркеры завершились.
-	done <-chan struct{}
-}
-
-type ProcessorParams[T any] struct {
-	RunnerFunc ProcessorFunc[T]
-	NumWorkers int
-	InputCap   int
-	ResCap     int
-	ErrsCap    int
-}
-
-func NewProcessor[T any](params ProcessorParams[T]) *Processor[T] {
-	return &Processor[T]{
-		params:    params,
-		superChan: make(chan T, params.InputCap),
-	}
-}
-
-// Start запускает обработчик тасков.
-func (p *Processor[T]) Start() (resultCh <-chan T, errCh <-chan error, doneCh <-chan struct{}) {
-	results := make(chan T, p.params.ResCap)
-	errs := make(chan error, p.params.ErrsCap)
-	done := make(chan struct{})
-	stop := make(chan struct{})
-
-	p.resultChan = results
-	p.errChan = errs
-	p.done = done
-	p.stop = stop
-
-	// Запускает N воркеров
-	var running sync.WaitGroup
-	running.Add(p.params.NumWorkers)
-	for i := 0; i < p.params.NumWorkers; i++ {
-		w := i
-		println("RUN WORKER ", w)
-		go func() {
-			defer println("STOPPED WORKER ", w)
-			defer running.Done()
-			p.runWorker()
-		}()
-	}
-
-	// Большой брат следит за воркерами
-	go func() {
-		defer close(done)
-		running.Wait()
-	}()
-
-	return results, errCh, done
-}
-
-// runWorker runs the worker.
-func (p *Processor[T]) runWorker() {
-	for {
-		select {
-		case task := <-p.superChan:
-			res, err := p.params.RunnerFunc(task)
-			if err != nil {
-				select {
-				case p.errChan <- err:
-					println("ERROR WRITTEN")
-					continue
-				case <-p.stop:
-					return
-				}
-			}
-
-			select {
-			case p.resultChan <- res:
-				println("RESULT WRITTEN")
-			case <-p.stop:
-				return
-			}
-		case <-p.stop:
-			return
-		}
-	}
-}
-
-// Stop останавливает обработчик тасков. Нельзя вызывать асинхронно.
-func (p *Processor[T]) Stop(ctx context.Context) error {
-	defer println("STOPPED")
-	// foolproof
-	if p.stop == nil {
-		return nil
-	}
-	close(p.stop)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-p.done:
-		return nil
-	}
-}
-
-var ErrStopping = errors.New("processor is stopping now")
-
-// AddTask добавляет таску в очередь обработки, но не гарантирует что таска будет обработана.
-// Например если вызвать AddTask в момент вызова Stop
-func (p *Processor[T]) AddTask(ctx context.Context, task T) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	// TODO on stop err
-	case p.superChan <- task:
-		println("TASK ADDED")
-		return nil
-	case <-p.done:
-		return ErrStopping
-	}
+	log.Info("Done tasks:", zap.Ints("taskIDs", taskIDs))
 }
