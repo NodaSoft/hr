@@ -33,6 +33,7 @@ func spamTasks(ctx context.Context, p *Processor[Ttype]) {
 		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 			ft = "Some error occured"
 		}
+		println("SPAM")
 		// передаем таск на выполнение
 		if err := p.AddTask(ctx, Ttype{creationTime: ft, id: int(now.Unix())}); err != nil {
 			// Ну эту ошибку я считай сам придумал, поэтому особо умно обрабатывать её не нужно.
@@ -48,6 +49,43 @@ func spamTasks(ctx context.Context, p *Processor[Ttype]) {
 	}
 }
 
+// StupidWorker пинает SmartWorker чтобы он работал, а потом тупит 150мс.
+func StupidWorker(data Ttype) (Ttype, error) {
+	println("WORK")
+	res, err := smartWorker(data)
+
+	// В любом случае это костыль чтобы проц не сгорел, поэтому без разницы куда его пихать.
+	time.Sleep(time.Millisecond * 150)
+
+	return res, err
+}
+
+// smartWorker описывает какую-то умную логику обработки задачи.
+func smartWorker(t Ttype) (_ Ttype, err error) {
+	// Запись времени окончания обработки даже в случае ошибки
+	defer func() {
+		t.finishTime = time.Now().Format(time.RFC3339Nano)
+		// Я перенес форматирование ошибки в defer только ради того, чтобы эту ошибку можно было записать в taskResult.
+		if err != nil {
+			t.taskResult = []byte(err.Error())
+			// не люблю кидать просто %s в строку, обычно использую %q, либо в формате прописываю кавычки.
+			err = fmt.Errorf("Task id[%d], time[%s], error[%s]", t.id, t.creationTime, err)
+		}
+	}()
+
+	tt, err := time.Parse(time.RFC3339, t.creationTime)
+	if err != nil {
+		return t, err
+	}
+
+	if tt.IsZero() || time.Since(tt) > 20*time.Second {
+		return t, errors.New("something went wrong")
+	}
+
+	t.taskResult = []byte("task has been successed")
+	return t, nil
+}
+
 func main() {
 	var (
 		p = NewProcessor[Ttype](ProcessorParams[Ttype]{
@@ -60,49 +98,47 @@ func main() {
 
 		wg sync.WaitGroup
 
-		taskResults = map[int]Ttype{}
-		taskErrors  = []error{}
+		taskResults = make(map[int]Ttype)
+		taskErrors  []error
 	)
 
 	spamCtx, spamCancel := context.WithCancel(context.Background())
 	defer spamCancel()
 
 	// Запуск обрабатывателя.
-	results, errs := p.Start()
+	results, errs, done := p.Start()
 
 	// Запуск спаммера.
+	println("START SPAM")
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		spamTasks(spamCtx, p)
 	}()
 
+	println("START READ")
 	// Обработка результата.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
 		for {
-			// Если оба канала закрыты, то можно выходить
-			if results == nil && errs == nil {
-				return
-			}
 			select {
-			case res, ok := <-results:
-				if !ok {
-					results = nil // nil канал блокируется на чтение
-				}
+			case <-done:
+				return
+			case res := <-results:
+				println("READED RESULT ", res.id)
 				taskResults[res.id] = res
-			case err, ok := <-errs:
-				if !ok {
-					errs = nil // nil канал блокируется на чтение
-				}
+			case err := <-errs:
+				println("READED ERROR ", err.Error())
 				taskErrors = append(taskErrors, err)
 			}
 		}
 	}()
 
 	time.Sleep(time.Second * 3) // Ждун
-	spamCancel()                // отмена спаммера
+	println("CANCEL SPAM")
+	spamCancel() // отмена спаммера
 
 	// Задачи блокируются на 150мс, я решил их подождать 200мс.
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -115,7 +151,7 @@ func main() {
 	wg.Wait()
 
 	// Я подумал что важно выводить информацию именно после окончания работы, а не в процессе.
-	println("Errors:")
+	println("Errors:", len(taskErrors))
 	for r := range taskErrors {
 		println(r)
 	}
@@ -161,7 +197,7 @@ func NewProcessor[T any](params ProcessorParams[T]) *Processor[T] {
 }
 
 // Start запускает обработчик тасков.
-func (p *Processor[T]) Start() (resultCh <-chan T, errCh <-chan error) {
+func (p *Processor[T]) Start() (resultCh <-chan T, errCh <-chan error, doneCh <-chan struct{}) {
 	results := make(chan T, p.params.ResCap)
 	errs := make(chan error, p.params.ErrsCap)
 	done := make(chan struct{})
@@ -176,8 +212,11 @@ func (p *Processor[T]) Start() (resultCh <-chan T, errCh <-chan error) {
 	var running sync.WaitGroup
 	running.Add(p.params.NumWorkers)
 	for i := 0; i < p.params.NumWorkers; i++ {
+		w := i
+		println("RUN WORKER ", w)
 		go func() {
-			running.Done()
+			defer println("STOPPED WORKER ", w)
+			defer running.Done()
 			p.runWorker()
 		}()
 	}
@@ -185,12 +224,10 @@ func (p *Processor[T]) Start() (resultCh <-chan T, errCh <-chan error) {
 	// Большой брат следит за воркерами
 	go func() {
 		defer close(done)
-		defer close(errs)
-		defer close(results)
 		running.Wait()
 	}()
 
-	return results, errCh
+	return results, errCh, done
 }
 
 // runWorker runs the worker.
@@ -202,14 +239,16 @@ func (p *Processor[T]) runWorker() {
 			if err != nil {
 				select {
 				case p.errChan <- err:
+					println("ERROR WRITTEN")
+					continue
 				case <-p.stop:
 					return
 				}
-				continue
 			}
 
 			select {
 			case p.resultChan <- res:
+				println("RESULT WRITTEN")
 			case <-p.stop:
 				return
 			}
@@ -221,6 +260,7 @@ func (p *Processor[T]) runWorker() {
 
 // Stop останавливает обработчик тасков. Нельзя вызывать асинхронно.
 func (p *Processor[T]) Stop(ctx context.Context) error {
+	defer println("STOPPED")
 	// foolproof
 	if p.stop == nil {
 		return nil
@@ -244,44 +284,9 @@ func (p *Processor[T]) AddTask(ctx context.Context, task T) error {
 		return ctx.Err()
 	// TODO on stop err
 	case p.superChan <- task:
+		println("TASK ADDED")
 		return nil
 	case <-p.done:
 		return ErrStopping
 	}
-}
-
-// StupidWorker пинает SmartWorker чтобы он работал, а потом тупит 150мс.
-func StupidWorker(data Ttype) (Ttype, error) {
-	res, err := SmartWorker(data)
-
-	// В любом случае это костыль чтобы проц не сгорел, поэтому без разницы куда его пихать.
-	time.Sleep(time.Millisecond * 150)
-
-	return res, err
-}
-
-// SmartWorker описывает какую-то умную логику обработки задачи.
-func SmartWorker(t Ttype) (_ Ttype, err error) {
-	// Запись времени окончания обработки даже в случае ошибки
-	defer func() {
-		t.finishTime = time.Now().Format(time.RFC3339Nano)
-		// Я перенес форматирование ошибки в defer только ради того, чтобы эту ошибку можно было записать в taskResult.
-		if err != nil {
-			t.taskResult = []byte(err.Error())
-			// не люблю кидать просто %s в строку, обычно использую %q, либо в формате прописываю кавычки.
-			err = fmt.Errorf("Task id[%d], time[%s], error[%s]", t.id, t.creationTime, err)
-		}
-	}()
-
-	tt, err := time.Parse(time.RFC3339, t.creationTime)
-	if err != nil {
-		return t, err
-	}
-
-	if tt.IsZero() || time.Since(tt) > 20*time.Second {
-		return t, errors.New("something went wrong")
-	}
-
-	t.taskResult = []byte("task has been successed")
-	return t, nil
 }
