@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ЗАДАНИЕ:
@@ -14,91 +18,91 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	id           uuid.UUID
+	creationTime time.Time
+}
+
+func taskCreator(ctx context.Context, taskCh chan<- Task) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(taskCh)
+			return
+
+		default:
+			timeNow := time.Now()
+
+			taskCh <- Task{creationTime: timeNow, id: uuid.New()}
+			time.Sleep(time.Millisecond * 150)
+		}
+
+	}
+}
+
+func taskWorker(taskCh <-chan Task, wg *sync.WaitGroup, taskResults *TasksResults) {
+
+	for t := range taskCh {
+		switch {
+		case t.creationTime.Nanosecond()%2 > 0:
+			taskResults.errorsMu.Lock()
+			taskResults.errors = append(taskResults.errors, fmt.Errorf("Task id %d time %s, error: Some error occured", t.id, t.creationTime))
+			taskResults.errorsMu.Unlock()
+
+		case t.creationTime.After(time.Now().Add(-20 * time.Second)):
+			taskResults.doneMu.Lock()
+			taskResults.doneTasksIds[t.id] = t
+			taskResults.doneMu.Unlock()
+
+		default:
+			taskResults.errorsMu.Lock()
+			taskResults.errors = append(taskResults.errors, fmt.Errorf("Task id %d time %s, error: Something went wrong", t.id, t.creationTime))
+			taskResults.errorsMu.Unlock()
+		}
+
+	}
+
+	wg.Done()
+}
+
+type TasksResults struct {
+	doneTasksIds map[uuid.UUID]Task
+	doneMu       sync.Mutex
+
+	errors   []error
+	errorsMu sync.Mutex
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+	var (
+		wg           sync.WaitGroup
+		ctx, cancel  = context.WithTimeout(context.Background(), time.Second*2)
+		workersCount = 10
+		tasksCh      = make(chan Task, 10)
+	)
+
+	defer cancel()
+
+	taskResults := TasksResults{
+		doneTasksIds: make(map[uuid.UUID]Task),
 	}
 
-	superChan := make(chan Ttype, 10)
+	go taskCreator(ctx, tasksCh)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+	for i := 0; i < workersCount; i++ {
+		wg.Add(1)
+		go taskWorker(tasksCh, &wg, &taskResults)
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
+	wg.Wait()
 
 	println("Errors:")
-	for r := range err {
+	for r := range taskResults.errors {
 		println(r)
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for r := range taskResults.doneTasksIds {
+		fmt.Println(r)
 	}
 }
