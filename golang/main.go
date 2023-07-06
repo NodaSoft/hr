@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -15,90 +17,112 @@ import (
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createTime string // время создания
+	finishTime string // время выполнения
+	taskResult []byte
 }
 
+const timeout = 1 // время таймаута пишем свое (за 1мс выполняется 50-100 итераций +-)
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*timeout)
+
+	// функция принимает канал и пушит в него таск
+	taskCreaturer := func(ctx context.Context, created chan Task) {
+		for {
+			// завершаем цикл при таймауте
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
-		}()
-	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			// пишем в канал таски
+			go func() {
+				formatedTime := time.Now().Format(time.RFC3339)
+				if rand.Int()%2 == 0 { // https://stackoverflow.com/questions/57285292 | Запускал код на винде, поэтому немного сменил условие
+					formatedTime = "Some error occured"
+				}
+				created <- Task{createTime: formatedTime, id: rand.Int()} // передаем таск на выполнение
+			}()
 		}
 	}
+
+	createdTaskChan := make(chan Task, 10)
+	performedTaskChan := make(chan Task, 10)
+
+	// функция принимает свеженькие таски и пушит выполненные в канал
+	taskWorker := func(created, performed chan Task) {
+		for {
+			go func(t Task) {
+				_, err := time.Parse(time.RFC3339, t.createTime)
+				if err != nil {
+					t.taskResult = []byte("something went wrong")
+				} else {
+					t.taskResult = []byte("Success: *success details*")
+				}
+				t.finishTime = time.Now().Format(time.RFC3339Nano)
+
+				time.Sleep(time.Millisecond * 150)
+				performed <- t
+			}(<-created)
+		}
+	}
+
+	doneTasks := make(chan Task, 100)
+	undoneTasks := make(chan error, 100)
+
+	// функция принимает канал с выполнеными тасками и сортирует по каналам с успешными и неудачными
+	taskSorter := func(performed, successful chan Task, failed chan error) {
+		for {
+			go func(t Task) {
+				if string(t.taskResult[:7]) == "Success" {
+					successful <- t
+				} else {
+					failed <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.createTime, t.taskResult)
+				}
+			}(<-performed)
+		}
+	}
+
+	// запускаем создание тасков
+	go taskCreaturer(ctx, createdTaskChan)
+
+	// выполяем таски и пушим в performed
+	go taskWorker(createdTaskChan, performedTaskChan)
+
+	// сортируем таски, которые приходят в performed канал
+	go taskSorter(performedTaskChan, doneTasks, undoneTasks)
+
+	result := map[int]Task{}
+	errors := []error{}
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
+		/* убрал горутины, потому что иначе возникает ошибка конкурентной записи
+		(если сильно надо писать асинхронно, можно юзнуть мьютексы) */
 		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+			result[r.id] = r
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		for r := range undoneTasks {
+			errors = append(errors, r)
+		}
+	}()
 
+	time.Sleep(time.Second * 1)
+
+	// выводим данные
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for r := range errors {
+		fmt.Println(r)
 	}
 
 	println("Done tasks:")
 	for r := range result {
-		println(r)
+		fmt.Println(r)
 	}
 }
