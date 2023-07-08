@@ -118,11 +118,18 @@ func (tg *TaskGenerator) process(tasks <-chan *Task) <-chan *Task {
 
 	go func() {
 		defer close(ch)
+
+		wg := &sync.WaitGroup{}
 		// получение тасков
 		for t := range tasks {
-			t.Work()
-			ch <- t
+			wg.Add(1)
+			go func(t *Task) {
+				t.Work()
+				ch <- t
+				wg.Done()
+			}(t)
 		}
+		wg.Wait()
 	}()
 
 	return ch
