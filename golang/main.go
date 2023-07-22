@@ -44,8 +44,8 @@ var (
 					break
 				}
 				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "some error occurred"
+				if (time.Now().Nanosecond()/1000)%2 > 0 { // вот такое условие появления ошибочных тасков
+					ft = errSome
 				}
 				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 			}
