@@ -164,7 +164,6 @@ func resultPrinting(result map[int]Ttype, errors []error) {
 		}
 	}()
 	wgPrinting.Wait()
-
+	sbDone.WriteString(sbErr.String())
 	println(sbDone.String())
-	println(sbErr.String())
 }
