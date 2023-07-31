@@ -1,23 +1,10 @@
 import React, { useState, useCallback } from "react";
 
+import { User, Company } from "./utils/types";
+
+import { useThrottle } from "./hooks/useThrottle";
+
 const URL = "https://jsonplaceholder.typicode.com/users";
-
-type Company = {
-  bs: string;
-  catchPhrase: string;
-  name: string;
-};
-
-type User = {
-  id: number;
-  email: string;
-  name: string;
-  phone: string;
-  username: string;
-  website: string;
-  company: Company;
-  address: any;
-};
 
 interface IButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
@@ -54,20 +41,6 @@ function UserInfo({ user }: IUserInfoProps): JSX.Element | null {
       </tbody>
     </table>
   );
-}
-
-function useThrottle(callback: () => void, delay: number) {
-  const [isThrottled, setIsThrottled] = useState(false);
-
-  const throttledCallback = useCallback(() => {
-    if (!isThrottled) {
-      callback();
-      setIsThrottled(true);
-      setTimeout(() => setIsThrottled(false), delay);
-    }
-  }, [callback, delay, isThrottled]);
-
-  return throttledCallback;
 }
 
 function App(): JSX.Element {
