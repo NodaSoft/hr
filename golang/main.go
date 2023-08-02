@@ -2,89 +2,152 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+// Task:
+// * Refactor to good coding practices
+// * Keep failing tasks logic
+// * Make proper multiprocessing for tasks handling
+//
+// Send all the fixes to GitHub via PR
+//
+// The app emulates tasks handling and attempts to receive and handle
+// in multiple goroutines.
+//
+// Processed and errors of failed tasks could be printed upon exit
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type config struct {
+	LogLevel log.Level `envconfig:"LOG_LEVEL"`
 }
 
+type Task struct {
+	id        uuid.UUID
+	createdAt time.Time
+	startedAt time.Time
+	error     error
+}
+
+const (
+	// TTL between task was created and executed
+	taskExecutionMaxDelay = 20 * time.Second
+
+	// just a delay for task execution emulation
+	taskProcessingTime = 150 * time.Millisecond
+)
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	cfg := config{
+		LogLevel: log.WarnLevel,
+	}
+
+	if err := envconfig.Process("", &cfg); err != nil {
+		panic(err)
+	}
+
+	log.SetLevel(cfg.LogLevel)
+
+	taskGenerator := func(a chan Task) {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+				now := timeNow()
+				taskID := uuid.New()
+
+				var err error
+				if now.Nanosecond()%2 > 0 {
+					err = errors.New("not even nanosecond: failed task")
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+
+				log.WithFields(log.Fields{
+					"component": "taskGenerator",
+					"id":        taskID.String(),
+					"error":     err,
+				}).Trace("task generated")
+
+				a <- Task{
+					id:        taskID,
+					createdAt: now,
+					error:     err,
+				}
 			}
 		}()
 	}
 
-	superChan := make(chan Ttype, 10)
+	superChan := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskGenerator(superChan)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+	taskWorker := func(t Task) Task {
+		log.WithFields(log.Fields{
+			"component": "taskWorker",
+			"id":        t.id.String(),
+		}).Trace("task received")
+
+		if t.createdAt.Before(timeNow().Add(-taskExecutionMaxDelay)) {
+			t.error = errors.New("something went wrong: task is expired")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+		t.startedAt = timeNow()
 
-		time.Sleep(time.Millisecond * 150)
+		time.Sleep(taskProcessingTime)
 
-		return a
+		return t
 	}
 
-	doneTasks := make(chan Ttype)
+	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
+	taskSorter := func(t Task) {
+		log.WithFields(log.Fields{
+			"component": "taskSorter",
+			"id":        t.id.String(),
+			"error":     t.error,
+		}).Trace("task passed for sorting")
+
+		if t.error != nil {
+			undoneTasks <- errors.Errorf(
+				"Task id %s time %s, error %s",
+				t.id.String(), t.createdAt, t.error.Error(),
+			)
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			doneTasks <- t
 		}
 	}
 
 	go func() {
-		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+			t = taskWorker(t)
+			go taskSorter(t)
 		}
 		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	result := map[uuid.UUID]Task{}
+	errs := []error{}
+	resultMutex := &sync.Mutex{}
+	errsMutex := &sync.Mutex{}
+
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		for task := range doneTasks {
+			go func(task Task) {
+				resultMutex.Lock()
+				defer resultMutex.Unlock()
+
+				result[task.id] = task
+			}(task)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+		for err := range undoneTasks {
+			go func(err error) {
+				errsMutex.Lock()
+				defer errsMutex.Unlock()
+
+				errs = append(errs, err)
+			}(err)
 		}
 		close(doneTasks)
 		close(undoneTasks)
@@ -92,13 +155,25 @@ func main() {
 
 	time.Sleep(time.Second * 3)
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	// Func here just to isolate defers
+	func() {
+		resultMutex.Lock()
+		errsMutex.Lock()
+		defer resultMutex.Unlock()
+		defer errsMutex.Unlock()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+		fmt.Println("Errors:")
+		for err := range errs {
+			fmt.Println(err)
+		}
+
+		fmt.Println("Done tasks:")
+		for r := range result {
+			fmt.Println(r)
+		}
+	}()
+}
+
+func timeNow() time.Time {
+	return time.Now().UTC()
 }
