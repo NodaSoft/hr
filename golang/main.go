@@ -102,10 +102,10 @@ func main() {
 
 	okTasks, errorTasks := collectResults(executedTasks)
 
-	println("Done tasks (ids):")
+	println("Done tasks:")
 	for _, task := range okTasks {
 		currentTask := task
-		fmt.Println(currentTask.Id)
+		fmt.Println(currentTask)
 	}
 
 	println("Errors:")
