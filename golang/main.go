@@ -1,7 +1,11 @@
 package main
 
 import (
-	"time"
+	"context"
+	"flag"
+	"golang/app"
+	"golang/config"
+	"log"
 )
 
 // ЗАДАНИЕ:
@@ -15,58 +19,12 @@ import (
 
 // TODO: добавить контекст и обработку сигналов
 func main() {
+	var n = flag.Int("n", 10, "total tasks number")
+	flag.Parse()
 
-	// TODO: возможно стоит увеличить буффер, иначе taskSorter будет периодически застревать на записи в канал
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	// go func() {
-	// 	// получение тасков
-	// 	for t := range superChan {
-	// 		// синхронно получаем таск, асинхронно обрабатываем. Может наоборот?
-	// 		t = taskWorker(t)
-	// 		go taskSorter(t, doneTasks, undoneTasks)
-	// 	}
-	// 	// TODO: мы нигде не закрываем superChan, поэтому цикл будет работать бесконечно и мы никогда не попадем на эту строчку
-	// 	close(superChan) // косвенно описывает режим работы программы: дожидаемся выполнения всех тасков и только потом разбираем результаты
-	// }()
-
-	result := map[int]models.Ttype{}
-	err := []error{}
-	go func() {
-		// с чего мы взяли что все таски завершены
-		// TODO: неплохо бы дождаться завершения всей очереди тасков
-		for r := range doneTasks {
-			r := r
-			go func() {
-				// TODO: mutex
-				result[r.id] = r
-			}()
-		}
-		// TODO: same
-		for r := range undoneTasks {
-			r := r
-			go func() {
-				// TODO: mutex
-				err = append(err, r)
-			}()
-		}
-
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-	// TODO: заменить на waitgroup
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		// TODO: публиковать содержание ошибки, а не индекс в слайсе
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		// TODO: same
-		println(r)
+	cfg := &config.Config{TasksQueueLimit: 10}
+	App := app.New(cfg)
+	if err := App.Run(context.Background(), *n); err != nil {
+		log.Println(err)
 	}
 }

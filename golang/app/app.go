@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"golang/config"
 	"golang/models"
 	"golang/pipe"
 	Pipe "golang/pipe/v1"
+	"io"
 	"log"
 	"sync"
 	"time"
@@ -30,6 +32,7 @@ func New(cfg *config.Config) *App {
 }
 
 func (app *App) Run(ctx context.Context, tasksLimit int) error {
+	app.tasksLimit = tasksLimit
 	app.success = Pipe.New(ctx)
 	app.failed = Pipe.New(ctx)
 	// асинхронно генерим таски
@@ -39,10 +42,49 @@ func (app *App) Run(ctx context.Context, tasksLimit int) error {
 	go app.handleTasks(ctx, superCh)
 	// ждем пока все отработает
 	app.wg.Wait()
-	// вычитываем успешные результаты
-	// можно это делать также асинхронно, но не вижу смысла
-
 	// вычитываем ошибки
+	// можно это делать также асинхронно, но не вижу смысла
+	println("Errors:")
+	for {
+		res, err := app.failed.Get(ctx)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			} else {
+				log.Println("failed to get result:", err)
+				continue
+			}
+		}
+
+		err, ok := res.(error)
+		if !ok {
+			log.Println("failed to get result: unknown message type", err)
+			continue
+		}
+
+		println(err.Error())
+	}
+	// вычитываем успешные результаты
+	println("Done tasks:")
+	for {
+		res, err := app.success.Get(ctx)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			} else {
+				log.Println("failed to get result:", err)
+				continue
+			}
+		}
+
+		ttype, ok := res.(models.Ttype)
+		if !ok {
+			log.Println("failed to get result: unknown message type", err)
+			continue
+		}
+
+		println(ttype.ID)
+	}
 
 	return nil
 }
@@ -74,8 +116,10 @@ func (app *App) taskCreturer(ctx context.Context, limit int) chan models.Ttype {
 }
 
 func (app *App) handleTasks(ctx context.Context, tasksCh chan models.Ttype) {
+	defer app.wg.Done()
 	// получение тасков
 	for t := range tasksCh {
+		t := t
 		if err := ctx.Err(); err != nil {
 			return
 		}
