@@ -1,0 +1,80 @@
+linters:
+  enable:
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - asasalint
+    - bidichk
+    - bodyclose
+    - containedctx
+    - decorder
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - execinquery
+    - gocheckcompilerdirectives
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gofmt
+    - goprintffuncname
+    - gosec
+    - loggercheck
+    - makezero
+    - mirror
+    - musttag
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - goprintffuncname
+    - usestdlibvars
+    - zerologlint
+    - gocritic
+    - misspell
+    - gofumpt
+    - contextcheck
+    - nilerr
+  disable: []
+  presets: []
+  fast: true
+
+linters-settings:
+  exhaustive:
+    default-signifies-exhaustive: true
+  govet:
+    check-shadowing: false
+    shadow: false
+    disable:
+      - fieldalignment
+  errchkjson:
+    check-error-free-encoding: true
+  revive:
+    enable-all-rules: false
+    rules:
+      - name: "error-return"
+      - name: "increment-decrement"
+        disabled: true
+      - name: "indent-error-flow"
+      - name: "struct-tag"
+        arguments: ["json,inline", "bson,outline,gnu"]
+      - name: "constant-logical-expr"
+      - name: "bool-literal-in-expr"
+      - name: "waitgroup-by-value"
+      - name: "atomic"
+      - name: "unused-receiver"
+      - name: "unconditional-recursion"
+      - name: "defer"
+      - name: "datarace"
+      - name: "max-public-structs"
+        arguments: [7]
+      - name: "empty-lines"
