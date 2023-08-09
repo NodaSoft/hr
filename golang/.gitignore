@@ -1,0 +1,8 @@
+go.sum
+.vscode
+vendor
+__debug_bin.exe
+.idea/
+.DS_Store
+coverage.out
+config.yaml
