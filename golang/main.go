@@ -107,28 +107,14 @@ func (t *Tasker) runTaskWorkers() {
 
 func (t *Tasker) listenResults() {
 
-	for { //single thread listener
-		select { //two things may happens: 1 ctx done (interrupted or all tasks complete); 2 we recieve result from worker
-		case <-t.ctx.Done(): // context was cancelled while we are  waiting for responses (all complete, or error)
-			//TODO:
-			fmt.Println("CTX is done")
+	for result := range t.resultTaskCh { //single thread listener
 
-			return
-
-		case result, ok := <-t.resultTaskCh:
-			if !ok {
-				//TODO:
-				fmt.Println("ch closed")
-				break
-			}
-
-			if !result.isFailed { //check status of task
-				t.doneTasks = append(t.doneTasks, result)
-			} else {
-				t.failedTasks = append(t.failedTasks, result)
-			}
-			break
+		if !result.isFailed { //check status of task
+			t.doneTasks = append(t.doneTasks, result)
+		} else {
+			t.failedTasks = append(t.failedTasks, result)
 		}
+
 	}
 
 }
@@ -168,8 +154,9 @@ func main() {
 
 	go tasker.listenResults() //advanced thread to recieve results from task
 
-	tasker.wg.Wait() // wait untill all workers complete their tasks
-	cancelFn()       // close context, to tell result listener finish also
+	tasker.wg.Wait() // wait untill all workers complete their tasks // listening in parelel for responses
+
+	close(tasker.resultTaskCh) // stop listener by closing chanel
 
 	tasker.resultPrinter()
 }
