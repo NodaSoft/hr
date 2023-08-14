@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
 // ЗАДАНИЕ:
+//
 // * сделать из плохого кода хороший;
 // * важно сохранить логику появления ошибочных тасков;
 // * сделать правильную мультипоточность обработки заданий.
@@ -16,89 +22,141 @@ import (
 
 // A Ttype represents a meaninglessness of our life
 type Ttype struct {
+	isFailed   bool
 	id         int
 	cT         string // время создания
 	fT         string // время выполнения
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+type Tasker struct {
+	doneTasks    []Ttype
+	failedTasks  []Ttype
+	incomeTaskCh chan Ttype
+	resultTaskCh chan Ttype
+	taskToMake   int
+	ctx          context.Context
+	wg           sync.WaitGroup
+}
+
+func (t *Tasker) makerGT() {
+
+	t.incomeTaskCh = make(chan Ttype, t.taskToMake)
+	t.resultTaskCh = make(chan Ttype, t.taskToMake)
+
+	for i := 0; i < t.taskToMake; i++ { // create tasks in single thread, using channel as buffer
+
+		taskTime := time.Now()
+		newTask := Ttype{id: int(taskTime.Unix()), cT: taskTime.Format(time.RFC3339)}
+
+		t.incomeTaskCh <- newTask // send all new tasks in buffered ch
+	}
+}
+
+func (t *Tasker) runTaskWorkers() {
+
+	for i := 0; i < t.taskToMake; i++ {
+
+		t.wg.Add(1)
+
+		go func() { //each task worker running in individual rutine, with respecting contxt
+
+			task, ok := <-t.incomeTaskCh // get task to complete
+
+			if !ok {
+				fmt.Println("error occured while reading in ch ")
+				//TODO: dosomething clever
+				return
 			}
+
+			delay := time.NewTimer(time.Millisecond * 150) // to simulate working proccess using timer. 150 mls - from original task
+
+			select { //two things may happend here: 1 OR work complete; 2 OR context is done
+
+			case <-t.ctx.Done(): //context done before work finished, greacefully finishing work
+				fmt.Println("context canncelled before work done")
+
+				if !delay.Stop() { // avoid memory leaks
+					<-delay.C
+				}
+				break
+
+			case <-delay.C: //here work is done (or at least we get return value here)
+
+				//---------------------------------- ORIGINAL LOGIC
+				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					task.isFailed = true
+					task.fT = "Some error occured"
+					task.taskRESULT = []byte("something went wrong")
+
+				} else {
+					task.isFailed = false
+					task.fT = time.Now().Format(time.RFC3339)
+					task.taskRESULT = []byte("task has been successed")
+				}
+				//----------------------------------
+
+				t.resultTaskCh <- task
+				break
+			}
+
+			t.wg.Done()
 		}()
 	}
+}
 
-	superChan := make(chan Ttype, 10)
+func (t *Tasker) listenResults() {
 
-	go taskCreturer(superChan)
+	for result := range t.resultTaskCh { //single thread listener
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+		if !result.isFailed { //check status of task
+			t.doneTasks = append(t.doneTasks, result)
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			t.failedTasks = append(t.failedTasks, result)
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
 
-		time.Sleep(time.Millisecond * 150)
-
-		return a
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+}
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
+func (t *Tasker) resultPrinter() {
+
+	fmt.Println("Succeed tasks:")
+	for _, tr := range t.doneTasks {
+		fmt.Println(tr)
 	}
+
+	fmt.Println("Failed tasks:")
+	for _, tr := range t.failedTasks {
+		fmt.Println(tr)
+	}
+}
+
+func main() {
+
+	ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
+		sig := <-sigs
+		fmt.Println("SIG I")
+		fmt.Println(sig)
+		cancelFn() // close context, and force all workers (and result listener) to break
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	tasker := Tasker{taskToMake: 10, ctx: ctx} // manually set 10 tasks to create, in 10 threads
 
-	time.Sleep(time.Second * 3)
+	tasker.makerGT()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	tasker.runTaskWorkers()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	go tasker.listenResults() //advanced thread to recieve results from task
+
+	tasker.wg.Wait() // wait untill all workers complete their tasks // listening in parelel for responses
+
+	close(tasker.resultTaskCh) // stop listener by closing chanel
+
+	tasker.resultPrinter()
 }
