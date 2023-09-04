@@ -3,7 +3,8 @@
 <b>Комментарии по коду:</b>
 * Хоть входные данные и берутся напрямую из реквеста, TsReturnOperation::doOperation выполняет роль промежуточного 
   сервиса, отрабатывающего рассылку уведомлений и передающий дальше по коду результат своей работы
-* Бизнес-логика TsReturnOperation::doOperation вынесена в EventListener ради реюзабельности
+* Новая точка входа ReturnOperationController::index
+* Бизнес-логика TsReturnOperation::doOperation вынесена в NotificationEventListener ради реюзабельности
 * Так я и не понял, что должен делать метод __(). Гугл подсказал, что в laravel есть подобный метод локализации, но 
   тогда зачем последним параметром в него стабильно передается $resellerId? Из-за этого остается неясным, можно ли 
   как-то разделить шаблоны клиентских и почтовых уведомлений (а они явно должны быть самостоятельными), в которые 
@@ -11,4 +12,6 @@
 * NotificationTemplate по хорошему должен иметь имплементации геттеров и сеттеров для всех своих параметров, но ради 
   экономия времени сделал это только для нескольких параметров
 * Для NotificationManager и MessagesClient не стал даже обозначать имплементацию также ради экономии времени 
-* Аналогично для оставшихся двух методов getResellerEmailFrom и getEmailsByPermit, оставил как есть 
+* Аналогично для оставшихся двух методов getResellerEmailFrom и getEmailsByPermit, оставил как есть
+* Методы AbstractStatusEvent::isEmployeeNotifiedByEmail, AbstractStatusEvent::isClientNotifiedBySms, 
+  AbstractStatusEvent::isClientNotifiedByEmail по логике старого кода будут содержать в себе результат рассылки

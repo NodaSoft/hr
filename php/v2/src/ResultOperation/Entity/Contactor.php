@@ -73,6 +73,8 @@ class Contractor extends BaseEntity
     }
 
     /**
+     * "Волшебный" метод фреймворка, который значение из бд подменит на enum
+     *
      * @param int $type
      * @return self
      */
