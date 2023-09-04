@@ -45,7 +45,8 @@ class NotificationEventListener
      */
     public function handleNewStatus(NewStatusEvent $event): NewStatusEvent
     {
-        $this->sendEmployersEmails($event, NotificationEvent::NEW);
+        /** @var NewStatusEvent $event */
+        $event = $this->sendEmployersEmails($event, NotificationEvent::NEW);
 
         return $event;
     }
@@ -56,7 +57,8 @@ class NotificationEventListener
      */
     public function handleChangeStatus(ChangeStatusEvent $event): ChangeStatusEvent
     {
-        $this->sendEmployersEmails($event, NotificationEvent::CHANGE);
+        /** @var ChangeStatusEvent $event */
+        $event = $this->sendEmployersEmails($event, NotificationEvent::CHANGE);
 
         $client = $event->getClient();
         $notificationTemplate = $event->getTemplate();
