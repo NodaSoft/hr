@@ -12,7 +12,6 @@ class NewStatusEvent extends AbstractStatusEvent
     public function __construct(
         protected readonly Contractor $client,
         protected readonly NotificationTemplate $template,
-    )
-    {
+    ) {
     }
 }

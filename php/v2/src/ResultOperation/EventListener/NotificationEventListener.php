@@ -11,6 +11,7 @@ use ResultOperation\Event\NewStatusEvent;
 
 use ResultOperation\Service\MessagesClient;
 use ResultOperation\Service\NotificationManager;
+
 use function NW\WebService\References\Operations\Notification\getEmailsByPermit;
 use function NW\WebService\References\Operations\Notification\getResellerEmailFrom;
 
@@ -19,8 +20,7 @@ class NotificationEventListener
     public function __construct(
         private readonly MessagesClient $messagesClient,
         private readonly NotificationManager $notificationManager
-    )
-    {
+    ) {
     }
 
     /**
