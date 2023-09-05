@@ -121,8 +121,10 @@ func main() {
 
 	collectTasks(tasksorter(task_worker(taskCreturer())))
 
-	time.Sleep(3 * time.Second)
-	cancel()
+	go func() {
+		time.Sleep(3 * time.Second)
+		cancel()
+	}()
 
 	wg.Wait()
 
