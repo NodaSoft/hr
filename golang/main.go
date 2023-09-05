@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -23,82 +28,111 @@ type Ttype struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer cancel()
+
+	taskCreturer := func() <-chan Ttype {
+		out := make(chan Ttype, 10)
 		go func() {
+			defer close(out)
+
+			t := time.NewTicker(time.Millisecond * 150)
+			defer t.Stop()
+
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					ft := time.Now().Format(time.RFC3339)
+					if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+						ft = "Some error occured"
+					}
+					out <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+			}
+		}()
+		return out
+	}
+
+	task_worker := func(in <-chan Ttype) <-chan Ttype {
+		out := make(chan Ttype)
+		go func() {
+			for a := range in {
+				tt, err := time.Parse(time.RFC3339, a.cT)
+				if err == nil && tt.After(time.Now().Add(-20*time.Second)) {
+					a.taskRESULT = []byte("task has been successed")
+				} else {
+					a.taskRESULT = []byte("something went wrong")
+				}
+
+				a.fT = time.Now().Format(time.RFC3339Nano)
+				out <- a
+			}
+			close(out)
+		}()
+		return out
+	}
+
+	tasksorter := func(in <-chan Ttype) (<-chan Ttype, <-chan error) {
+		doneTasks := make(chan Ttype)
+		undoneTasks := make(chan error)
+		go func() {
+			for t := range in {
+				if string(t.taskRESULT[14:]) == "successed" {
+					doneTasks <- t
+				} else {
+					undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+				}
+			}
+			close(doneTasks)
+			close(undoneTasks)
+		}()
+		return doneTasks, undoneTasks
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	result := map[int]Ttype{}
+	err := []error{}
+	collectTasks := func(doneTasks <-chan Ttype, undoneTasks <-chan error) {
+		go func() {
+			defer wg.Done()
+		for_exit:
+			for {
+				select {
+				case r, ok := <-doneTasks:
+					if !ok {
+						break for_exit
+					}
+					result[r.id] = r
+
+				case r, ok := <-undoneTasks:
+					if !ok {
+						break for_exit
+					}
+					err = append(err, r)
+				}
 			}
 		}()
 	}
 
-	superChan := make(chan Ttype, 10)
+	collectTasks(tasksorter(task_worker(taskCreturer())))
 
-	go taskCreturer(superChan)
+	time.Sleep(3 * time.Second)
+	cancel()
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	wg.Wait()
 
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+	fmt.Println("Errors:")
+	for r, t := range err {
+		fmt.Println(r, t)
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Println("Done tasks:")
+	for r, t := range result {
+		fmt.Printf("%v, %v\n", r, string(t.taskRESULT))
 	}
 }
