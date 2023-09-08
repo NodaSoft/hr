@@ -2,103 +2,86 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
-
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	ID           int
+	CreatedTime  string
+	FinishedTime string
+	Result       string
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	taskCreator := func(tasks chan<- Task) {
+		for {
+			createdTime := time.Now().Format(time.RFC3339)
+			var result string
+			if time.Now().Nanosecond()%2 > 0 {
+				result = "error occurred"
+			} else {
+				result = "task has been succeeded"
+			}
+			tasks <- Task{ID: int(time.Now().Unix()), CreatedTime: createdTime, Result: result}
+			time.Sleep(time.Second) // Задержка между созданием задач
+		}
+	}
+
+	taskWorker := func(task Task, wg *sync.WaitGroup, successTasks chan<- Task, errorTasks chan<- error) {
+		defer wg.Done()
+
+		createdTime, err := time.Parse(time.RFC3339, task.CreatedTime)
+		if err != nil {
+			errorTasks <- fmt.Errorf("Task ID %d time %s, error: %s", task.ID, task.CreatedTime, err.Error())
+			return
+		}
+
+		if time.Now().Sub(createdTime) > 20*time.Second {
+			task.FinishedTime = time.Now().Format(time.RFC3339Nano)
+			successTasks <- task
+		} else {
+			errorTasks <- fmt.Errorf("Task ID %d time %s, error: something went wrong", task.ID, task.CreatedTime)
+		}
+	}
+
+	// Используем WaitGroup для ожидания завершения всех задач
+	var wg sync.WaitGroup
+
+	successTasks := make(chan Task, 10)
+	errorTasks := make(chan error, 10)
+
+	go func() {
+		// Обработка успешных задач
+		for task := range successTasks {
+			fmt.Printf("Task ID %d finished successfully\n", task.ID)
+		}
+	}()
+
+	go func() {
+		// Обработка ошибок
+		for err := range errorTasks {
+			fmt.Println(err)
+		}
+	}()
+
+	// Создаем и обрабатываем задачи в пуле горутин
+	poolSize := 5 // Размер пула горутин
+
+	for i := 0; i < poolSize; i++ {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				task := <-tasksChan
+				wg.Add(1)
+				go taskWorker(task, &wg, successTasks, errorTasks)
 			}
 		}()
 	}
 
-	superChan := make(chan Ttype, 10)
+	tasksChan := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskCreator(tasksChan)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	// Ожидаем завершения всех задач
+	wg.Wait()
 }
