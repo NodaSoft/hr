@@ -24,9 +24,9 @@ func StartWorker(tc <-chan *Task, rc chan *TaskResult, wg *sync.WaitGroup) {
 
 				Чтобы увидеть эти ошибки нужно перебирать таски тысячами (go run . -q1000)
 
-				Раскомментите /1е5 чтобы ошибки были чаще.
+				Закомментите /1е5 чтобы вернуть оригинальное условие.
 			*/
-			if task.CreatedAt.Nanosecond() /* /1e5 */ %2 > 0 { // вот такое условие появления ошибочных тасков
+			if task.CreatedAt.Nanosecond()/1e5%2 > 0 { // вот такое условие появления ошибочных тасков
 				result.Error = fmt.Errorf("error occurred")
 				result.Payload = ""
 			} else {
