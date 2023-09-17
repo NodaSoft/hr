@@ -24,8 +24,7 @@ func StartWorker(tc <-chan *Task, rc chan *TaskResult, wg *sync.WaitGroup) {
 
 				Чтобы увидеть эти ошибки нужно перебирать таски тысячами (go run . -q1000)
 
-				Наверное это как-то связано с частотой процессора.
-				Уменьшу до миллисекунд, чтобы оно выдавало ошибки.
+				Раскомментите /1е5 чтобы ошибки были чаще.
 			*/
 			if task.CreatedAt.Nanosecond() /* /1e5 */ %2 > 0 { // вот такое условие появления ошибочных тасков
 				result.Error = fmt.Errorf("error occurred")
