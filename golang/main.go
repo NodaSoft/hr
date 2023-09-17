@@ -39,10 +39,10 @@ func main() {
 
 	go taskCreturer(superChan)
 
-	task_worker := func(a Ttype) Ttype {
+	taskWorker := func(a Ttype) Ttype {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+			a.taskRESULT = []byte("task has been succeed")
 		} else {
 			a.taskRESULT = []byte("something went wrong")
 		}
@@ -57,31 +57,33 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
+		if string(t.taskRESULT[14:]) == "succeed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
 
 	go func() {
 		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
+			t = taskWorker(t)
 			go tasksorter(t)
 		}
 		close(superChan)
 	}()
 
 	result := map[int]Ttype{}
-	err := []error{}
+	var err []error
 	go func() {
 		for r := range doneTasks {
+			r := r
 			go func() {
 				result[r.id] = r
 			}()
 		}
 		for r := range undoneTasks {
+			r := r
 			go func() {
 				err = append(err, r)
 			}()
