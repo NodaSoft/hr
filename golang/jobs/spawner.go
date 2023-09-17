@@ -20,11 +20,10 @@ func (sp *TaskSpawner) Start(tc chan *Task) {
 	sp.wg.Add(1)
 	go func() {
 		defer sp.wg.Done()
-		id := 1
-		for sp.IsRunning() {
+
+		for id := 1; sp.IsRunning(); id++ {
 			task := NewTask(id)
 			tc <- task // передаем таск на выполнение
-			id++
 			// time.Sleep(20 * time.Millisecond) // немного потротлить его хочется да
 		}
 	}()

@@ -19,12 +19,12 @@ import (
 
 // go run . --help
 func main() {
-	concurrency, waitDuration := args.Get()
+	concurrency, capacity, waitDuration := args.Get()
 
 	var workerWg, loggerWg sync.WaitGroup
 
-	taskChannel := make(chan *jobs.Task, 100)
-	resultChannel := make(chan *jobs.TaskResult, 100)
+	taskChannel := make(chan *jobs.Task, capacity)
+	resultChannel := make(chan *jobs.TaskResult, capacity)
 
 	sp := jobs.NewTaskSpawner()
 	sp.Start(taskChannel)
