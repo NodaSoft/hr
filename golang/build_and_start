@@ -1,5 +1,16 @@
 #!/bin/bash
 
-go build .
+rm ./test
+
+cp taskman/taskman.go taskman/taskman.go.bak	# Сохраним исходник
+sed -i "/DEBUG/d" taskman/taskman.go		# Препроцесинг. Удаляем строки дебаг-кода
+
+cp main.go main.go.bak				# Сохраним исходник
+sed -i "/DEBUG/d" main.go			# Препроцесинг. Удаляем строки дебаг-кода
+
+go build .					# Компиляция проекта
+
+mv main.go.bak main.go				# Вернем исходник в исходное состояние
+mv taskman/taskman.go.bak taskman/taskman.go	# Вернем исходник в исходное состояние
 
 ./test
