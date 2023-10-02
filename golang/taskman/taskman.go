@@ -16,10 +16,11 @@ import (
 	"time"
 )
 
+// Public Constants
+
 // ВНИМАНИЕ!
 const DEBUG = true	// Препроцессинг в скрипте build_and_start удалит строки, содержащие "DEBUG", поэтому они однострочные: if DEBUG { ... }. Скорость увеличится.
 					// Если просто собрать "go build .", то будет выводиться копмактный лог начала и завершения каждой функции или итерации. Медленнее, но наглядно.
-
 const UintSize = 32 << (^uint(0) >> 32 & 1) // 32 или 64
 const (
     MaxInt       = 1<<(UintSize-1) - 1 // 1<<31 - 1 или 1<<63 - 1
@@ -29,7 +30,7 @@ const (
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // A Task represents a meaninglessness of our life
-//
+// Public:
 type Task struct {
 	id     int
 	cT     string // время создания
@@ -37,22 +38,22 @@ type Task struct {
 	result []byte
 	i      int    // индекс задачи по порядку, для отладки
 }
-// Метод (Task).String(), имплементирует интерфейс Stringer из модуля fmt
+// Public Метод (Task).String(), имплементирует интерфейс Stringer из модуля fmt
 func (t Task) String() string {
 	return fmt.Sprintf("Task { id:%d, cT:%s, fT:%s, result:%s }", t.id, t.cT, t.fT, t.result)
 }
-// Метод (Task).Successed(), возвращает булевское значение таска - успешность
+// Public Метод (Task).Successed(), возвращает булевское значение таска - успешность
 func (t Task) Successed() bool {
 	return string(t.result[14:23]) == "successed"
 }
 
-// Public:
+// Public vars:
 var (
 	BufCap		int				// Ёмкость кольцевого буфера 
 	MaxCount	int				// Максимальное число итераций. Если <=0, то бесконечный цикл
 	MaxResult	int				// Пороговое значение len для results и errors при достижении которого данные будут выгружаться в хранилище,							// без остановки заполнения. Скорость выгрузки может быть выше или ниже заполнения, поэтому необходимо оставить большой запас памяти.
 )
-// Private:
+// Private vars:
 var (
 	stop		bool			// стоп - сигнал 
 	muRes		sync.Mutex
@@ -69,6 +70,8 @@ var (
 	errors		[]error			// Список ошибок. Ограничен MaxResult
 )
 
+// Public functions
+
 // Возврощает значение счетчика counter
 func Counter() int {
 	return counter
@@ -79,6 +82,13 @@ func GoPeakCount() int {
 	return goPeakCount
 }
 
+// Некая универсальная функция реализованная в пакете, которую можно использовать в других пакетах
+func Factorial(v int64) int64 {
+	if v > 1 {
+		return v * Factorial( v - 1 )
+	}
+	return v 
+}
 
 // Инициализация и Выполнение
 func Run () {
@@ -92,7 +102,7 @@ func Run () {
 	if(MaxResult == 0){ MaxResult = 1000 }						// 
 
 	stop = false
-	go Switch()													// Ожидает сигнал выключения и меняет значение stop = true
+	go off()													// Ожидает сигнал выключения и меняет значение stop = true
 
 	superChan = make(chan Task, BufCap)							// Канал поступающих тасков
 	doneTasks = make(chan Task, BufCap/2)						// Канал завершенных тасков
@@ -122,10 +132,29 @@ func Run () {
 	go resultUpload(&wg,result_cmd)						// Ждет команду и Выгружает результаты
 	go errorsCollector(&wg,errors,undoneTasks)			// Копит ошибки
 	go resultCollector(&wg,results,doneTasks)			// Систематизирует результаты
-	go Receiver(&wg,superChan,doneTasks,undoneTasks)	// Принимает задачи, передает на обработку
-	go Sender(&wg,superChan)							// Отправляет задачи
+	go taskReceiver(&wg,superChan,doneTasks,undoneTasks)// Приемник - принимает задачи, передает на обработку
+	go taskTransmitter(&wg,superChan)					// Передатчик - отправляет задачи
 	wg.Wait()	 										// Ожидает завершения 6 горутин верхнего уровня
 }
+
+// Печатает ошибки и успешные таски
+func Log () {
+	println("\x1b[31m" + "Errors: ",len(errors))				// Список ошибок красным цветом
+	for i := range errors {
+		if i > BufCap { break	} 
+		println(errors[i].Error())
+	}
+	fmt.Println("\x1b[32m" + "Done tasks: ",len(results))		// Список успешных результатов зеленым цветом
+	i := 0
+	for key := range results{
+		i++
+		if i > BufCap { break	}
+		fmt.Println(results[key]) // fmt.Println умеет сам вызывать метод Task.String() т.к. имплементирован интерфейс Stringer
+	}
+	fmt.Println("\x1b[0m" + "The End")							// Конец программы, цвет по умолчанию
+}
+
+//////////////////////////////////////// Private functions /////////////////////////////////////////////////////////
 
 // Коллектор ошибок
 func errorsCollector (wg *sync.WaitGroup, err []error, c <-chan error) {
@@ -161,6 +190,7 @@ func resultCollector (wg *sync.WaitGroup, res map[int]Task, c <-chan Task) {
 	}
 }
 
+
 // Выгрузка из коллектора ошибок.
 func errorsUpload (wg *sync.WaitGroup, cmd <-chan struct{}){
 	defer wg.Done()
@@ -186,7 +216,7 @@ func resultUpload (wg *sync.WaitGroup, cmd <-chan struct{}){
 
 
 // Воркер с полезной нагрузкой
-func Worker (task Task) Task {
+func taskWorker (task Task) Task {
 	t, _ := time.Parse(time.RFC3339, task.cT)
 	if t.After(time.Now().Add(-20 * time.Second)) { // таски с ошибкой имеют другой формат cT и попадают в else
 		task.result = []byte("task has been successed")
@@ -194,10 +224,12 @@ func Worker (task Task) Task {
 		task.result = []byte("something went wrong")
 	}
 
-	var factorial uint64 = 1						// Небольшая полезная нагрузка
+	//var factorial uint64 = 1						// Небольшая полезная нагрузка
+	//imax := (task.i % 10) + 1   					// Переменный факториал в пределах 1..10
+	//for i:=1; i<=imax; i++ { factorial *= uint64(i); }
+
 	imax := (task.i % 10) + 1   					// Переменный факториал в пределах 1..10
-	for i:=1; i<=imax; i++ { factorial *= uint64(i); }
-	task.result = append(task.result, fmt.Sprintf(". Factorial(%d)=%d",imax,factorial)...)
+	task.result = append(task.result, fmt.Sprintf(". Factorial(%d)=%d",imax,Factorial(int64(imax)))...)
 	//time.Sleep(time.Millisecond * 150)			// Имитация полезной нагрузки, а не вынужденный Sleep.
 
 	task.fT = time.Now().Format(time.RFC3339Nano)	// Время завершения задачи
@@ -205,10 +237,10 @@ func Worker (task Task) Task {
 }
 
 // Сортировщик тасков
-func Sorter (wg *sync.WaitGroup, task Task, done chan<- Task, err chan<- error) {
+func taskSorter (wg *sync.WaitGroup, task Task, done chan<- Task, err chan<- error) {
 	if DEBUG { print(" (W",task.i) } // Метка горутины на старте
 	defer wg.Done()
-	task = Worker(task)			 // Ожидаем завершение синхроного вызова в рамках этой горутины.
+	task = taskWorker(task)			 // Ожидаем завершение синхроного вызова в рамках этой горутины.
 	switch task.Successed() {		 // Эквивалентно if else
 	  case true:
 		done <- task
@@ -221,7 +253,7 @@ func Sorter (wg *sync.WaitGroup, task Task, done chan<- Task, err chan<- error) 
 }
 
 // Приемник тасков
-func Receiver (wg *sync.WaitGroup, c <-chan Task, done chan Task, undo chan error) {
+func taskReceiver (wg *sync.WaitGroup, c <-chan Task, done chan Task, undo chan error) {
 	defer wg.Done()
 	var wg2 sync.WaitGroup		// локальная группа дочерних горутин
 	for task := range c {		// продолжается до закрытия и опустошения канала. При чтении из пустого и открытого, канал блокируется
@@ -229,7 +261,7 @@ func Receiver (wg *sync.WaitGroup, c <-chan Task, done chan Task, undo chan erro
 		if goPeakCount < goCounter { goPeakCount = goCounter }
 		if DEBUG { print(" R",task.i) }		// Метка горутины перед стартом
 		wg2.Add(1)							// Инкремент дочерних горутин
-		go Sorter(&wg2,task,done,undo) 	// Обработать каждую полученную задачу в отдельном потоке, счетчик зафиксировать.
+		go taskSorter(&wg2,task,done,undo) 	// Обработать каждую полученную задачу в отдельном потоке, счетчик зафиксировать.
 	}
 	if DEBUG { print("\n[\n Wait\n") }
 	wg2.Wait()					// Ждать завершение дочерних пишущих горутин
@@ -241,13 +273,13 @@ func Receiver (wg *sync.WaitGroup, c <-chan Task, done chan Task, undo chan erro
 }
 
 // Выключатель. Ждет ненулевой сигнал и устанавливает переменную выключения
-func Switch () {
+func off () {
 	os.Stdin.Read(make([]byte,1))	// ожидает ввода команды с клавиатуры
 	stop = true					// приведет к завершению цикла Sender
 	if DEBUG { println("Pressed a Key, stop =", stop) }
 }
 // Вариант без ввода с клавиатуры, сигнал или команда поступает из канала
-func Switch2 (c <-chan byte) {
+func off2 (c <-chan byte) {
 	for range c {		// цикл заблокирован пока не поступит сигнал
 		stop = true	// приведет к завершению цикла Sender
 		break
@@ -256,7 +288,7 @@ func Switch2 (c <-chan byte) {
 
 
 // Передатчик тасков
-func Sender (wg *sync.WaitGroup, c chan<- Task) {
+func taskTransmitter (wg *sync.WaitGroup, c chan<- Task) {
 	defer wg.Done()
 	// Т.к. размер буфера задан явно и нужно в конце вывести короткие списки, ограничиваем цикл либо емкостью буфера либо числом итераций MaxCount
 	// Установив MaxCount=-1, цикл можно сделать бесконечным, а для выключения использовать stop-сигнал
@@ -279,19 +311,3 @@ func Sender (wg *sync.WaitGroup, c chan<- Task) {
 }
 
 
-// Печатает ошибки и успешные таски
-func Log () {
-	println("\x1b[31m" + "Errors: ",len(errors))				// Список ошибок красным цветом
-	for i := range errors {
-		if i > BufCap { break	} 
-		println(errors[i].Error())
-	}
-	fmt.Println("\x1b[32m" + "Done tasks: ",len(results))		// Список успешных результатов зеленым цветом
-	i := 0
-	for key := range results{
-		i++
-		if i > BufCap { break	}
-		fmt.Println(results[key]) // fmt.Println умеет сам вызывать метод Task.String() т.к. имплементирован интерфейс Stringer
-	}
-	fmt.Println("\x1b[0m" + "The End")							// Конец программы, цвет по умолчанию
-}
