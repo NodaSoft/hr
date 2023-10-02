@@ -1,104 +1,176 @@
 package main
 
 import (
-	"fmt"
-	"time"
+    "fmt"
+    "time"
+    "sync"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+// Количество потоков
+const SenderThreadCount = 5
+const ReceiverThreadCount = 5
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// Тип отправителя тасков
+type TaskSender struct {
+    OutTaskChan chan Task
+    Seed int
+    SendMutex sync.Mutex
 }
 
+// Метод отправки тасков
+func (sender *TaskSender) SendTask () {
+    for {
+        var task Task
+        task.SendResult = 0
+        task.CreateTime = time.Now().Format(time.RFC3339)
+        // ID генерируем с инкрементом, чтобы был уникален (хотя бы для сессии)
+        task.ID = int(time.Now().Unix()) + sender.Seed
+        sender.SendMutex.Lock()
+        sender.Seed++
+        sender.SendMutex.Unlock()
+        // не стоит валить в кучу время и ошибку, делаем поле под сообщение об ошибке
+        if time.Now().Nanosecond() % 2 > 0 {
+            task.SendMessage = "Some error occured"
+            task.SendResult = -1
+        }
+        sender.OutTaskChan <- task
+
+        time.Sleep(time.Millisecond * 150)
+    }
+}
+
+// Стартуем отправителя тасков
+func (sender *TaskSender) Start () {
+    sender.OutTaskChan = make(chan Task, 10)
+    sender.Seed = 0
+    for i := 0; i < SenderThreadCount; i++ {
+        go sender.SendTask()
+    }
+}
+
+// Тип обработчика тасков
+type Task struct {
+    ID int
+    CreateTime string
+    ReceiveTime string
+    SendResult int
+    SendMessage string
+    ReceiveResult int
+    ReceiveMessage string
+}
+
+// Получить таск
+func (task *Task) Receive () {
+    tt, _ := time.Parse(time.RFC3339, task.CreateTime)
+    // Проверим что таск не из будущего
+    if tt.After(time.Now().Add(-20 * time.Second)) {
+        task.ReceiveResult = 0
+        task.ReceiveMessage = "task has been successed"
+    } else {
+        // протсто фейковый код ошибки, это можно потом в MAP вынести
+        task.ReceiveResult = 10003
+        task.ReceiveMessage = "task has been successed"
+    }
+    task.ReceiveTime = time.Now().Format(time.RFC3339Nano)
+}
+
+// сортировка тасков - успех/провал
+func (task Task) Separate (SuccesTasksChan chan Task, ErrorTasksChan chan error) {
+    // нет ошибок отправки и получения
+    if task.ReceiveResult == 0 && task.SendResult == 0 {
+        SuccesTasksChan <- task
+    } else {
+        ErrorTasksChan <- fmt.Errorf("Task id %d time %s, send error: %s, receive error: %s", task.ID, task.CreateTime, task.SendMessage ,task.ReceiveMessage)
+    }
+}
+
+// Тип приемника тасков
+type TaskReceiver struct {
+    InputTaskChan chan Task
+    SuccesTasksChan chan Task
+    ErrorTasksChan chan error
+    SuccesMap map[int]Task
+    ErrorList []error
+    CommitMutex sync.Mutex
+    ReceiveMutex sync.Mutex
+}
+
+// запустить приемник тасков
+func (receiver *TaskReceiver) Start (inputChan chan Task) {
+    // создаем каналы
+    receiver.SuccesTasksChan = make(chan Task)
+    receiver.ErrorTasksChan = make(chan error)
+    receiver.InputTaskChan = inputChan
+    receiver.SuccesMap = make(map[int]Task)
+    // запускаем сканнирование входящих тасков
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.Receive()
+    }
+    // запускаем сканнирование фиксации тасков после получения
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.CommitSuccess()
+    }
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.CommitErrors()
+    }
+}
+
+// обработать результаты получения
+func (receiver TaskReceiver) Receive () {
+    for t := range receiver.InputTaskChan {
+        receiver.ReceiveMutex.Lock()
+        t.Receive()
+        t.Separate(receiver.SuccesTasksChan, receiver.ErrorTasksChan)
+        receiver.ReceiveMutex.Unlock()
+    }
+    close(receiver.InputTaskChan)
+}
+
+// зафиксировать результаты получения
+func (receiver *TaskReceiver) CommitSuccess () {
+    for r := range receiver.SuccesTasksChan {
+        receiver.CommitMutex.Lock()
+        receiver.SuccesMap[r.ID] = r
+        receiver.CommitMutex.Unlock()
+    }
+    close(receiver.SuccesTasksChan)
+}
+
+// зафиксировать ошибки получения
+func (receiver *TaskReceiver) CommitErrors () {
+    for r := range receiver.ErrorTasksChan {
+        receiver.CommitMutex.Lock()
+        receiver.ErrorList = append(receiver.ErrorList, r)
+        receiver.CommitMutex.Unlock()
+    }
+    close(receiver.ErrorTasksChan)
+}
+
+// Вывести результат на экран
+func (receiver TaskReceiver) PrintResult () {
+    println("Errors:")
+    for _, e := range receiver.ErrorList {
+        println(e.Error())
+    }
+
+    println("Done tasks:")
+    for r := range receiver.SuccesMap {
+        println(r)
+    }
+}
+
+// Основной метод приложения
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+    // стартуем отправителя тасков
+    var sender TaskSender
+    sender.Start()
+    // стартуем приемник тасков
+    var receiver TaskReceiver
+    receiver.Start(sender.OutTaskChan)
 
-	superChan := make(chan Ttype, 10)
+    // ждем
+    time.Sleep(time.Second * 3)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+    // выводим результат на экран
+    receiver.PrintResult()
 }
