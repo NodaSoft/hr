@@ -51,24 +51,40 @@ func (t Task) Successed() bool {
 var (
 	BufCap		int				// Ёмкость кольцевого буфера 
 	MaxCount	int				// Максимальное число итераций. Если <=0, то бесконечный цикл
-	MaxResult	int				// Пороговое значение len для results и errors при достижении которого данные будут выгружаться в хранилище,							// без остановки заполнения. Скорость выгрузки может быть выше или ниже заполнения, поэтому необходимо оставить большой запас памяти.
+	MaxResult	int				// Пороговое значение len для results и errors при достижении которого данные будут выгружаться в хранилище
+	Objects	= [...] string { "inChan", "doneTasks", "undoneTasks", "results", "errors", "result_cmd", "errors_cmd" } // Объекты мониторинга для микросервисов
 )
 // Private vars:
 var (
 	stop		bool			// стоп - сигнал 
-	muRes		sync.Mutex
-	muErr		sync.Mutex
 	counter		int				// Счетчик итераций
 	goCounter   int            	// Счетчик активных горутин
 	goPeakCount int            	// Пиковое количество активных горутин
-	superChan	chan Task		// Основной канал.
+
+	inChan		chan Task		// Основной канал.
+	inChanOpen	bool = false	// состояние для мониторинга
+
 	doneTasks	chan Task		// Канал успешных тасков
+	doneTOpen 	bool = false	// состояние для мониторинга
+
 	undoneTasks chan error		// Канал ошибок
+	undoneTOpen	bool = false	// состояние для мониторинга
+
 	result_cmd	chan struct{}	// Канал команд для выгрузки результатов
+	resCmdOpen 	bool = false	// состояние для мониторинга
+	
 	errors_cmd	chan struct{}	// Канал команд для выгрузки ошибок
+	errCmdOpen 	bool = false	// состояние для мониторинга
+
 	results 	map[int]Task	// Карта результатов. Ограничена MaxResult
+	resUnlocked bool = true
+	muRes		sync.Mutex
+
 	errors		[]error			// Список ошибок. Ограничен MaxResult
+	errUnlocked bool = true
+	muErr		sync.Mutex
 )
+
 
 // Public functions
 
@@ -77,17 +93,48 @@ func Counter() int {
 	return counter
 }
 
+// Возврощает значение счетчика goCounter
+func GoCounter() int {
+	return goCounter
+}
+
 // Возврощает значение счетчика goPeakCount
 func GoPeakCount() int {
 	return goPeakCount
 }
+
+// Возвращает состояние объекта для мониторинга (канала, слайса или мапы) по строчному имени.
+// сюда же будут добавляться другие объекты - память, дисковое пространство, сетевые интерфейсы и т.д.
+// inChan, doneTasks, undoneTasks, results, errors, result_cmd, errors_cmd
+func State(name string) (int, int, bool) {
+	switch name {												// Used,	 All,	  Positiv | Negativ
+	case "inChan":
+		return len(inChan), cap(inChan), inChanOpen				// Len, Capacity, true(opened)|false(closed)
+	case "doneTasks":
+		return len(doneTasks), cap(doneTasks), doneTOpen		// Len, Capacity, true(opened)|false(closed)
+	case "undoneTasks":
+		return len(undoneTasks), cap(undoneTasks), undoneTOpen	// Len, Capacity, true(opened)|false(closed)
+	case "results":
+		l:=len(results); o:=0; if l%4 > 0 { o = 8 }				// Приближенная оценка, на основании допущения, что баскет заполняется на 1/2
+		return l, l + l + o , resUnlocked						// Len, ~Capacity, true(Unlocked)|false(Locked)
+	case "errors":
+		return len(errors), cap(errors), errUnlocked			// Len, Capacity, true(Unlocked)|false(Locked)
+	case "result_cmd":
+		return len(result_cmd), cap(result_cmd), resCmdOpen		// Len, Capacity, true(opened)|false(closed)
+	case "errors_cmd":
+		return len(errors_cmd), cap(errors_cmd), errCmdOpen		// Len, Capacity, true(opened)|false(closed)
+	default:
+		return -1, -1, false									// для неизвестных объектов
+	}
+}
+
 
 // Некая универсальная функция реализованная в пакете, которую можно использовать в других пакетах
 func Factorial(v int64) int64 {
 	if v > 1 {
 		return v * Factorial( v - 1 )
 	}
-	return v 
+	return v
 }
 
 // Инициализация и Выполнение
@@ -104,16 +151,26 @@ func Run () {
 	stop = false
 	go off()													// Ожидает сигнал выключения и меняет значение stop = true
 
-	superChan = make(chan Task, BufCap)							// Канал поступающих тасков
+	inChan = make(chan Task, BufCap)							// Канал поступающих тасков
+	inChanOpen	= true											// состояние для мониторинга
+
 	doneTasks = make(chan Task, BufCap/2)						// Канал завершенных тасков
+	doneTOpen = true											// состояние для мониторинга
+
 	undoneTasks = make(chan error, BufCap/2)					// Канал тасков с ошибками
+	undoneTOpen	= true											// состояние для мониторинга
+
 	results = map[int]Task{}									// Карта результатов по id таска
 	errors  = []error{}											// Список ошибок
 
 	result_cmd = make(chan struct{})							// Канал команд на выгрузку
-	errors_cmd = make(chan struct{})							// Канал команд на выгрузку
+	resCmdOpen = true											// состояние для мониторинга
 
-	println("Буфер канала входящих таксов......................: ",cap(superChan))
+	errors_cmd = make(chan struct{})							// Канал команд на выгрузку
+	errCmdOpen = true											// состояние для мониторинга
+
+
+	println("Буфер канала входящих таксов......................: ",cap(inChan))
 	println("Буфер канала завершенных тасков...................: ",cap(doneTasks))
 	println("Буфер канала ошибок...............................: ",cap(undoneTasks))
 	println("Число логических процессоров..................nCPU: ",runtime.NumCPU())
@@ -130,10 +187,10 @@ func Run () {
 	wg.Add(6)											// Инкремент на эти 6 горутин
 	go errorsUpload(&wg,errors_cmd)						// Ждет команду и Выгружает ошибки
 	go resultUpload(&wg,result_cmd)						// Ждет команду и Выгружает результаты
-	go errorsCollector(&wg,errors,undoneTasks)			// Копит ошибки
-	go resultCollector(&wg,results,doneTasks)			// Систематизирует результаты
-	go taskReceiver(&wg,superChan,doneTasks,undoneTasks)// Приемник - принимает задачи, передает на обработку
-	go taskTransmitter(&wg,superChan)					// Передатчик - отправляет задачи
+	go errorsCollector(&wg,undoneTasks)					// Копит ошибки
+	go resultCollector(&wg,doneTasks)					// Систематизирует результаты
+	go taskReceiver(&wg,inChan,doneTasks,undoneTasks)	// Приемник - принимает задачи, передает на обработку
+	go taskTransmitter(&wg,inChan)						// Передатчик - отправляет задачи
 	wg.Wait()	 										// Ожидает завершения 6 горутин верхнего уровня
 }
 
@@ -157,16 +214,16 @@ func Log () {
 //////////////////////////////////////// Private functions /////////////////////////////////////////////////////////
 
 // Коллектор ошибок
-func errorsCollector (wg *sync.WaitGroup, err []error, c <-chan error) {
+func errorsCollector (wg *sync.WaitGroup, c <-chan error) {
 	defer wg.Done()
-	for e := range c {					// коллектор ошибок только один, поэтому нет Data Race
-		muErr.Lock()
-		errors = append(errors, e)	// добавление в errors только здесь, поэтому лочить не нужно
-		muErr.Unlock()
+	for e := range c {					
+		muErr.Lock();	errUnlocked=false					// Теперь лочим, т.к. добавилась выгрузка коллекторов
+		errors = append(errors, e)		
+		muErr.Unlock();	errUnlocked=true
 		if DEBUG { print(" E") }
-		if ( len(err) >= MaxResult){
+		if ( len(errors) >= MaxResult){
 			select {
-			case errors_cmd <- struct{}{}:
+			case errors_cmd <- struct{}{}:		// Команда выгрузки
 			default:
 			}
 		}
@@ -174,16 +231,16 @@ func errorsCollector (wg *sync.WaitGroup, err []error, c <-chan error) {
 }
 
 // Коллектор успешных тасков
-func resultCollector (wg *sync.WaitGroup, res map[int]Task, c <-chan Task) {
+func resultCollector (wg *sync.WaitGroup, c <-chan Task) {
 	defer wg.Done()
-	for task := range c { 	// коллектор тасков только один, поэтому нет Data Race
-		muRes.Lock()
-		res[task.id] = task // Вставка в мапу только здесь. Лочить не нужно
-		muRes.Unlock()
+	for task := range c { 	
+		muRes.Lock();	resUnlocked=false			// Теперь лочим, т.к. добавилась выгрузка коллекторов
+		results[task.id] = task		
+		muRes.Unlock();	resUnlocked=true
 		if DEBUG { print(" T") }
-		if (len(res) >= MaxResult){
+		if (len(results) >= MaxResult){
 			select {
-			case result_cmd <- struct{}{}:
+			case result_cmd <- struct{}{}:		// Команда выгрузки
 			default:
 		   }
 		}
@@ -196,9 +253,9 @@ func errorsUpload (wg *sync.WaitGroup, cmd <-chan struct{}){
 	defer wg.Done()
 	for range cmd { // Ожидаем очередную команду выгрузки. При закрытии канала цикл цикл и функция завершатся
 		//storage <- errors	// сохранить данные в хранилище
-		muErr.Lock()
-		errors = errors[:0] // очистить коллектор
-		muErr.Unlock()
+		muErr.Lock();	errUnlocked=false		// Блокируем
+		errors = errors[:0] 					// Очищаем коллектор
+		muErr.Unlock();	errUnlocked=true		// Разблокируем
 	}
 }
 
@@ -208,9 +265,9 @@ func resultUpload (wg *sync.WaitGroup, cmd <-chan struct{}){
 	defer wg.Done()
 	for range cmd { // Ожидаем очередную команду выгрузки. При закрытии канала цикл цикл и функция завершатся
 		//storage <- results // сохранить данные в хранилище
-		muRes.Lock()
-		clear(results) // очистить коллектор
-		muRes.Unlock()
+		muRes.Lock();	resUnlocked=false	// Блокируем
+		clear(results)  					// очищаем коллектор
+		muRes.Unlock();	resUnlocked=true  	// Разблокируем
 	}
 }
 
@@ -223,18 +280,12 @@ func taskWorker (task Task) Task {
 	} else {
 		task.result = []byte("something went wrong")
 	}
-
-	//var factorial uint64 = 1						// Небольшая полезная нагрузка
-	//imax := (task.i % 10) + 1   					// Переменный факториал в пределах 1..10
-	//for i:=1; i<=imax; i++ { factorial *= uint64(i); }
-
 	imax := (task.i % 10) + 1   					// Переменный факториал в пределах 1..10
 	task.result = append(task.result, fmt.Sprintf(". Factorial(%d)=%d",imax,Factorial(int64(imax)))...)
-	//time.Sleep(time.Millisecond * 150)			// Имитация полезной нагрузки, а не вынужденный Sleep.
-
 	task.fT = time.Now().Format(time.RFC3339Nano)	// Время завершения задачи
 	return task
 }
+
 
 // Сортировщик тасков
 func taskSorter (wg *sync.WaitGroup, task Task, done chan<- Task, err chan<- error) {
@@ -266,22 +317,24 @@ func taskReceiver (wg *sync.WaitGroup, c <-chan Task, done chan Task, undo chan 
 	if DEBUG { print("\n[\n Wait\n") }
 	wg2.Wait()					// Ждать завершение дочерних пишущих горутин
 	if DEBUG { print("\n]\n Close Collectors сhans\n") }
-	close(done)					// Закрыть каналы, чтобы читающие горутины могли завершиться 
-	close(undo)
-	close(errors_cmd)
-	close(result_cmd)
+	close(done);		doneTOpen  = false	// Закрыть каналы, чтобы читающие горутины могли завершиться 
+	close(undo);		undoneTOpen= false
+	close(errors_cmd);  errCmdOpen = false
+	close(result_cmd); 	resCmdOpen = false
+
 }
+	
 
 // Выключатель. Ждет ненулевой сигнал и устанавливает переменную выключения
 func off () {
 	os.Stdin.Read(make([]byte,1))	// ожидает ввода команды с клавиатуры
-	stop = true					// приведет к завершению цикла Sender
+	stop = true						// приведет к завершению цикла Sender
 	if DEBUG { println("Pressed a Key, stop =", stop) }
 }
 // Вариант без ввода с клавиатуры, сигнал или команда поступает из канала
 func off2 (c <-chan byte) {
-	for range c {		// цикл заблокирован пока не поступит сигнал
-		stop = true	// приведет к завершению цикла Sender
+	for range c {				// цикл заблокирован пока не поступит сигнал
+		stop = true				// приведет к завершению цикла Sender
 		break
 	}
 }
@@ -296,7 +349,6 @@ func taskTransmitter (wg *sync.WaitGroup, c chan<- Task) {
 		counter++
 		if stop || MaxCount > 0 && MaxCount < counter { break } // условие окончания цикла
 		if DEBUG { print(" {S", counter) }
-
 		t := time.Now()											// фиксируем время 
 		tf := t.Format(time.RFC3339)							// берем его так
 		id := int(t.Nanosecond())								// и сяк, один раз, для соответствия проверяемого и сохраняемого значения.
@@ -305,9 +357,19 @@ func taskTransmitter (wg *sync.WaitGroup, c chan<- Task) {
 		}                                           			
 		c <- Task{cT: tf, id: id, i: counter}    				// создаем экземпляр и передаем таск в канал.
 		if counter >= MaxInt { counter = 0 }					// в бесконечном цикле счетчик должен быть циклическим
+		/*
+		if counter % 10000 == 0 {								// Отладочный мониторинг состояния объектов
+			for i := range Objects {							// В v.1.0 это будет в Web-интерфейсе через микросервис
+				n := Objects[i]
+				l, c, s := State(n)
+				print(n,"[",l,",",c,",",s,"], ")
+			}
+			print("\n")
+		}
+		*/
 		time.Sleep(time.Duration(goCounter) * time.Nanosecond)  // Пропорциональное замедление передатчика
 	}
-	close(c)	// Закрыть канал записи и выйти, это не мешает другим горутинам читать из этого канала
+	close(c); inChanOpen=false;	// Закрыть канал записи и выйти, это не мешает другим горутинам читать из этого канала
 }
 
 
