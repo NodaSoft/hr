@@ -26,7 +26,7 @@ type Ttype struct {
 var ErrorResultBytes = []byte("Some error occured")
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	taskCreator := func(a chan Ttype) {
 		for {
 			ct := time.Now().Format(time.RFC3339)
 			task := Ttype{cT: ct, id: int(time.Now().UnixNano())}
@@ -39,9 +39,9 @@ func main() {
 
 	superChan := make(chan Ttype, 10)
 
-	go taskCreturer(superChan)
+	go taskCreator(superChan)
 
-	task_worker := func(a Ttype) Ttype {
+	taskWorker := func(a Ttype) Ttype {
 		tt, err := time.Parse(time.RFC3339, a.cT)
 		if err != nil {
 			a.taskRESULT = []byte(fmt.Sprintf("time parse error [%v]", err))
@@ -68,7 +68,7 @@ func main() {
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
+	taskSorter := func(t Ttype) {
 		if len(t.taskRESULT) > 14 && string(t.taskRESULT[14:]) == "successed" {
 			doneTasks <- t
 		} else {
@@ -79,8 +79,8 @@ func main() {
 	go func() {
 		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+			t = taskWorker(t)
+			go taskSorter(t)
 		}
 	}()
 
