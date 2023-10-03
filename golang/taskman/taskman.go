@@ -51,7 +51,7 @@ func (t Task) Successed() bool {
 var (
 	BufCap		int				// Ёмкость кольцевого буфера 
 	MaxCount	int				// Максимальное число итераций. Если <=0, то бесконечный цикл
-	MaxResult	int				// Пороговое значение len для results и errors при достижении которого данные будут выгружаться в хранилище
+	MaxResult	int				// Пороговое значение len для results и errors, при достижении которого данные будут выгружаться в хранилище
 	Objects	= [...] string { "inChan", "doneTasks", "undoneTasks", "results", "errors", "result_cmd", "errors_cmd" } // Объекты мониторинга для микросервисов
 )
 // Private vars:
@@ -77,12 +77,12 @@ var (
 	errCmdOpen 	bool = false	// состояние для мониторинга
 
 	results 	map[int]Task	// Карта результатов. Ограничена MaxResult
-	resUnlocked bool = true
-	muRes		sync.Mutex
+	resUnlocked bool = true		// состояние для мониторинга
+	muRes		sync.Mutex		// Мьютекс для блокировки во время изменений
 
 	errors		[]error			// Список ошибок. Ограничен MaxResult
-	errUnlocked bool = true
-	muErr		sync.Mutex
+	errUnlocked bool = true		// состояние для мониторинга
+	muErr		sync.Mutex		// Мьютекс для блокировки во время изменений
 )
 
 
@@ -213,37 +213,45 @@ func Log () {
 
 //////////////////////////////////////// Private functions /////////////////////////////////////////////////////////
 
-// Коллектор ошибок
+// Коллектор ошибок. Два варианта блокировки.
 func errorsCollector (wg *sync.WaitGroup, c <-chan error) {
 	defer wg.Done()
 	for e := range c {					
-		muErr.Lock();	errUnlocked=false					// Теперь лочим, т.к. добавилась выгрузка коллекторов
-		errors = append(errors, e)		
-		muErr.Unlock();	errUnlocked=true
-		if DEBUG { print(" E") }
 		if ( len(errors) >= MaxResult){
 			select {
-			case errors_cmd <- struct{}{}:		// Команда выгрузки
+			case errors_cmd <- struct{}{}:			// Команда выгрузки
 			default:
 			}
-		}
+			time.Sleep(5*time.Millisecond)			// Синхронный вариант
+			for !resUnlocked {						// Такой способ намного оптимальнее по скорости, т.к. вызывается в 100000 раз реже, чем append
+				time.Sleep(5*time.Millisecond)		// ждем завершение выгрузки
+			}
+		  } 
+		//muErr.Lock();	errUnlocked=false			// Асинхронный вариант
+		errors = append(errors, e)		
+		//muErr.Unlock();	errUnlocked=true
+		if DEBUG { print(" E") }
 	}
 }
 
-// Коллектор успешных тасков
+// Коллектор успешных тасков. Два варианта блокировки.
 func resultCollector (wg *sync.WaitGroup, c <-chan Task) {
 	defer wg.Done()
 	for task := range c { 	
-		muRes.Lock();	resUnlocked=false			// Теперь лочим, т.к. добавилась выгрузка коллекторов
-		results[task.id] = task		
-		muRes.Unlock();	resUnlocked=true
-		if DEBUG { print(" T") }
 		if (len(results) >= MaxResult){
 			select {
-			case result_cmd <- struct{}{}:		// Команда выгрузки
+			case result_cmd <- struct{}{}:			// Команда выгрузки
 			default:
 		   }
+		   time.Sleep(5*time.Millisecond)			// Синхронный вариант
+		   for !resUnlocked {						// Такой способ намного оптимальнее по скорости, т.к. вызывается в 100000 раз реже, чем добавление
+		   		time.Sleep(5*time.Millisecond)		// ждем завершение выгрузки
+		   }
 		}
+		//muRes.Lock();	resUnlocked=false			// Асинхронный вариант
+		results[task.id] = task		
+		//muRes.Unlock();	resUnlocked=true
+		if DEBUG { print(" T") }
 	}
 }
 
@@ -351,14 +359,14 @@ func taskTransmitter (wg *sync.WaitGroup, c chan<- Task) {
 		if DEBUG { print(" {S", counter) }
 		t := time.Now()											// фиксируем время 
 		tf := t.Format(time.RFC3339)							// берем его так
-		id := int(t.Nanosecond())								// и сяк, один раз, для соответствия проверяемого и сохраняемого значения.
+		id := int(t.UnixNano())									// и сяк, один раз, для соответствия проверяемого и сохраняемого значения.
 		if id%2 > 0 {											// "вот такое искусственное условие появления ошибочных тасков"
 			tf = "Some error occured"							// таски с нечетным временем получают признак ошибки
 		}                                           			
 		c <- Task{cT: tf, id: id, i: counter}    				// создаем экземпляр и передаем таск в канал.
 		if counter >= MaxInt { counter = 0 }					// в бесконечном цикле счетчик должен быть циклическим
 		/*
-		if counter % 10000 == 0 {								// Отладочный мониторинг состояния объектов
+		if counter % 30000 == 0 {								// Отладочный мониторинг состояния объектов
 			for i := range Objects {							// В v.1.0 это будет в Web-интерфейсе через микросервис
 				n := Objects[i]
 				l, c, s := State(n)
