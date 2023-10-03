@@ -60,7 +60,7 @@ func main() {
 		if string(t.taskRESULT[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("task id [%d] time [%s], error [%s]", t.id, t.cT, t.taskRESULT)
 		}
 	}
 
@@ -75,30 +75,31 @@ func main() {
 
 	result := map[int]Ttype{}
 	err := []error{}
+
 	go func() {
 		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+			result[r.id] = r
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		for r := range undoneTasks {
+			err = append(err, r)
+		}
+	}()
+
+	// close(doneTasks)
+	// close(undoneTasks)
+
+	time.Sleep(time.Second * 5)
 
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, r := range err {
+		fmt.Printf("%v\n", r)
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for _, r := range result {
+		fmt.Printf("%d %s\n", r.id, string(r.taskRESULT))
 	}
 }
