@@ -59,8 +59,19 @@ type Task struct {
     ReceiveMessage string
 }
 
+// Тип приемника тасков
+type TaskReceiver struct {
+    InputTaskChan chan Task
+    SuccesTasksChan chan Task
+    ErrorTasksChan chan error
+    SuccesMap map[int]Task
+    ErrorList []error
+    CommitMutex sync.Mutex
+    ReceiveMutex sync.Mutex
+}
+
 // Получить таск
-func (task *Task) Receive () {
+func (receiver TaskReceiver) PerformTask (task *Task) {
     tt, _ := time.Parse(time.RFC3339, task.CreateTime)
     // Проверим что таск не из будущего
     if tt.After(time.Now().Add(-20 * time.Second)) {
@@ -75,24 +86,13 @@ func (task *Task) Receive () {
 }
 
 // сортировка тасков - успех/провал
-func (task Task) Separate (SuccesTasksChan chan Task, ErrorTasksChan chan error) {
+func (receiver TaskReceiver) SeparateTask (task Task, SuccesTasksChan chan Task, ErrorTasksChan chan error) {
     // нет ошибок отправки и получения
     if task.ReceiveResult == 0 && task.SendResult == 0 {
         SuccesTasksChan <- task
     } else {
         ErrorTasksChan <- fmt.Errorf("Task id %d time %s, send error: %s, receive error: %s", task.ID, task.CreateTime, task.SendMessage ,task.ReceiveMessage)
     }
-}
-
-// Тип приемника тасков
-type TaskReceiver struct {
-    InputTaskChan chan Task
-    SuccesTasksChan chan Task
-    ErrorTasksChan chan error
-    SuccesMap map[int]Task
-    ErrorList []error
-    CommitMutex sync.Mutex
-    ReceiveMutex sync.Mutex
 }
 
 // запустить приемник тасков
@@ -119,8 +119,8 @@ func (receiver *TaskReceiver) Start (inputChan chan Task) {
 func (receiver TaskReceiver) Receive () {
     for t := range receiver.InputTaskChan {
         receiver.ReceiveMutex.Lock()
-        t.Receive()
-        t.Separate(receiver.SuccesTasksChan, receiver.ErrorTasksChan)
+        receiver.PerformTask(&t)
+        receiver.SeparateTask(t, receiver.SuccesTasksChan, receiver.ErrorTasksChan)
         receiver.ReceiveMutex.Unlock()
     }
     close(receiver.InputTaskChan)
