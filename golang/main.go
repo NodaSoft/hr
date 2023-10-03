@@ -27,16 +27,14 @@ var ErrorResultBytes = []byte("Some error occured")
 
 func main() {
 	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ct := time.Now().Format(time.RFC3339)
-				task := Ttype{cT: ct, id: int(time.Now().Unix())}
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					task.taskRESULT = ErrorResultBytes
-				}
-				a <- task // передаем таск на выполнение
+		for {
+			ct := time.Now().Format(time.RFC3339)
+			task := Ttype{cT: ct, id: int(time.Now().Unix())}
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				task.taskRESULT = ErrorResultBytes
 			}
-		}()
+			a <- task // передаем таск на выполнение
+		}
 	}
 
 	superChan := make(chan Ttype, 10)
