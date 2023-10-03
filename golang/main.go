@@ -69,7 +69,7 @@ func (task *Task) Receive () {
     } else {
         // протсто фейковый код ошибки, это можно потом в MAP вынести
         task.ReceiveResult = 10003
-        task.ReceiveMessage = "task has been successed"
+        task.ReceiveMessage = "message from the future"
     }
     task.ReceiveTime = time.Now().Format(time.RFC3339Nano)
 }
