@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 )
@@ -22,15 +23,18 @@ type Ttype struct {
 	taskRESULT []byte
 }
 
+var ErrorResultBytes = []byte("Some error occured")
+
 func main() {
 	taskCreturer := func(a chan Ttype) {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
+				ct := time.Now().Format(time.RFC3339)
+				task := Ttype{cT: ct, id: int(time.Now().Unix())}
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+					task.taskRESULT = ErrorResultBytes
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- task // передаем таск на выполнение
 			}
 		}()
 	}
@@ -40,15 +44,25 @@ func main() {
 	go taskCreturer(superChan)
 
 	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+		tt, err := time.Parse(time.RFC3339, a.cT)
+		if err != nil {
+			a.taskRESULT = []byte(fmt.Sprintf("time parse error [%v]", err))
+			return a
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+
+		if bytes.Equal(a.taskRESULT, ErrorResultBytes) {
+			return a
+		}
+
+		if tt.Before(time.Now().Add(-20 * time.Second)) {
+			a.taskRESULT = []byte("task outdated")
+			return a
+		}
 
 		time.Sleep(time.Millisecond * 150)
+
+		a.taskRESULT = []byte("task has been successed")
+		a.fT = time.Now().Format(time.RFC3339Nano)
 
 		return a
 	}
@@ -57,7 +71,7 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
+		if len(t.taskRESULT) > 14 && string(t.taskRESULT[14:]) == "successed" {
 			doneTasks <- t
 		} else {
 			undoneTasks <- fmt.Errorf("task id [%d] time [%s], error [%s]", t.id, t.cT, t.taskRESULT)
@@ -70,7 +84,6 @@ func main() {
 			t = task_worker(t)
 			go tasksorter(t)
 		}
-		close(superChan)
 	}()
 
 	result := map[int]Ttype{}
@@ -87,9 +100,6 @@ func main() {
 			err = append(err, r)
 		}
 	}()
-
-	// close(doneTasks)
-	// close(undoneTasks)
 
 	time.Sleep(time.Second * 5)
 
