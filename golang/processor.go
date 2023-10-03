@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,7 +17,7 @@ type Ttype struct {
 }
 
 type Processor interface {
-	Loop() (map[int]Ttype, []error)
+	Loop(ctx context.Context) (map[int]Ttype, []error)
 }
 
 func NewProcessor(bufferSize int, createTask func() Ttype) Processor {
@@ -36,42 +38,64 @@ type processor struct {
 	createTask  func() Ttype
 }
 
-func (p *processor) Loop() (map[int]Ttype, []error) {
+func (p *processor) Loop(ctx context.Context) (map[int]Ttype, []error) {
 	result := make(map[int]Ttype, p.bufferSize/2)
 	err := make([]error, 0, p.bufferSize/2)
 
-	go p.taskCreator()
-	go p.taskReciever()
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go p.taskCreator(ctx, &wg)
+	go p.taskReciever(ctx, &wg)
 
 	go func() {
-		for r := range p.doneTasks {
-			result[r.id] = r
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				for {
+					select {
+					case r := <-p.doneTasks:
+						result[r.id] = r
+					case r := <-p.undoneTasks:
+						err = append(err, r)
+					default:
+						return
+					}
+				}
+			case r := <-p.doneTasks:
+				result[r.id] = r
+			case r := <-p.undoneTasks:
+				err = append(err, r)
+			}
 		}
 	}()
 
-	go func() {
-		for r := range p.undoneTasks {
-			err = append(err, r)
-		}
-	}()
-
-	time.Sleep(time.Second * 5)
+	wg.Wait()
 
 	return result, err
 }
 
-func (p *processor) taskCreator() {
+func (p *processor) taskCreator(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
-		p.buffer <- p.createTask()
+		select {
+		case <-ctx.Done():
+			return
+		case p.buffer <- p.createTask():
+		}
 	}
 }
 
-func (p *processor) taskReciever() {
-	for t := range p.buffer {
-		ct := t
-		go func() {
-			p.taskSorter(p.taskWorker(ct))
-		}()
+func (p *processor) taskReciever(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case t := <-p.buffer:
+			p.taskSorter(p.taskWorker(t))
+		}
 	}
 }
 

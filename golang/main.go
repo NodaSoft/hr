@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -17,6 +18,9 @@ import (
 var ErrorResultBytes = []byte("Some error occured")
 
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
 	createTask := func() Ttype {
 		ct := time.Now().Format(time.RFC3339)
 		task := Ttype{cT: ct, id: int(time.Now().UnixNano())}
@@ -27,8 +31,7 @@ func main() {
 	}
 
 	processor := NewProcessor(10, createTask)
-
-	result, err := processor.Loop()
+	result, err := processor.Loop(ctx)
 
 	println("Errors:")
 	for _, r := range err {
