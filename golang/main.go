@@ -29,7 +29,7 @@ func main() {
 	taskCreturer := func(a chan Ttype) {
 		for {
 			ct := time.Now().Format(time.RFC3339)
-			task := Ttype{cT: ct, id: int(time.Now().Unix())}
+			task := Ttype{cT: ct, id: int(time.Now().UnixNano())}
 			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 				task.taskRESULT = ErrorResultBytes
 			}
