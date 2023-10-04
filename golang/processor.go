@@ -20,8 +20,9 @@ type Processor interface {
 	Loop(ctx context.Context) (map[int]Ttype, []error)
 }
 
-func NewProcessor(bufferSize int, createTask func() Ttype) Processor {
+func NewProcessor(goroutines int, bufferSize int, createTask func() Ttype) Processor {
 	return &processor{
+		goroutines:  goroutines,
 		bufferSize:  bufferSize,
 		buffer:      make(chan Ttype, bufferSize),
 		doneTasks:   make(chan Ttype, bufferSize/2),
@@ -31,6 +32,7 @@ func NewProcessor(bufferSize int, createTask func() Ttype) Processor {
 }
 
 type processor struct {
+	goroutines  int
 	bufferSize  int
 	buffer      chan Ttype
 	doneTasks   chan Ttype
@@ -53,16 +55,7 @@ func (p *processor) Loop(ctx context.Context) (map[int]Ttype, []error) {
 		for {
 			select {
 			case <-ctx.Done():
-				for {
-					select {
-					case r := <-p.doneTasks:
-						result[r.id] = r
-					case r := <-p.undoneTasks:
-						err = append(err, r)
-					default:
-						return
-					}
-				}
+				return
 			case r := <-p.doneTasks:
 				result[r.id] = r
 			case r := <-p.undoneTasks:
@@ -89,12 +82,21 @@ func (p *processor) taskCreator(ctx context.Context, wg *sync.WaitGroup) {
 
 func (p *processor) taskReciever(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
+	limit := make(chan struct{}, p.goroutines)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case t := <-p.buffer:
-			p.taskSorter(p.taskWorker(t))
+			wg.Add(1)
+			limit <- struct{}{}
+			go func() {
+				defer wg.Done()
+				defer func() { <-limit }()
+				p.taskSorter(ctx, p.taskWorker(t))
+			}()
+
 		}
 	}
 }
@@ -115,7 +117,7 @@ func (p *processor) taskWorker(a Ttype) Ttype {
 		return a
 	}
 
-	time.Sleep(time.Millisecond * 150)
+	time.Sleep(time.Millisecond * 150) // doing hard work
 
 	a.taskRESULT = []byte("task has been successed")
 	a.fT = time.Now().Format(time.RFC3339Nano)
@@ -123,10 +125,20 @@ func (p *processor) taskWorker(a Ttype) Ttype {
 	return a
 }
 
-func (p *processor) taskSorter(t Ttype) {
+func (p *processor) taskSorter(ctx context.Context, t Ttype) {
 	if len(t.taskRESULT) > 14 && string(t.taskRESULT[14:]) == "successed" {
-		p.doneTasks <- t
-	} else {
-		p.undoneTasks <- fmt.Errorf("task id [%d] time [%s], error [%s]", t.id, t.cT, t.taskRESULT)
+		select {
+		case <-ctx.Done():
+			return
+		case p.doneTasks <- t:
+			return
+		}
+	}
+
+	select {
+	case <-ctx.Done():
+		return
+	case p.undoneTasks <- fmt.Errorf("task id [%d] time [%s], error [%s]", t.id, t.cT, t.taskRESULT):
+		return
 	}
 }

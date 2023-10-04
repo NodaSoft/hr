@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 )
 
@@ -30,7 +31,8 @@ func main() {
 		return task
 	}
 
-	processor := NewProcessor(10, createTask)
+	cpu := runtime.NumCPU()
+	processor := NewProcessor(cpu*2, cpu, createTask)
 	result, err := processor.Loop(ctx)
 
 	println("Errors:")
