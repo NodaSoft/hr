@@ -8,14 +8,6 @@ import (
 	"time"
 )
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
-}
-
 type Processor interface {
 	Loop(ctx context.Context) (map[int]Ttype, []error)
 }
@@ -126,7 +118,7 @@ func (p *processor) taskWorker(a Ttype) Ttype {
 }
 
 func (p *processor) taskSorter(ctx context.Context, t Ttype) {
-	if len(t.taskRESULT) > 14 && string(t.taskRESULT[14:]) == "successed" {
+	if t.Success() {
 		select {
 		case <-ctx.Done():
 			return
