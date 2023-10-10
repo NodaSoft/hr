@@ -93,14 +93,12 @@ type TaskReceiver struct {
 }
 
 // запустить приемник тасков
-func (receiver *TaskReceiver) Start (inputChan chan Task) chan int {
+func (receiver *TaskReceiver) Start (inputChan chan Task) {
     // создаем каналы
     receiver.SuccesTasksChan = make(chan Task)
     receiver.ErrorTasksChan = make(chan error)
     receiver.InputTaskChan = inputChan
     receiver.SuccesMap = make(map[int]Task)
-    // канал для завершения работы клиента
-    manageChan := make(chan int)
     // открываем группы ожидания для потоков обработки
     receiver.ReceiveWG.Add(ReceiverThreadCount)
     receiver.CommitSuccWG.Add(ReceiverThreadCount)
@@ -124,10 +122,6 @@ func (receiver *TaskReceiver) Start (inputChan chan Task) chan int {
     // ожидаем завершения чтения сортировок
     receiver.CommitSuccWG.Wait()
     receiver.CommitErrWG.Wait()
-    // отправим в управляющий канал сообщение, что все ОК
-    go func () {manageChan <- 1} ();
-    // счастливые выходим и завершаем основную программу
-    return manageChan
 }
 
 // Получить таск
@@ -203,7 +197,7 @@ func main() {
     sender.Start()
     // стартуем приемник тасков
     var receiver TaskReceiver
-    <-receiver.Start(sender.OutTaskChan)
+    receiver.Start(sender.OutTaskChan)
 
     // выводим результат на экран
     receiver.PrintResult()
