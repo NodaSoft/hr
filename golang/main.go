@@ -4,6 +4,7 @@ import (
     "fmt"
     "time"
     "sync"
+    "strconv"
 )
 
 // Количество потоков
@@ -24,7 +25,7 @@ func (sender *TaskSender) SendTask () {
         task.SendResult = 0
         task.CreateTime = time.Now().Format(time.RFC3339)
         // ID генерируем с инкрементом, чтобы был уникален (хотя бы для сессии)
-        task.ID = int(time.Now().Unix()) + sender.Seed
+        task.ID, _ = strconv.Atoi(fmt.Sprintf("%d%d", int(time.Now().Unix()), sender.Seed))
         sender.SendMutex.Lock()
         sender.Seed++
         sender.SendMutex.Unlock()
@@ -42,7 +43,7 @@ func (sender *TaskSender) SendTask () {
 // Стартуем отправителя тасков
 func (sender *TaskSender) Start () {
     sender.OutTaskChan = make(chan Task, 10)
-    sender.Seed = 0
+    sender.Seed = 100000
     for i := 0; i < SenderThreadCount; i++ {
         go sender.SendTask()
     }
@@ -139,9 +140,7 @@ func (receiver *TaskReceiver) CommitSuccess () {
 // зафиксировать ошибки получения
 func (receiver *TaskReceiver) CommitErrors () {
     for r := range receiver.ErrorTasksChan {
-        receiver.CommitMutex.Lock()
         receiver.ErrorList = append(receiver.ErrorList, r)
-        receiver.CommitMutex.Unlock()
     }
     close(receiver.ErrorTasksChan)
 }
