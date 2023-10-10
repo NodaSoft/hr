@@ -7,46 +7,65 @@ import (
     "strconv"
 )
 
-// Количество потоков
-const SenderThreadCount = 5
-const ReceiverThreadCount = 5
+// Количество потоков и прочие константы для игры с потоками
+const SenderThreadCount = 20
+const ReceiverThreadCount = 10
+const TotalMsgCount = 100
+const SendInterval = 100
+const ReadInterval = 100
+const InitMsgNum = 10000
 
 // Тип отправителя тасков
 type TaskSender struct {
     OutTaskChan chan Task
-    Seed int
+    MsgNum int
     SendMutex sync.Mutex
+    SendWG sync.WaitGroup
 }
 
 // Метод отправки тасков
 func (sender *TaskSender) SendTask () {
-    for {
+    defer sender.SendWG.Done()
+    needSend := true
+    // Отправляем строго определенное число сообщений
+    for needSend {
         var task Task
         task.SendResult = 0
         task.CreateTime = time.Now().Format(time.RFC3339)
-        // ID генерируем с инкрементом, чтобы был уникален (хотя бы для сессии)
-        task.ID, _ = strconv.Atoi(fmt.Sprintf("%d%d", int(time.Now().Unix()), sender.Seed))
+        // дальнейшие операции должны быть защищены мьютексом, чтобы не было одинаковых ИД и отправить ровно N сообщений
+        // ID генерируем с инкрементом, чтобы был уникален (хотя бы для сессии) - но в идеале тут GUID бы
         sender.SendMutex.Lock()
-        sender.Seed++
+        sender.MsgNum++
+        task.ID, _ = strconv.Atoi(fmt.Sprintf("%d%d", int(time.Now().Unix()), sender.MsgNum))
+        needSend = sender.MsgNum <= InitMsgNum + TotalMsgCount
         sender.SendMutex.Unlock()
         // не стоит валить в кучу время и ошибку, делаем поле под сообщение об ошибке
         if time.Now().Nanosecond() % 2 > 0 {
             task.SendMessage = "Some error occured"
             task.SendResult = -1
         }
-        sender.OutTaskChan <- task
-
-        time.Sleep(time.Millisecond * 150)
+        // отправляем сообщение и ждем следующего цикла
+        if needSend {
+            //fmt.Println(len(sender.OutTaskChan))
+            sender.OutTaskChan <- task
+            time.Sleep(time.Millisecond * SendInterval)
+        }
     }
 }
 
 // Стартуем отправителя тасков
 func (sender *TaskSender) Start () {
-    sender.OutTaskChan = make(chan Task, 10)
-    sender.Seed = 100000
-    for i := 0; i < SenderThreadCount; i++ {
-        go sender.SendTask()
-    }
+    // буффер с запасом, от форс-мажоров чтения = SenderThreadCount * 4
+    sender.OutTaskChan = make(chan Task, SenderThreadCount * 4)
+    sender.MsgNum = InitMsgNum
+    go func() {
+        sender.SendWG.Add(SenderThreadCount)
+        for i := 0; i < SenderThreadCount; i++ {
+            go sender.SendTask()
+        }
+        sender.SendWG.Wait()
+        close(sender.OutTaskChan)
+    }()
 }
 
 // Тип обработчика тасков
@@ -68,11 +87,51 @@ type TaskReceiver struct {
     SuccesMap map[int]Task
     ErrorList []error
     CommitMutex sync.Mutex
-    ReceiveMutex sync.Mutex
+    ReceiveWG sync.WaitGroup
+    CommitSuccWG sync.WaitGroup
+    CommitErrWG sync.WaitGroup
+}
+
+// запустить приемник тасков
+func (receiver *TaskReceiver) Start (inputChan chan Task) chan int {
+    // создаем каналы
+    receiver.SuccesTasksChan = make(chan Task)
+    receiver.ErrorTasksChan = make(chan error)
+    receiver.InputTaskChan = inputChan
+    receiver.SuccesMap = make(map[int]Task)
+    // канал для завершения работы клиента
+    manageChan := make(chan int)
+    // открываем группы ожидания для потоков обработки
+    receiver.ReceiveWG.Add(ReceiverThreadCount)
+    receiver.CommitSuccWG.Add(ReceiverThreadCount)
+    receiver.CommitErrWG.Add(ReceiverThreadCount)
+    // запускаем сканнирование входящих тасков
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.Receive()
+    }
+    // запускаем сканнирование фиксации тасков после получения
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.CommitSuccess()
+    }
+    for i := 0; i < ReceiverThreadCount; i++ {
+        go receiver.CommitErrors()
+    }
+    // ждем завершения все потоков обработки потдельно по группам
+    receiver.ReceiveWG.Wait()
+    // закрываем каналы сортировок
+    close(receiver.SuccesTasksChan)
+    close(receiver.ErrorTasksChan)
+    // ожидаем завершения чтения сортировок
+    receiver.CommitSuccWG.Wait()
+    receiver.CommitErrWG.Wait()
+    // отправим в управляющий канал сообщение, что все ОК
+    go func () {manageChan <- 1} ();
+    // счастливые выходим и завершаем основную программу
+    return manageChan
 }
 
 // Получить таск
-func (receiver TaskReceiver) PerformTask (task *Task) {
+func (receiver *TaskReceiver) PerformTask (task *Task) {
     tt, _ := time.Parse(time.RFC3339, task.CreateTime)
     // Проверим что таск не из будущего
     if tt.After(time.Now().Add(-20 * time.Second)) {
@@ -87,7 +146,7 @@ func (receiver TaskReceiver) PerformTask (task *Task) {
 }
 
 // сортировка тасков - успех/провал
-func (receiver TaskReceiver) SeparateTask (task Task, SuccesTasksChan chan Task, ErrorTasksChan chan error) {
+func (receiver *TaskReceiver) SeparateTask (task Task, SuccesTasksChan chan Task, ErrorTasksChan chan error) {
     // нет ошибок отправки и получения
     if task.ReceiveResult == 0 && task.SendResult == 0 {
         SuccesTasksChan <- task
@@ -96,53 +155,32 @@ func (receiver TaskReceiver) SeparateTask (task Task, SuccesTasksChan chan Task,
     }
 }
 
-// запустить приемник тасков
-func (receiver *TaskReceiver) Start (inputChan chan Task) {
-    // создаем каналы
-    receiver.SuccesTasksChan = make(chan Task)
-    receiver.ErrorTasksChan = make(chan error)
-    receiver.InputTaskChan = inputChan
-    receiver.SuccesMap = make(map[int]Task)
-    // запускаем сканнирование входящих тасков
-    for i := 0; i < ReceiverThreadCount; i++ {
-        go receiver.Receive()
-    }
-    // запускаем сканнирование фиксации тасков после получения
-    for i := 0; i < ReceiverThreadCount; i++ {
-        go receiver.CommitSuccess()
-    }
-    for i := 0; i < ReceiverThreadCount; i++ {
-        go receiver.CommitErrors()
-    }
-}
-
 // обработать результаты получения
-func (receiver TaskReceiver) Receive () {
+func (receiver *TaskReceiver) Receive () {
+    defer receiver.ReceiveWG.Done()
     for t := range receiver.InputTaskChan {
-        receiver.ReceiveMutex.Lock()
         receiver.PerformTask(&t)
         receiver.SeparateTask(t, receiver.SuccesTasksChan, receiver.ErrorTasksChan)
-        receiver.ReceiveMutex.Unlock()
+        time.Sleep(time.Millisecond * ReadInterval)
     }
-    close(receiver.InputTaskChan)
 }
 
 // зафиксировать результаты получения
 func (receiver *TaskReceiver) CommitSuccess () {
+    defer receiver.CommitSuccWG.Done()
     for r := range receiver.SuccesTasksChan {
         receiver.CommitMutex.Lock()
         receiver.SuccesMap[r.ID] = r
         receiver.CommitMutex.Unlock()
     }
-    close(receiver.SuccesTasksChan)
 }
 
 // зафиксировать ошибки получения
 func (receiver *TaskReceiver) CommitErrors () {
+    defer receiver.CommitErrWG.Done()
     for r := range receiver.ErrorTasksChan {
         receiver.ErrorList = append(receiver.ErrorList, r)
     }
-    close(receiver.ErrorTasksChan)
 }
 
 // Вывести результат на экран
@@ -165,10 +203,7 @@ func main() {
     sender.Start()
     // стартуем приемник тасков
     var receiver TaskReceiver
-    receiver.Start(sender.OutTaskChan)
-
-    // ждем
-    time.Sleep(time.Second * 3)
+    <-receiver.Start(sender.OutTaskChan)
 
     // выводим результат на экран
     receiver.PrintResult()
