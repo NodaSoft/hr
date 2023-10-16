@@ -1,104 +1,132 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+var (
+	ErrTaskFailed   = errors.New("task failed")
+	ErrPastDeadline = errors.New("past deadline")
+)
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
+const (
+	RunTime     = 3 * time.Second
+	TaskTimeout = 1 * time.Second
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	TaskResult = "success"
+)
+
+func Process(t struct{}) ([]byte, error) {
+	time.Sleep(150 * time.Millisecond)
+
+	failed := time.Now().Nanosecond()%2 > 0
+	if failed {
+		return nil, ErrTaskFailed
+	} else {
+		return []byte(TaskResult), nil
+	}
+}
+
+func NewTimeoutMiddleware[T, R any](d time.Duration) Middleware[T, R] {
+	return func(f func(Task[T]) Result[T, R]) func(Task[T]) Result[T, R] {
+		return func(t Task[T]) Result[T, R] {
+			deadline := time.Now().Add(-d)
+			if t.CreateAt.Before(deadline) {
+				result := Result[T, R]{
+					ID:          t.ID,
+					Task:        &t,
+					CompletedAt: time.Now(),
+					Error:       ErrPastDeadline,
+				}
+
+				return result
+			}
+
+			return f(t)
+		}
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	// There are multiple options to satisfy
+	// "приложение эмулирует получение и обработку тасков..."
+	// For example we can create App struct, config, etc. in order to emulate real life app.
+	// or we can put everything in main:
+
+	ctx, cancel := context.WithTimeout(context.Background(), RunTime)
+
+	tasks := func(ctx context.Context) <-chan Task[struct{}] {
+		tasks := make(chan Task[struct{}])
+
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+				task := Task[struct{}]{
+					ID:       TaskID(Snowflake()),
+					CreateAt: time.Now(),
+					Input:    struct{}{},
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+
+				select {
+				case tasks <- task:
+
+				case <-ctx.Done():
+					close(tasks)
+					return
+				}
 			}
 		}()
+
+		return tasks
+	}(ctx)
+
+	timeoutMiddleware := NewTimeoutMiddleware[struct{}, []byte](TaskTimeout)
+	worker := NewParallelWorker(Process, timeoutMiddleware, 0)
+
+	results := worker(tasks)
+
+	completed := make(map[TaskID]Result[struct{}, []byte])
+	failed := make([]Result[struct{}, []byte], 0)
+loop:
+	for {
+		select {
+		case r, ok := <-results:
+			if !ok {
+				break loop
+			}
+
+			if r.Error == nil {
+				completed[r.ID] = r
+			} else {
+				failed = append(failed, r)
+			}
+
+		case <-terminationSignal():
+			cancel()
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+	log.Println("Errors:")
+	for _, r := range failed {
+		createdAt := r.Task.CreateAt.Format(time.RFC3339)
+		log.Printf("Task id %d time %s, error '%s'", r.ID, createdAt, r.Error)
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
+	log.Println("Done task IDs:")
+	for id := range completed {
+		log.Println(id)
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+func terminationSignal() <-chan os.Signal {
+	c := make(chan os.Signal, 2)
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	return c
 }
