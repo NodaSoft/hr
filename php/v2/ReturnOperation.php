@@ -10,7 +10,7 @@ class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): array
     {
         $data = (array)$this->getRequest('data');
         $resellerId = $data['resellerId'];
