@@ -68,6 +68,12 @@ function getEmailsByPermit($resellerId, $event)
     return ['someemeil@example.com', 'someemeil2@example.com'];
 }
 
+function __(): string
+{
+    /** todo: replace this mocking function */
+    return "FOO BAR BAZ Mocking differences";
+}
+
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
