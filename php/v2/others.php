@@ -14,12 +14,24 @@ class Contractor
 
     public static function getById(int $resellerId): self
     {
-        return new self($resellerId); // fakes the getById method
+        $instance = new self(); // fakes the getById method
+        $instance->id = $resellerId;
+        $instance->type = self::TYPE_CUSTOMER; // todo: solve the temporary solution
+        return $instance;
     }
 
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
+    }
+
+    public function __get($name)
+    {
+        //todo: solve the temporary solution (mocking)
+        if ($name === "Seller") {
+            return Seller::getById(1);
+        }
+        throw new \InvalidArgumentException("There is no $name property.");
     }
 }
 
