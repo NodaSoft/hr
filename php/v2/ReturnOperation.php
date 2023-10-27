@@ -2,6 +2,8 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+use NodaSoft\Factory\Dto\TsReturnDtoFactory;
+
 class TsReturnOperation extends ReferencesOperation
 {
     public const TYPE_NEW    = 1;
@@ -13,6 +15,8 @@ class TsReturnOperation extends ReferencesOperation
     public function doOperation(): array
     {
         $data = (array)$this->getRequest('data');
+        $factory = new TsReturnDtoFactory();
+        $dto = $factory->makeTsReturnDto($data);
         $resellerId = $data['resellerId'];
         $notificationType = (int)$data['notificationType'];
         $result = [
@@ -68,28 +72,17 @@ class TsReturnOperation extends ReferencesOperation
                 ], $resellerId);
         }
 
-        $templateData = [
-            'COMPLAINT_ID'       => (int)$data['complaintId'],
-            'COMPLAINT_NUMBER'   => (string)$data['complaintNumber'],
-            'CREATOR_ID'         => (int)$data['creatorId'],
-            'CREATOR_NAME'       => $cr->getFullName(),
-            'EXPERT_ID'          => (int)$data['expertId'],
-            'EXPERT_NAME'        => $et->getFullName(),
-            'CLIENT_ID'          => (int)$data['clientId'],
-            'CLIENT_NAME'        => $cFullName,
-            'CONSUMPTION_ID'     => (int)$data['consumptionId'],
-            'CONSUMPTION_NUMBER' => (string)$data['consumptionNumber'],
-            'AGREEMENT_NUMBER'   => (string)$data['agreementNumber'],
-            'DATE'               => (string)$data['date'],
-            'DIFFERENCES'        => $differences,
-        ];
+        $dto->setCreatorName($cr->getFullName());
+        $dto->setExpertName($et->getFullName());
+        $dto->setClientName($cFullName);
+        $dto->setDifferences($differences);
 
-        // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
-        foreach ($templateData as $key => $tempData) {
-            if (empty($tempData)) {
-                throw new \Exception("Template Data ({$key}) is empty!", 500);
-            }
+        if (! $dto->isValid()) {
+            $emptyKey = $dto->getEmptyKeys()[0];
+            throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
         }
+
+        $templateData = $dto->toArray();
 
         $emailFrom = getResellerEmailFrom($resellerId);
         // Получаем email сотрудников из настроек
