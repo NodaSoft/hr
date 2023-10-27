@@ -184,11 +184,20 @@ class TsReturnDto
 
     public function isValid(): bool
     {
-        foreach ($this as $value) {
+        return empty($this->getEmptyKeys());
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getEmptyKeys(): array
+    {
+        $emptyKeys = [];
+        foreach ($this as $key => $value) {
             if (empty($value)) {
-                return false;
+                $emptyKeys[] = $key;
             }
         }
-        return true;
+        return $emptyKeys;
     }
 }
