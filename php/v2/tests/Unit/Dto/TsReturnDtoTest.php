@@ -1,5 +1,7 @@
 <?php
 
+namespace Tests\Unit\Dto;
+
 use NodaSoft\Dto\TsReturnDto;
 use PHPUnit\Framework\TestCase;
 
@@ -18,7 +20,7 @@ class TsReturnDtoTest extends TestCase
 
     public function testToArray(): void
     {
-        $data = $this->getValidData();
+        $data = self::getValidData();
         $dto = new TsReturnDto();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
@@ -27,18 +29,18 @@ class TsReturnDtoTest extends TestCase
         $array = $dto->toArray();
         $this->assertSame(count($data), count($array), 'Should be the same number of elements');
         foreach ($data as $key => $value) {
-            $keySnake = $this->toUpperSnake($key);
+            $keySnake = self::toUpperSnake($key);
             $this->assertSame($value, $array[$keySnake], 'Should have an analog in SNAKE_CASE');
         }
     }
 
     public function tsReturnDataProvider(): \Generator
     {
-        yield 'valid' => [$this->getValidData(), true];
+        yield 'valid' => [self::getValidData(), true];
         yield 'invalid' => [$this->getInvalidData(), false];
     }
 
-    private function getValidData(): array
+    public static function getValidData(): array
     {
         return [
             'complaintId' => 186,
@@ -59,12 +61,12 @@ class TsReturnDtoTest extends TestCase
 
     private function getInvalidData(): array
     {
-        $data = $this->getValidData();
+        $data = self::getValidData();
         array_pop($data); // should be invalid if at least one property absent
         return $data;
     }
 
-    private function toUpperSnake(string $camel): string
+    public static function toUpperSnake(string $camel): string
     {
         return strtoupper(
             preg_replace('/(?<!^)[A-Z]/', '_$0', $camel)
