@@ -99,3 +99,12 @@ class MessagesClient
         //todo: implement logic
     }
 }
+
+class NotificationManager
+{
+    public static function send(): bool
+    {
+        //todo: implement logic
+        return true; // fake logic
+    }
+}
