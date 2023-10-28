@@ -2,7 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-use NodaSoft\Factory\Dto\TsReturnDtoFactory;
+use NodaSoft\Factory\OperationInitialData\TsReturnOperationInitialDataFactory;
 use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
 use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
 
@@ -25,67 +25,19 @@ class TsReturnOperation extends ReferencesOperation
      */
     public function doOperation(): ReferencesOperationResult
     {
-        $data = (array)$this->getRequest('data');
-        $factory = new TsReturnDtoFactory();
-        $dto = $factory->makeTsReturnDto($data);
-        $resellerId = $data['resellerId'];
-        $notificationType = (int)$data['notificationType'];
-
-        if (empty((int)$resellerId)) {
-            $this->result->setClientSmsErrorMessage('Empty resellerId');
+        try {
+            $params = $this->getRequest('data');
+            $dataFactory = new TsReturnOperationInitialDataFactory();
+            $initialData = $dataFactory->makeInitialData($params);
+        } catch (\Exception $e) {
+            //todo: handle an exception
+            $this->result->setClientSmsErrorMessage($e->getMessage());
             return $this->result;
         }
 
-        if (empty((int)$notificationType)) {
-            throw new \Exception('Empty notificationType', 400);
-        }
-
-        $reseller = Seller::getById((int)$resellerId);
-        if ($reseller === null) {
-            throw new \Exception('Seller not found!', 400);
-        }
-
-        $client = Contractor::getById((int)$data['clientId']);
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
-            throw new \Exception('сlient not found!', 400);
-        }
-
-        $cFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $cFullName = $client->name;
-        }
-
-        $cr = Employee::getById((int)$data['creatorId']);
-        if ($cr === null) {
-            throw new \Exception('Creator not found!', 400);
-        }
-
-        $et = Employee::getById((int)$data['expertId']);
-        if ($et === null) {
-            throw new \Exception('Expert not found!', 400);
-        }
-
-        $differences = '';
-        if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
-        } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
-            $differences = __('PositionStatusHasChanged', [
-                    'FROM' => Status::getName((int)$data['differences']['from']),
-                    'TO'   => Status::getName((int)$data['differences']['to']),
-                ], $resellerId);
-        }
-
-        $dto->setCreatorName($cr->getFullName());
-        $dto->setExpertName($et->getFullName());
-        $dto->setClientName($cFullName);
-        $dto->setDifferences($differences);
-
-        if (! $dto->isValid()) {
-            $emptyKey = $dto->getEmptyKeys()[0];
-            throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
-        }
-
-        $templateData = $dto->toArray();
+        $templateData = $initialData->getMessageTemplate()->toArray();
+        $resellerId = $initialData->getResellerId();
+        $notificationType = $initialData->getNotificationType();
 
         $emailFrom = getResellerEmailFrom($resellerId);
         // Получаем email сотрудников из настроек
