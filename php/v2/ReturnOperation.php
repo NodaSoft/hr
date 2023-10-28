@@ -3,34 +3,37 @@
 namespace NW\WebService\References\Operations\Notification;
 
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
+use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
+use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
 
 class TsReturnOperation extends ReferencesOperation
 {
     public const TYPE_NEW    = 1;
     public const TYPE_CHANGE = 2;
 
+    /** @var TsReturnOperationResult */
+    private $result;
+
+    public function __construct()
+    {
+        $this->result = new TsReturnOperationResult();
+    }
+
     /**
      * @throws \Exception
+     * @return TsReturnOperationResult
      */
-    public function doOperation(): array
+    public function doOperation(): ReferencesOperationResult
     {
         $data = (array)$this->getRequest('data');
         $factory = new TsReturnDtoFactory();
         $dto = $factory->makeTsReturnDto($data);
         $resellerId = $data['resellerId'];
         $notificationType = (int)$data['notificationType'];
-        $result = [
-            'notificationEmployeeByEmail' => false,
-            'notificationClientByEmail'   => false,
-            'notificationClientBySms'     => [
-                'isSent'  => false,
-                'message' => '',
-            ],
-        ];
 
         if (empty((int)$resellerId)) {
-            $result['notificationClientBySms']['message'] = 'Empty resellerId';
-            return $result;
+            $this->result->setClientSmsErrorMessage('Empty resellerId');
+            return $this->result;
         }
 
         if (empty((int)$notificationType)) {
@@ -97,7 +100,7 @@ class TsReturnOperation extends ReferencesOperation
                            'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
                     ],
                 ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
-                $result['notificationEmployeeByEmail'] = true;
+                $this->result->markEmployeeEmailSent();
 
             }
         }
@@ -113,20 +116,20 @@ class TsReturnOperation extends ReferencesOperation
                            'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
                     ],
                 ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to']);
-                $result['notificationClientByEmail'] = true;
+                $this->result->markClientEmailSent();
             }
 
             if (!empty($client->mobile)) {
                 $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
                 if ($res) {
-                    $result['notificationClientBySms']['isSent'] = true;
+                    $this->result->markClientSmsSent();
                 }
                 if (!empty($error)) {
-                    $result['notificationClientBySms']['message'] = $error;
+                    $this->result->setClientSmsErrorMessage($error);
                 }
             }
         }
 
-        return $result;
+        return $this->result;
     }
 }

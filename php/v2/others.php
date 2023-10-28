@@ -2,6 +2,8 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
+
 /**
  * @property Seller $Seller
  */
@@ -61,7 +63,7 @@ class Status
 
 abstract class ReferencesOperation
 {
-    abstract public function doOperation(): array;
+    abstract public function doOperation(): ReferencesOperationResult;
 
     public function getRequest($pName)
     {
