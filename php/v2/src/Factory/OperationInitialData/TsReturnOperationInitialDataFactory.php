@@ -2,9 +2,12 @@
 
 namespace NodaSoft\Factory\OperationInitialData;
 
-use NW\WebService\References\Operations\Notification\Contractor;
-use NW\WebService\References\Operations\Notification\Employee;
-use NW\WebService\References\Operations\Notification\Seller;
+use NodaSoft\DataMapper\Entity\Client;
+use NodaSoft\DataMapper\Entity\Employee;
+use NodaSoft\DataMapper\Entity\Reseller;
+use NodaSoft\DataMapper\Mapper\ClientMapper;
+use NodaSoft\DataMapper\Mapper\EmployeeMapper;
+use NodaSoft\DataMapper\Mapper\ResellerMapper;
 
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
 use NodaSoft\OperationInitialData\OperationInitialData;
@@ -20,10 +23,12 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
      */
     public function makeInitialData(array $params): OperationInitialData
     {
-
         //todo: set error codes 400 and 500 as it was
 
         $resellerId = (int) $params['resellerId'];
+        $clientId = (int) $params['clientId'];
+        $creatorId = (int) $params['creatorId'];
+        $expertId = (int) $params['expertId'];
         $notificationType = (int) $params['notificationType'];
 
         if (empty($resellerId)) {
@@ -34,29 +39,13 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
             throw new \Exception('Empty notificationType');
         }
 
-        $reseller = Seller::getById($resellerId);
-        if ($reseller === null) {
-            throw new \Exception('Seller not found!');
-        }
-
-        $client = Contractor::getById((int) $params['clientId']);
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
-            throw new \Exception('Client not found!');
-        }
-
-        $cFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $cFullName = $client->name;
-        }
-
-        $cr = Employee::getById((int) $params['creatorId']);
-        if ($cr === null) {
-            throw new \Exception('Creator not found!');
-        }
-
-        $et = Employee::getById((int) $params['expertId']);
-        if ($et === null) {
-            throw new \Exception('Expert not found!', 400);
+        try {
+            $reseller = $this->getReseller($resellerId);
+            $client = $this->getClient($clientId, $reseller);
+            $creator = $this->getCreator($creatorId);
+            $expert = $this->getExpert($expertId);
+        } catch (\Exception $e) {
+            throw new \Exception($e->getMessage());
         }
 
         $differences = '';
@@ -70,14 +59,13 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
             ], $resellerId);
         }
 
-
-
         $templateFactory = new TsReturnDtoFactory();
         $messageTemplate = $templateFactory->makeTsReturnDto($params);
-        $messageTemplate->setCreatorName($cr->getFullName());
-        $messageTemplate->setExpertName($et->getFullName());
-        $messageTemplate->setClientName($cFullName);
+        $messageTemplate->setCreatorName($creator->getFullName());
+        $messageTemplate->setExpertName($expert->getFullName());
+        $messageTemplate->setClientName($client->getFullName());
         $messageTemplate->setDifferences($differences);
+
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
             throw new \Exception("Template Data ({$emptyKey}) is empty!");
@@ -85,7 +73,52 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 
         $data = new TsReturnOperationInitialData();
         $data->setMessageTemplate($messageTemplate);
-        $data->setResellerId($reseller->id);
+        $data->setReseller($reseller);
         $data->setNotificationType($notificationType);
+
+        return $data;
+    }
+
+    public function getReseller(int $resellerId): Reseller
+    {
+        $resellerMapper = new ResellerMapper();
+        $reseller = $resellerMapper->getById($resellerId);
+        if (is_null($reseller)) {
+            throw new \Exception('Reseller not found!');
+        }
+        return $reseller;
+    }
+
+    public function getClient(int $clientId, Reseller $reseller): Client
+    {
+        $clientMapper = new ClientMapper();
+        $client = $clientMapper->getById($clientId);
+        if (is_null($client)
+            || $client->isCustomer()
+            || $client->hasReseller($reseller)
+        ) {
+            throw new \Exception('Client not found!');
+        }
+        return $client;
+    }
+
+    public function getCreator(int $creatorId): Employee
+    {
+        $employeeMapper = new EmployeeMapper(); // todo: duplication of EmployeeMapper initialization
+        $creator = $employeeMapper->getById($creatorId);
+        if (is_null($creator)) {
+            throw new \Exception('Creator not found!');
+        }
+        return $creator;
+    }
+
+    public function getExpert(int $expertId): Employee
+    {
+        $employeeMapper = new EmployeeMapper(); // todo: duplication of EmployeeMapper initialization
+        $expert = $employeeMapper->getById($expertId);
+        if (is_null($expert)) {
+            throw new \Exception('Expert not found!');
+        }
+        return $expert;
     }
 }

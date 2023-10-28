@@ -2,6 +2,7 @@
 
 namespace NodaSoft\OperationInitialData;
 
+use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\Dto\TsReturnDto;
 
 class TsReturnOperationInitialData implements OperationInitialData
@@ -9,8 +10,8 @@ class TsReturnOperationInitialData implements OperationInitialData
     /** @var TsReturnDto */
     private $messageTemplate;
 
-    /** @var int */
-    private $resellerId;
+    /** @var Reseller */
+    private $reseller;
 
     /** @var int */
     private $notificationType;
@@ -25,14 +26,14 @@ class TsReturnOperationInitialData implements OperationInitialData
         $this->messageTemplate = $messageTemplate;
     }
 
-    public function getResellerId(): int
+    public function getReseller(): Reseller
     {
-        return $this->resellerId;
+        return $this->reseller;
     }
 
-    public function setResellerId(int $resellerId): void
+    public function setReseller(Reseller $reseller): void
     {
-        $this->resellerId = $resellerId;
+        $this->reseller = $reseller;
     }
 
     public function getNotificationType(): int

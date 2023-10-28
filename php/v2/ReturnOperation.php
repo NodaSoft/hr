@@ -36,7 +36,7 @@ class TsReturnOperation extends ReferencesOperation
         }
 
         $templateData = $initialData->getMessageTemplate()->toArray();
-        $resellerId = $initialData->getResellerId();
+        $resellerId = $initialData->getReseller();
         $notificationType = $initialData->getNotificationType();
 
         $emailFrom = getResellerEmailFrom($resellerId);
