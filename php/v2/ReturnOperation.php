@@ -3,6 +3,8 @@
 namespace NW\WebService\References\Operations\Notification;
 
 use NodaSoft\Factory\OperationInitialData\TsReturnOperationInitialDataFactory;
+use NodaSoft\OperationParams\TsReturnOperationParams;
+use NodaSoft\Request\HttpRequest;
 use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
 use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
 
@@ -11,28 +13,28 @@ class TsReturnOperation extends ReferencesOperation
     public const TYPE_NEW    = 1;
     public const TYPE_CHANGE = 2;
 
-    /** @var TsReturnOperationResult */
-    private $result;
-
-    public function __construct()
-    {
-        $this->result = new TsReturnOperationResult();
-    }
-
     /**
      * @throws \Exception
      * @return TsReturnOperationResult
      */
     public function doOperation(): ReferencesOperationResult
     {
+        $result = new TsReturnOperationResult();
+
+        $params = new TsReturnOperationParams();
+        $params->setRequest(new HttpRequest());
+        if ($params->isValid()) {
+            $result->setClientSmsErrorMessage('Required parameter is missing.');
+            return $result;
+        }
+
         try {
-            $params = $this->getRequest('data');
             $dataFactory = new TsReturnOperationInitialDataFactory();
             $initialData = $dataFactory->makeInitialData($params);
         } catch (\Exception $e) {
             //todo: handle an exception
-            $this->result->setClientSmsErrorMessage($e->getMessage());
-            return $this->result;
+            $result->setClientSmsErrorMessage($e->getMessage());
+            return $result;
         }
 
         $templateData = $initialData->getMessageTemplate()->toArray();
@@ -52,7 +54,7 @@ class TsReturnOperation extends ReferencesOperation
                            'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
                     ],
                 ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
-                $this->result->markEmployeeEmailSent();
+                $result->markEmployeeEmailSent();
 
             }
         }
@@ -68,20 +70,20 @@ class TsReturnOperation extends ReferencesOperation
                            'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
                     ],
                 ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to']);
-                $this->result->markClientEmailSent();
+                $result->markClientEmailSent();
             }
 
             if (!empty($client->mobile)) {
                 $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
                 if ($res) {
-                    $this->result->markClientSmsSent();
+                    $result->markClientSmsSent();
                 }
                 if (!empty($error)) {
-                    $this->result->setClientSmsErrorMessage($error);
+                    $result->setClientSmsErrorMessage($error);
                 }
             }
         }
 
-        return $this->result;
+        return $result;
     }
 }

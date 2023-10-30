@@ -10,6 +10,8 @@ use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
 
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
+use NodaSoft\OperationParams\OperationParams;
+use NodaSoft\OperationParams\TsReturnOperationParams;
 use NodaSoft\OperationInitialData\OperationInitialData;
 use NodaSoft\OperationInitialData\TsReturnOperationInitialData;
 use NW\WebService\References\Operations\Notification\Status;
@@ -19,44 +21,33 @@ use function NW\WebService\References\Operations\Notification\__;
 class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 {
     /**
+     * @param TsReturnOperationParams $params
      * @return TsReturnOperationInitialData
      */
-    public function makeInitialData(array $params): OperationInitialData
+    public function makeInitialData(OperationParams $params): OperationInitialData
     {
         //todo: set error codes 400 and 500 as it was
 
-        $resellerId = (int) $params['resellerId'];
-        $clientId = (int) $params['clientId'];
-        $creatorId = (int) $params['creatorId'];
-        $expertId = (int) $params['expertId'];
-        $notificationType = (int) $params['notificationType'];
-
-        if (empty($resellerId)) {
-            throw new \Exception('Empty resellerId');
-        }
-
-        if (empty($notificationType)) {
-            throw new \Exception('Empty notificationType');
-        }
+        $notificationType = $params->getNotificationType();
 
         try {
-            $reseller = $this->getReseller($resellerId);
-            $client = $this->getClient($clientId, $reseller);
-            $creator = $this->getCreator($creatorId);
-            $expert = $this->getExpert($expertId);
+            $reseller = $this->getReseller($params->getResellerId());
+            $client = $this->getClient($params->getClientId(), $reseller);
+            $creator = $this->getCreator($params->getCreatorId());
+            $expert = $this->getExpert($params->getExpertId());
         } catch (\Exception $e) {
             throw new \Exception($e->getMessage());
         }
 
         $differences = '';
         if ($notificationType === TsReturnOperation::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
+            $differences = __('NewPositionAdded', null, $params->getResellerId());
         } elseif ($notificationType === TsReturnOperation::TYPE_CHANGE
             && !empty($data['differences'])) {
             $differences = __('PositionStatusHasChanged', [
                 'FROM' => Status::getName((int)$data['differences']['from']),
                 'TO'   => Status::getName((int)$data['differences']['to']),
-            ], $resellerId);
+            ], $params->getResellerId());
         }
 
         $templateFactory = new TsReturnDtoFactory();
