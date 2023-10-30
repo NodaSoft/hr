@@ -2,103 +2,183 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+const SenderThreadCount = 20
+const ReceiverThreadCount = 10
+const TotalMsgCount = 100
+const SendInterval = 100
+const ReadInterval = 100
+const InitMsgNum = 10000
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type TaskSender struct {
+	OutTaskChan chan Task
+	MsgNum      int
+	SendMutex   sync.Mutex
+	SendWG      sync.WaitGroup
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+func (sender *TaskSender) SendTask() {
+	defer sender.SendWG.Done()
+	needSend := true
 
-	superChan := make(chan Ttype, 10)
+	for needSend {
+		var task Task
+		task.SendResult = 0
+		task.CreateTime = time.Now().Format(time.RFC3339)
 
-	go taskCreturer(superChan)
+		sender.SendMutex.Lock()
+		sender.MsgNum++
+		task.ID, _ = strconv.Atoi(fmt.Sprintf("%d%d",
+			int(time.Now().Unix()), sender.MsgNum),
+		)
+		needSend = sender.MsgNum <= InitMsgNum+TotalMsgCount
+		sender.SendMutex.Unlock()
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+		if time.Now().Nanosecond()%2 > 0 {
+			task.SendMessage = "Some error occured"
+			task.SendResult = -1
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+		if needSend {
+			sender.OutTaskChan <- task
+			time.Sleep(time.Millisecond * SendInterval)
 		}
 	}
+}
 
+func (sender *TaskSender) Start() {
+	sender.OutTaskChan = make(chan Task, SenderThreadCount*4)
+	sender.MsgNum = InitMsgNum
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		sender.SendWG.Add(SenderThreadCount)
+		for i := 0; i < SenderThreadCount; i++ {
+			go sender.SendTask()
 		}
-		close(superChan)
+		sender.SendWG.Wait()
+		close(sender.OutTaskChan)
 	}()
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+type Task struct {
+	ID             int
+	CreateTime     string
+	ReceiveTime    string
+	SendResult     int
+	SendMessage    string
+	ReceiveResult  int
+	ReceiveMessage string
+}
 
-	time.Sleep(time.Second * 3)
+type TaskReceiver struct {
+	InputTaskChan   chan Task
+	SuccesTasksChan chan Task
+	ErrorTasksChan  chan error
+	SuccesMap       map[int]Task
+	ErrorList       []error
+	CommitMutex     sync.Mutex
+	ReceiveWG       sync.WaitGroup
+	CommitSuccWG    sync.WaitGroup
+	CommitErrWG     sync.WaitGroup
+}
 
+func (receiver *TaskReceiver) Start(inputChan chan Task) {
+	receiver.SuccesTasksChan = make(chan Task)
+	receiver.ErrorTasksChan = make(chan error)
+	receiver.InputTaskChan = inputChan
+	receiver.SuccesMap = make(map[int]Task)
+
+	receiver.ReceiveWG.Add(ReceiverThreadCount)
+	receiver.CommitSuccWG.Add(ReceiverThreadCount)
+	receiver.CommitErrWG.Add(ReceiverThreadCount)
+
+	for i := 0; i < ReceiverThreadCount; i++ {
+		go receiver.Receive()
+	}
+	for i := 0; i < ReceiverThreadCount; i++ {
+		go receiver.CommitSuccess()
+	}
+	for i := 0; i < ReceiverThreadCount; i++ {
+		go receiver.CommitErrors()
+	}
+	receiver.ReceiveWG.Wait()
+
+	close(receiver.SuccesTasksChan)
+	close(receiver.ErrorTasksChan)
+
+	receiver.CommitSuccWG.Wait()
+	receiver.CommitErrWG.Wait()
+}
+
+func (receiver *TaskReceiver) PerformTask(task *Task) {
+	tt, _ := time.Parse(time.RFC3339, task.CreateTime)
+	if tt.After(time.Now().Add(-20 * time.Second)) {
+		task.ReceiveResult = 0
+		task.ReceiveMessage = "task has been successed"
+	} else {
+		task.ReceiveResult = 10003
+		task.ReceiveMessage = "message from the future"
+	}
+	task.ReceiveTime = time.Now().Format(time.RFC3339Nano)
+}
+
+func (receiver *TaskReceiver) SeparateTask(task Task, SuccesTasksChan chan Task, ErrorTasksChan chan error) {
+	if task.ReceiveResult == 0 && task.SendResult == 0 {
+		SuccesTasksChan <- task
+	} else {
+		ErrorTasksChan <- fmt.Errorf(
+			"Task id %d time %s, send error: %s, receive error: %s",
+			task.ID, task.CreateTime,
+			task.SendMessage, task.ReceiveMessage,
+		)
+	}
+}
+
+func (receiver *TaskReceiver) Receive() {
+	defer receiver.ReceiveWG.Done()
+	for t := range receiver.InputTaskChan {
+		receiver.PerformTask(&t)
+		receiver.SeparateTask(t, receiver.SuccesTasksChan, receiver.ErrorTasksChan)
+		time.Sleep(time.Millisecond * ReadInterval)
+	}
+}
+
+func (receiver *TaskReceiver) CommitSuccess() {
+	defer receiver.CommitSuccWG.Done()
+	for r := range receiver.SuccesTasksChan {
+		receiver.CommitMutex.Lock()
+		receiver.SuccesMap[r.ID] = r
+		receiver.CommitMutex.Unlock()
+	}
+}
+
+func (receiver *TaskReceiver) CommitErrors() {
+	defer receiver.CommitErrWG.Done()
+	for r := range receiver.ErrorTasksChan {
+		receiver.ErrorList = append(receiver.ErrorList, r)
+	}
+}
+
+func (receiver TaskReceiver) PrintResult() {
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, e := range receiver.ErrorList {
+		println(e.Error())
 	}
 
 	println("Done tasks:")
-	for r := range result {
+	for r := range receiver.SuccesMap {
 		println(r)
 	}
+}
+
+func main() {
+	sender := TaskSender{}
+	sender.Start()
+
+	receiver := TaskReceiver{}
+	receiver.Start(sender.OutTaskChan)
+
+	receiver.PrintResult()
 }
