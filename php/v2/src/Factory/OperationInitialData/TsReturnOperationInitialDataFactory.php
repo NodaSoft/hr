@@ -10,12 +10,12 @@ use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
 
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
-use NodaSoft\OperationParams\OperationParams;
+use NodaSoft\OperationParams\ReferencesOperationParams;
 use NodaSoft\OperationParams\TsReturnOperationParams;
 use NodaSoft\OperationInitialData\OperationInitialData;
 use NodaSoft\OperationInitialData\TsReturnOperationInitialData;
+use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;
 use NW\WebService\References\Operations\Notification\Status;
-use NW\WebService\References\Operations\Notification\TsReturnOperation;
 use function NW\WebService\References\Operations\Notification\__;
 
 class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
@@ -24,7 +24,7 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
      * @param TsReturnOperationParams $params
      * @return TsReturnOperationInitialData
      */
-    public function makeInitialData(OperationParams $params): OperationInitialData
+    public function makeInitialData(ReferencesOperationParams $params): OperationInitialData
     {
         //todo: set error codes 400 and 500 as it was
 
@@ -40,13 +40,15 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
         }
 
         $differences = '';
-        if ($notificationType === TsReturnOperation::TYPE_NEW) {
+        if ($notificationType === TsReturnOperationCommand::TYPE_NEW) {
             $differences = __('NewPositionAdded', null, $params->getResellerId());
-        } elseif ($notificationType === TsReturnOperation::TYPE_CHANGE
-            && !empty($data['differences'])) {
+        } elseif (
+            $notificationType === TsReturnOperationCommand::TYPE_CHANGE
+            && ! empty($params->getDifferencesFrom())
+            && ! empty($params->getDifferencesTo())) {
             $differences = __('PositionStatusHasChanged', [
-                'FROM' => Status::getName((int)$data['differences']['from']),
-                'TO'   => Status::getName((int)$data['differences']['to']),
+                'FROM' => Status::getName($params->getDifferencesFrom()),
+                'TO'   => Status::getName($params->getDifferencesTo()),
             ], $params->getResellerId());
         }
 

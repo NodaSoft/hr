@@ -4,7 +4,7 @@ namespace NodaSoft\OperationParams;
 
 use NodaSoft\Request\Request;
 
-interface OperationParams
+interface ReferencesOperationParams
 {
     public function setRequest(Request $request): void;
 

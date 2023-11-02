@@ -1,18 +1,22 @@
 <?php
 
-namespace NW\WebService\References\Operations\Notification;
+namespace NodaSoft\ReferencesOperation\Operation;
 
-use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
+use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
+use NodaSoft\Request\Request;
 use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
 use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
 
-class TsReturnOperation extends ReferencesOperation
+class ReferencesOperation
 {
-    /** @var TsReturnOperationFactory $factory */
+    /** @var ReferencesOperationFactory $factory */
     private $factory;
 
-    public function __construct(TsReturnOperationFactory $factory)
-    {
+    public function __construct(
+        ReferencesOperationFactory $factory,
+        Request $request
+    ) {
+        $factory->setRequest($request);
         $this->factory = $factory;
     }
 

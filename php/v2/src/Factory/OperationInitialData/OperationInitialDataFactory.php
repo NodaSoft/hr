@@ -3,9 +3,9 @@
 namespace NodaSoft\Factory\OperationInitialData;
 
 use NodaSoft\OperationInitialData\OperationInitialData;
-use NodaSoft\OperationParams\OperationParams;
+use NodaSoft\OperationParams\ReferencesOperationParams;
 
 interface OperationInitialDataFactory
 {
-    public function makeInitialData(OperationParams $params): OperationInitialData;
+    public function makeInitialData(ReferencesOperationParams $params): OperationInitialData;
 }

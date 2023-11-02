@@ -50,4 +50,19 @@ class TsReturnOperationResult implements ReferencesOperationResult
             'clientSms' => $this->clientSms->toArray(),
         ];
     }
+
+    public function getEmployeeEmail(): NotificationResult
+    {
+        return $this->employeeEmail;
+    }
+
+    public function getClientEmail(): NotificationResult
+    {
+        return $this->clientEmail;
+    }
+
+    public function getClientSms(): NotificationResult
+    {
+        return $this->clientSms;
+    }
 }
