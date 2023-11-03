@@ -3,8 +3,8 @@
 namespace NodaSoft\ReferencesOperation\Command;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\OperationParams\ReferencesOperationParams;
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 
 interface ReferencesOperationCommand
 {

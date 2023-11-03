@@ -4,7 +4,7 @@ namespace NodaSoft\Factory\OperationInitialData;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\OperationInitialData\OperationInitialData;
-use NodaSoft\OperationParams\ReferencesOperationParams;
+use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 
 interface OperationInitialDataFactory
 {

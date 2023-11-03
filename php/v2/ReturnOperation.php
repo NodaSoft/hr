@@ -3,8 +3,8 @@
 namespace NW\WebService\References\Operations\Notification;
 
 use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 
 class TsReturnOperation extends ReferencesOperation
 {

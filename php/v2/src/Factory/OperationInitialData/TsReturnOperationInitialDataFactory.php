@@ -11,8 +11,8 @@ use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
 
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
-use NodaSoft\OperationParams\ReferencesOperationParams;
-use NodaSoft\OperationParams\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
 use NodaSoft\OperationInitialData\OperationInitialData;
 use NodaSoft\OperationInitialData\TsReturnOperationInitialData;
 use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;

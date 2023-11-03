@@ -1,6 +1,6 @@
 <?php
 
-namespace NodaSoft\Result\Operation\ReferencesOperation;
+namespace NodaSoft\ReferencesOperation\Result;
 
 interface ReferencesOperationResult
 {

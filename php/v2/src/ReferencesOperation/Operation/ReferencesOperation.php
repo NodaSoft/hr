@@ -5,8 +5,8 @@ namespace NodaSoft\ReferencesOperation\Operation;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
 use NodaSoft\Request\Request;
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 
 class ReferencesOperation
 {

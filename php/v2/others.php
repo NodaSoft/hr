@@ -2,7 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 
 /**
  * @property Seller $Seller

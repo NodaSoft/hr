@@ -4,10 +4,10 @@ namespace NodaSoft\ReferencesOperation\Command;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\Factory\OperationInitialData\TsReturnOperationInitialDataFactory;
-use NodaSoft\OperationParams\ReferencesOperationParams;
-use NodaSoft\OperationParams\TsReturnOperationParams;
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 use NW\WebService\References\Operations\Notification\MessagesClient;
 use NW\WebService\References\Operations\Notification\NotificationEvents;
 use NW\WebService\References\Operations\Notification\NotificationManager;

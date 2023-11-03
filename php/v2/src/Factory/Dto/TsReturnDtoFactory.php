@@ -3,7 +3,7 @@
 namespace NodaSoft\Factory\Dto;
 
 use NodaSoft\Dto\TsReturnDto;
-use NodaSoft\OperationParams\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
 
 class TsReturnDtoFactory
 {

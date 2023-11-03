@@ -12,7 +12,7 @@ use NodaSoft\DataMapper\Mapper\ResellerMapper;
 use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
 use NodaSoft\Request\HttpRequest;
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 use PHPUnit\Framework\TestCase;
 
 /**

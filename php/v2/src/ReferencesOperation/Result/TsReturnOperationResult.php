@@ -1,7 +1,8 @@
 <?php
 
-namespace NodaSoft\Result\Operation\ReferencesOperation;
+namespace NodaSoft\ReferencesOperation\Result;
 
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\Result\Notification\NotificationResult;
 
 class TsReturnOperationResult implements ReferencesOperationResult

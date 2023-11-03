@@ -1,6 +1,6 @@
 <?php
 
-namespace NodaSoft\OperationParams;
+namespace NodaSoft\ReferencesOperation\Params;
 
 use NodaSoft\Request\Request;
 

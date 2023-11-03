@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Result\Operation\ReferencesOperation;
 
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 use PHPUnit\Framework\TestCase;
 
 class TsReturnOperationResultTest extends TestCase

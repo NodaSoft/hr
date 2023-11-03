@@ -3,13 +3,13 @@
 namespace NodaSoft\ReferencesOperation\Factory;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\OperationParams\ReferencesOperationParams;
-use NodaSoft\OperationParams\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
 use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;
 use NodaSoft\Request\Request;
-use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
-use NodaSoft\Result\Operation\ReferencesOperation\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
+use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 
 class TsReturnOperationFactory implements ReferencesOperationFactory
 {
