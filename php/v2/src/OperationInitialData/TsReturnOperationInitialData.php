@@ -2,6 +2,7 @@
 
 namespace NodaSoft\OperationInitialData;
 
+use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\Dto\TsReturnDto;
 
@@ -15,6 +16,15 @@ class TsReturnOperationInitialData implements OperationInitialData
 
     /** @var int */
     private $notificationType;
+
+    /** @var ?int */
+    private $differencesFrom;
+
+    /** @var ?int */
+    private $differencesTo;
+
+    /** @var Client */
+    private $client;
 
     public function getMessageTemplate(): TsReturnDto
     {
@@ -44,5 +54,35 @@ class TsReturnOperationInitialData implements OperationInitialData
     public function setNotificationType(int $notificationType): void
     {
         $this->notificationType = $notificationType;
+    }
+
+    public function getDifferencesFrom(): ?int
+    {
+        return $this->differencesFrom;
+    }
+
+    public function setDifferencesFrom(?int $differencesFrom): void
+    {
+        $this->differencesFrom = $differencesFrom;
+    }
+
+    public function getDifferencesTo(): ?int
+    {
+        return $this->differencesTo;
+    }
+
+    public function setDifferencesTo(?int $differencesTo): void
+    {
+        $this->differencesTo = $differencesTo;
+    }
+
+    public function getClient(): Client
+    {
+        return $this->client;
+    }
+
+    public function setClient(Client $client): void
+    {
+        $this->client = $client;
     }
 }

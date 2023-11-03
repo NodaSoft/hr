@@ -2,6 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\Operation;
 
+use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
 use NodaSoft\Request\Request;
 use NodaSoft\Result\Operation\ReferencesOperation\ReferencesOperationResult;
@@ -12,12 +13,17 @@ class ReferencesOperation
     /** @var ReferencesOperationFactory $factory */
     private $factory;
 
+    /** @var MapperFactory $mapperFactory */
+    private $mapperFactory;
+
     public function __construct(
         ReferencesOperationFactory $factory,
-        Request $request
+        Request $request,
+        MapperFactory $mapperFactory
     ) {
         $factory->setRequest($request);
         $this->factory = $factory;
+        $this->mapperFactory = $mapperFactory;
     }
 
     /**
@@ -28,7 +34,11 @@ class ReferencesOperation
     {
         $result = $this->factory->getResult();
         $params = $this->factory->getParams();
-        $command = $this->factory->getCommand($result, $params);
+        $command = $this->factory->getCommand(
+            $result,
+            $params,
+            $this->mapperFactory
+        );
 
         try {
             $result = $command->execute();

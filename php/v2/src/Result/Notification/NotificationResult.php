@@ -22,7 +22,7 @@ class NotificationResult
 
     public function getErrorMessage(): string
     {
-        return $this->errorMessage;
+        return $this->errorMessage ?? "";
     }
 
     public function setErrorMessage(string $errorMessage): void

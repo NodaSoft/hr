@@ -39,29 +39,30 @@ class TsReturnOperationParams implements ReferencesOperationParams
     /** @var ?string */
     private $date;
 
-    /** @var ?string */
+    /** @var ?int */
     private $differencesFrom;
 
-    /** @var ?string */
+    /** @var ?int */
     private $differencesTo;
 
     public function setRequest(Request $request): void
     {
         foreach ($this as $key => $value) {
             $setter = 'set' . $key;
-            if (method_exists($this, 'setter')) {
+            if (method_exists($this, $setter)) {
                 $this->$setter($request->getData($key));
             }
+            $this->setDifferences($request->getData('differences'));
         }
     }
 
     public function isValid(): bool
     {
-        if (empty($resellerId)) {
+        if (empty($this->resellerId)) {
             return false;
         }
 
-        if (empty($notificationType)) {
+        if (empty($this->notificationType)) {
             return false;
         }
 
@@ -187,19 +188,24 @@ class TsReturnOperationParams implements ReferencesOperationParams
         $this->date = $date;
     }
 
-    public function getDifferencesFrom(): ?string
+    public function getDifferencesFrom(): ?int
     {
         return $this->differencesFrom;
     }
 
-    public function getDifferencesTo(): ?string
+    public function getDifferencesTo(): ?int
     {
         return $this->differencesTo;
     }
 
     public function setDifferences(?array $differences): void
     {
-        $this->differencesFrom = (string) $differences['from'];
-        $this->differencesTo = (string) $differences['to'];
+        $this->differencesFrom = $differences['from']
+            ? (int) $differences['from']
+            : null;
+
+        $this->differencesTo = $differences['to']
+            ? (int) $differences['to']
+            : null;
     }
 }

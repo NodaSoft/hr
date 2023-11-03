@@ -5,6 +5,7 @@ namespace NodaSoft\Factory\OperationInitialData;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Reseller;
+use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ClientMapper;
 use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
@@ -20,6 +21,9 @@ use function NW\WebService\References\Operations\Notification\__;
 
 class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 {
+    /** @var MapperFactory */
+    private $mapperFactory;
+
     /**
      * @param TsReturnOperationParams $params
      * @return TsReturnOperationInitialData
@@ -46,10 +50,14 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
             $notificationType === TsReturnOperationCommand::TYPE_CHANGE
             && ! empty($params->getDifferencesFrom())
             && ! empty($params->getDifferencesTo())) {
-            $differences = __('PositionStatusHasChanged', [
-                'FROM' => Status::getName($params->getDifferencesFrom()),
-                'TO'   => Status::getName($params->getDifferencesTo()),
-            ], $params->getResellerId());
+            $differences = __(
+                'PositionStatusHasChanged',
+                [
+                    'FROM' => Status::getName($params->getDifferencesFrom()),
+                    'TO'   => Status::getName($params->getDifferencesTo()),
+                ],
+                $params->getResellerId()
+            );
         }
 
         $templateFactory = new TsReturnDtoFactory();
@@ -60,6 +68,7 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
         $messageTemplate->setDifferences($differences);
 
         if (! $messageTemplate->isValid()) {
+            var_dump($messageTemplate->toArray());
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
             throw new \Exception("Template Data ({$emptyKey}) is empty!");
         }
@@ -68,13 +77,17 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotificationType($notificationType);
+        $data->setDifferencesFrom($params->getDifferencesFrom());
+        $data->setDifferencesTo($params->getDifferencesTo());
+        $data->setClient($client);
 
         return $data;
     }
 
     public function getReseller(int $resellerId): Reseller
     {
-        $resellerMapper = new ResellerMapper();
+        /** @var ResellerMapper $resellerMapper */
+        $resellerMapper = $this->mapperFactory->getMapper('Reseller');
         $reseller = $resellerMapper->getById($resellerId);
         if (is_null($reseller)) {
             throw new \Exception('Reseller not found!');
@@ -84,12 +97,12 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 
     public function getClient(int $clientId, Reseller $reseller): Client
     {
-        $clientMapper = new ClientMapper();
+        /** @var ClientMapper $clientMapper */
+        $clientMapper = $this->mapperFactory->getMapper('Client');
         $client = $clientMapper->getById($clientId);
         if (is_null($client)
             || $client->isCustomer()
-            || $client->hasReseller($reseller)
-        ) {
+            || $client->hasReseller($reseller)) {
             throw new \Exception('Client not found!');
         }
         return $client;
@@ -97,7 +110,8 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 
     public function getCreator(int $creatorId): Employee
     {
-        $employeeMapper = new EmployeeMapper(); // todo: duplication of EmployeeMapper initialization
+        /** @var EmployeeMapper $employeeMapper */
+        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
         $creator = $employeeMapper->getById($creatorId);
         if (is_null($creator)) {
             throw new \Exception('Creator not found!');
@@ -107,11 +121,17 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
 
     public function getExpert(int $expertId): Employee
     {
-        $employeeMapper = new EmployeeMapper(); // todo: duplication of EmployeeMapper initialization
+        /** @var EmployeeMapper $employeeMapper */
+        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
         $expert = $employeeMapper->getById($expertId);
         if (is_null($expert)) {
             throw new \Exception('Expert not found!');
         }
         return $expert;
+    }
+
+    public function setMapperFactory(MapperFactory $mapperFactory): void
+    {
+        $this->mapperFactory = $mapperFactory;
     }
 }

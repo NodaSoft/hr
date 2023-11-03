@@ -2,6 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\Factory;
 
+use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\OperationParams\ReferencesOperationParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
 use NodaSoft\Request\Request;
@@ -17,6 +18,7 @@ interface ReferencesOperationFactory
 
     public function getCommand(
         ReferencesOperationResult $result,
-        ReferencesOperationParams $params
+        ReferencesOperationParams $params,
+        MapperFactory $mapperFactory
     ): ReferencesOperationCommand;
 }

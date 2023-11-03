@@ -2,6 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\Command;
 
+use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\Factory\OperationInitialData\TsReturnOperationInitialDataFactory;
 use NodaSoft\OperationParams\ReferencesOperationParams;
 use NodaSoft\OperationParams\TsReturnOperationParams;
@@ -25,6 +26,10 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
 
     /** @var TsReturnOperationParams */
     private $params;
+    /**
+     * @var MapperFactory
+     */
+    private $mapperFactory;
 
     /**
      * @param TsReturnOperationResult $result
@@ -44,25 +49,31 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
         $this->params = $params;
     }
 
+    public function setMapperFactory(MapperFactory $mapperFactory): void
+    {
+        $this->mapperFactory = $mapperFactory;
+    }
+
     /**
      * @return TsReturnOperationResult
      */
     public function execute(): ReferencesOperationResult
     {
-        if ($this->params->isValid()) {
+        if (! $this->params->isValid()) {
             $this->result->setClientSmsErrorMessage('Required parameter is missing.');
             return $this->result;
         }
 
         try {
             $dataFactory = new TsReturnOperationInitialDataFactory();
+            $dataFactory->setMapperFactory($this->mapperFactory);
             $initialData = $dataFactory->makeInitialData($this->params);
         } catch (\Exception $e) {
-            //todo: handle an exception
             $this->result->setClientSmsErrorMessage($e->getMessage());
             return $this->result;
         }
 
+        $client = $initialData->getClient();
         $templateData = $initialData->getMessageTemplate()->toArray();
         $resellerId = $initialData->getReseller();
         $notificationType = $initialData->getNotificationType();
@@ -72,48 +83,72 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
         $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
         if (! empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
-                MessagesClient::sendMessage([
-                    0 => [ // MessageTypes::EMAIL
-                        'emailFrom' => $emailFrom,
-                        'emailTo'   => $email,
-                        'subject'   => __('complaintEmployeeEmailSubject', $templateData, $resellerId),
-                        'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
+                MessagesClient::sendMessage(
+                    [
+                        0 => [ // MessageTypes::EMAIL
+                            'emailFrom' => $emailFrom,
+                            'emailTo'   => $email,
+                            'subject'   => __(
+                                'complaintEmployeeEmailSubject',
+                                $templateData,
+                                $resellerId
+                            ),
+                            'message'   => __(
+                                'complaintEmployeeEmailBody',
+                                $templateData,
+                                $resellerId
+                            ),
+                        ],
                     ],
-                ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
-                $this->result->markEmployeeEmailSent();
-
+                    $resellerId,
+                    NotificationEvents::CHANGE_RETURN_STATUS
+                );
             }
+            $this->result->markEmployeeEmailSent();
         }
 
         // Шлём клиентское уведомление, только если произошла смена статуса
-        if ($notificationType === self::TYPE_CHANGE && ! empty($initialData->dateTo())) {
-            if (! empty($emailFrom) && ! empty($client->email)) {
-                MessagesClient::sendMessage([
-                    0 => [ // MessageTypes::EMAIL
-                        'emailFrom' => $emailFrom,
-                        'emailTo'   => $client->email,
-                        'subject'   => __('complaintClientEmailSubject', $templateData, $resellerId),
-                        'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
+        if ($notificationType === self::TYPE_CHANGE
+            && ! is_null($initialData->getDifferencesTo())) {
+            if (! empty($emailFrom) && ! empty($client->getEmail())) {
+                MessagesClient::sendMessage(
+                    [
+                        0 => [ // MessageTypes::EMAIL
+                            'emailFrom' => $emailFrom,
+                            'emailTo'   => $client->getEmail(),
+                            'subject'   => __(
+                                'complaintClientEmailSubject',
+                                $templateData,
+                                $resellerId
+                            ),
+                            'message'   => __(
+                                'complaintClientEmailBody',
+                                $templateData,
+                                $resellerId
+                            ),
+                        ],
                     ],
-                ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $initialData->dateTo());
+                    $resellerId,
+                    $client->getId(),
+                    NotificationEvents::CHANGE_RETURN_STATUS,
+                    $initialData->getDifferencesTo()
+                );
                 $this->result->markClientEmailSent();
             }
 
-            if (! empty($client->mobile)) {
-                $res = NotificationManager::send(
+            if (! empty($client->getCellphoneNumber())) {
+                $result = NotificationManager::send(
                     $resellerId,
-                    $client->id,
+                    $client->getId(),
                     NotificationEvents::CHANGE_RETURN_STATUS,
-                    $initialData->dateTo(),
-                    $templateData,
-                    $error
+                    $initialData->getDifferencesTo(),
+                    $templateData
                 );
-                if ($res) {
-                    $this->result->markClientSmsSent();
+                if ($result->hasError()) {
+                    $this->result->setClientSmsErrorMessage($result->getErrorMessage());
+                    return $this->result;
                 }
-                if (! empty($error)) {
-                    $this->result->setClientSmsErrorMessage($error);
-                }
+                $this->result->markClientSmsSent();
             }
         }
 

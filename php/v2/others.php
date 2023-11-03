@@ -104,9 +104,12 @@ class MessagesClient
 
 class NotificationManager
 {
-    public static function send(): bool
+    public static function send()
     {
         //todo: implement logic
-        return true; // fake logic
+        return new class {
+            function hasError(): bool { return false; }
+            function getErrorMessage(): string { return 'FOo bar baz Error message'; }
+        };
     }
 }

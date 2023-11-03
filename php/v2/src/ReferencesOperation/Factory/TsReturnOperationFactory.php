@@ -2,6 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\Factory;
 
+use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\OperationParams\ReferencesOperationParams;
 use NodaSoft\OperationParams\TsReturnOperationParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
@@ -40,12 +41,14 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
 
     public function getCommand(
         ReferencesOperationResult $result,
-        ReferencesOperationParams $params
+        ReferencesOperationParams $params,
+        MapperFactory $mapperFactory
     ): ReferencesOperationCommand
     {
         $command = new TsReturnOperationCommand();
         $command->setResult($result);
         $command->setParams($params);
+        $command->setMapperFactory($mapperFactory);
         return $command;
     }
 }
