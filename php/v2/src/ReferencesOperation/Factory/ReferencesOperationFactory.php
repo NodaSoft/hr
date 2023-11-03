@@ -3,6 +3,8 @@
 namespace NodaSoft\ReferencesOperation\Factory;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
+use NodaSoft\ReferencesOperation\FetchInitialData\FetchInitialData;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
 use NodaSoft\Request\Request;
@@ -16,9 +18,12 @@ interface ReferencesOperationFactory
 
     public function getParams(): ReferencesOperationParams;
 
+    public function getFetchInitialData(
+        MapperFactory $mapperFactory
+    ): FetchInitialData;
+    
     public function getCommand(
         ReferencesOperationResult $result,
-        ReferencesOperationParams $params,
-        MapperFactory $mapperFactory
+        InitialData $initialData
     ): ReferencesOperationCommand;
 }

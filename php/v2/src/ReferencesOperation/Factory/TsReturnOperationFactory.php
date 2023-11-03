@@ -3,6 +3,10 @@
 namespace NodaSoft\ReferencesOperation\Factory;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
+use NodaSoft\ReferencesOperation\FetchInitialData\FetchInitialData;
+use NodaSoft\ReferencesOperation\FetchInitialData\TsReturnFetchInitialData;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
+use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
@@ -39,16 +43,31 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
         return $params;
     }
 
+    /**
+     * @param MapperFactory $mapperFactory
+     * @return FetchInitialData
+     */
+    public function getFetchInitialData(
+        MapperFactory $mapperFactory
+    ): FetchInitialData {
+        $fetch = new TsReturnFetchInitialData();
+        $fetch->setMapperFactory($mapperFactory);
+        return $fetch;
+    }
+
+    /**
+     * @param ReferencesOperationResult $result
+     * @param TsReturnInitialData $initialData
+     * @return ReferencesOperationCommand
+     */
     public function getCommand(
         ReferencesOperationResult $result,
-        ReferencesOperationParams $params,
-        MapperFactory $mapperFactory
+        InitialData $initialData
     ): ReferencesOperationCommand
     {
         $command = new TsReturnOperationCommand();
         $command->setResult($result);
-        $command->setParams($params);
-        $command->setMapperFactory($mapperFactory);
+        $command->setInitialData($initialData);
         return $command;
     }
 }

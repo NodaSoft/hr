@@ -1,6 +1,6 @@
 <?php
 
-namespace NodaSoft\Factory\OperationInitialData;
+namespace NodaSoft\ReferencesOperation\FetchInitialData;
 
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
@@ -13,22 +13,22 @@ use NodaSoft\DataMapper\Mapper\ResellerMapper;
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
-use NodaSoft\OperationInitialData\OperationInitialData;
-use NodaSoft\OperationInitialData\TsReturnOperationInitialData;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
+use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
 use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;
 use NW\WebService\References\Operations\Notification\Status;
 use function NW\WebService\References\Operations\Notification\__;
 
-class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
+class TsReturnFetchInitialData implements FetchInitialData
 {
     /** @var MapperFactory */
     private $mapperFactory;
 
     /**
      * @param TsReturnOperationParams $params
-     * @return TsReturnOperationInitialData
+     * @return TsReturnInitialData
      */
-    public function makeInitialData(ReferencesOperationParams $params): OperationInitialData
+    public function fetch(ReferencesOperationParams $params): InitialData
     {
         //todo: set error codes 400 and 500 as it was
 
@@ -73,7 +73,7 @@ class TsReturnOperationInitialDataFactory implements OperationInitialDataFactory
             throw new \Exception("Template Data ({$emptyKey}) is empty!");
         }
 
-        $data = new TsReturnOperationInitialData();
+        $data = new TsReturnInitialData();
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotificationType($notificationType);

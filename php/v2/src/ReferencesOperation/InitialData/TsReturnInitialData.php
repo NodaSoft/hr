@@ -1,12 +1,13 @@
 <?php
 
-namespace NodaSoft\OperationInitialData;
+namespace NodaSoft\ReferencesOperation\InitialData;
 
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\Dto\TsReturnDto;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
 
-class TsReturnOperationInitialData implements OperationInitialData
+class TsReturnInitialData implements InitialData
 {
     /** @var TsReturnDto */
     private $messageTemplate;

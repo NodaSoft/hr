@@ -2,10 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\Command;
 
-use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\Factory\OperationInitialData\TsReturnOperationInitialDataFactory;
-use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
-use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 use NW\WebService\References\Operations\Notification\MessagesClient;
@@ -24,12 +21,10 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
     /** @var TsReturnOperationResult */
     private $result;
 
-    /** @var TsReturnOperationParams */
-    private $params;
     /**
-     * @var MapperFactory
+     * @var InitialData
      */
-    private $mapperFactory;
+    private $initialData;
 
     /**
      * @param TsReturnOperationResult $result
@@ -40,18 +35,9 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
         $this->result = $result;
     }
 
-    /**
-     * @param TsReturnOperationParams $params
-     * @return void
-     */
-    public function setParams(ReferencesOperationParams $params): void
+    public function setInitialData(InitialData $initialData): void
     {
-        $this->params = $params;
-    }
-
-    public function setMapperFactory(MapperFactory $mapperFactory): void
-    {
-        $this->mapperFactory = $mapperFactory;
+        $this->initialData = $initialData;
     }
 
     /**
@@ -59,20 +45,7 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
      */
     public function execute(): ReferencesOperationResult
     {
-        if (! $this->params->isValid()) {
-            $this->result->setClientSmsErrorMessage('Required parameter is missing.');
-            return $this->result;
-        }
-
-        try {
-            $dataFactory = new TsReturnOperationInitialDataFactory();
-            $dataFactory->setMapperFactory($this->mapperFactory);
-            $initialData = $dataFactory->makeInitialData($this->params);
-        } catch (\Exception $e) {
-            $this->result->setClientSmsErrorMessage($e->getMessage());
-            return $this->result;
-        }
-
+        $initialData = $this->initialData;
         $client = $initialData->getClient();
         $templateData = $initialData->getMessageTemplate()->toArray();
         $resellerId = $initialData->getReseller();
