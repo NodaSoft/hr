@@ -3,6 +3,7 @@
 namespace NodaSoft\ReferencesOperation\Factory;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
+use NodaSoft\Dependencies\Dependencies;
 use NodaSoft\ReferencesOperation\FetchInitialData\FetchInitialData;
 use NodaSoft\ReferencesOperation\FetchInitialData\TsReturnFetchInitialData;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
@@ -62,12 +63,14 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
      */
     public function getCommand(
         ReferencesOperationResult $result,
-        InitialData $initialData
+        InitialData $initialData,
+        Dependencies $dependencies
     ): ReferencesOperationCommand
     {
         $command = new TsReturnOperationCommand();
         $command->setResult($result);
         $command->setInitialData($initialData);
+        $command->setMail($dependencies->getMail());
         return $command;
     }
 }

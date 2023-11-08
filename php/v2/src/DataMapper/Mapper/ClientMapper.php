@@ -3,7 +3,7 @@
 namespace NodaSoft\DataMapper\Mapper;
 
 use NodaSoft\DataMapper\Entity\Client;
-use NodaSoft\DataMapper\Entity\Entity;
+use NodaSoft\DataMapper\EntityInterface\Entity;
 
 class ClientMapper implements Mapper
 {

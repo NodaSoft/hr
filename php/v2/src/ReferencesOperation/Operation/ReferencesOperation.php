@@ -7,6 +7,7 @@ use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
 use NodaSoft\Request\Request;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
+use NodaSoft\Dependencies\Dependencies;
 
 class ReferencesOperation
 {
@@ -16,11 +17,16 @@ class ReferencesOperation
     /** @var MapperFactory $mapperFactory */
     private $mapperFactory;
 
+    /** @var Dependencies */
+    private $dependencies;
+
     public function __construct(
+        Dependencies $dependencies,
         ReferencesOperationFactory $factory,
         Request $request,
         MapperFactory $mapperFactory
     ) {
+        $this->dependencies = $dependencies;
         $factory->setRequest($request);
         $this->factory = $factory;
         $this->mapperFactory = $mapperFactory;
@@ -48,7 +54,11 @@ class ReferencesOperation
             throw new \Exception($somethingWrong, 500, $th);
         }
 
-        $command = $this->factory->getCommand($result, $initialData);
+        $command = $this->factory->getCommand(
+            $result,
+            $initialData,
+            $this->dependencies
+        );
 
         try {
             $result = $command->execute();

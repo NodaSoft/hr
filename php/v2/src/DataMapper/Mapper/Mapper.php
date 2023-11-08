@@ -2,7 +2,7 @@
 
 namespace NodaSoft\DataMapper\Mapper;
 
-use NodaSoft\DataMapper\Entity\Entity;
+use NodaSoft\DataMapper\EntityInterface\Entity;
 
 interface Mapper
 {

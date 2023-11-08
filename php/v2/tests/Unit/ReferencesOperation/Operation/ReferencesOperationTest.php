@@ -4,11 +4,15 @@ namespace Tests\Unit\ReferencesOperation\Operation;
 
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
+use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ClientMapper;
 use NodaSoft\DataMapper\Mapper\EmployeeMapper;
+use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
+use NodaSoft\Dependencies\Dependencies;
+use NodaSoft\Mail\Mail;
 use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
 use NodaSoft\Request\HttpRequest;
@@ -30,32 +34,39 @@ class ReferencesOperationTest extends TestCase
      */
     public function testDoOperation(
         array $data,
-        bool $isEmployeeNotifiedEmail,
+        bool $isEmployee1NotifiedEmail,
+        bool $isEmployee2NotifiedEmail,
         bool $isClientNotifiedEmail,
         bool $isClientNotifiedSms,
         string $errorMessage
     ): void {
         $_REQUEST['data'] = $data;
+        $mail = $this->mockMail();
+        $dependency = $this->createMock(Dependencies::class);
+        $dependency->method('getMail')->willReturn($mail);
         $request = new HttpRequest();
         $factory = new TsReturnOperationFactory();
         $mapperFactory = $this->getMapperFactoryMock();
         $tsReturnOperation = new ReferencesOperation(
+            $dependency,
             $factory,
             $request,
             $mapperFactory
         );
         /** @var TsReturnOperationResult $result */
         $result = $tsReturnOperation->doOperation();
+        $employeeEmails = $result->getEmployeeEmails()->getList();
 
-        $this->assertSame($isEmployeeNotifiedEmail, $result->getEmployeeEmail()->isSent());
-        $this->assertSame($isClientNotifiedEmail, $result->getClientEmail()->isSent());
-        $this->assertSame($isClientNotifiedSms, $result->getClientSms()->isSent());
-        $this->assertSame($errorMessage, $result->getClientSms()->getErrorMessage());
+        $this->assertSame($isEmployee1NotifiedEmail, $employeeEmails[0]->isSent(), "employee1's email");
+        $this->assertSame($isEmployee2NotifiedEmail, $employeeEmails[1]->isSent(), "employee2's email");
+        $this->assertSame($isClientNotifiedEmail, $result->getClientEmail()->isSent(), "client's email");
+        $this->assertSame($isClientNotifiedSms, $result->getClientSms()->isSent(), "client's sms");
+        $this->assertSame($errorMessage, $result->getClientSms()->getErrorMessage(), "client's sms error message");
     }
 
     public function operationDataProvider(): \Generator
     {
-        yield 'main' => [$this->getMainData(), true, true, true, ''];
+        yield 'main' => [$this->getMainData(), true, true, true, true, ''];
     }
 
     private function getMainData(): array
@@ -85,22 +96,48 @@ class ReferencesOperationTest extends TestCase
         $employeeMapper = $this->createMock(EmployeeMapper::class);
         $clientMapper = $this->createMock(ClientMapper::class);
         $resellerMapper = $this->createMock(ResellerMapper::class);
+        $notificationMapper = $this->createMock(NotificationMapper::class);
 
-        $expert = $this->createMock(Employee::class);
-        $creator = $this->createMock(Employee::class);
-        $client = $this->createMock(Client::class);
-        $reseller = $this->createMock(Reseller::class);
+        $expert = new Employee();
+        $creator = new Employee();
+        $employee1 = new Employee();
+        $employee2 = new Employee();
+        $client = new Client();
+        $reseller = new Reseller();
+        $notificationNew = new Notification();
+        $notificationChanged = new Notification();
 
         $expert->setId(7);
-        $expert->method('getFullName')->willReturn("Boris 7");
-        $creator->setId(12);
-        $creator->method('getFullName')->willReturn("Sarah 12");
-        $client->setId(27);
-        $client->method('getFullName')->willReturn("Anna 27");
-        $client->method('getEmail')->willReturn("Anna.27@gmail.com");
-        $client->method('getCellphoneNumber')->willReturn(555989898);
-        $reseller->setId(86);
+        $expert->setName("Boris");
+        $expert->setEmail("Boris@mail.com");
 
+        $creator->setId(12);
+        $creator->setName('Sarah');
+
+        $employee1->setId(64);
+        $employee1->setName("Mark");
+        $employee1->setEmail("mark@mail.ru");
+
+        $employee2->setId(65);
+        $employee2->setName("Nana");
+        $employee2->setEmail("nana@mail.ru");
+
+        $reseller->setId(86);
+        $reseller->setEmail('reseller@mail.ru');
+
+        $client->setId(27);
+        $client->setName('Anna');
+        $client->setEmail("Anna.27@gmail.com");
+        $client->setCellphoneNumber(555989898);
+        $client->setIsCustomer(true);
+        $client->setReseller($reseller);
+
+        $notificationNew->setId(1);
+        $notificationNew->setName('new');
+        $notificationNew->setTemplate("Added new entry (reseller id: #resellerId#).");
+        $notificationChanged->setId(2);
+        $notificationChanged->setName('change');
+        $notificationChanged->setTemplate("Entry status changed (resseler id: #resellerId#): previous status: #differencesFrom#, current status: #differencesTo#");
 
         $employeeMapper
             ->method('getById')
@@ -108,6 +145,11 @@ class ReferencesOperationTest extends TestCase
                 [12, $creator],
                 [7, $expert],
             ]);
+
+        $employeeMapper
+            ->method('getAllByReseller')
+            ->with(86)
+            ->willReturn([$employee1, $employee2]);
 
         $clientMapper
             ->method('getById')
@@ -119,14 +161,38 @@ class ReferencesOperationTest extends TestCase
             ->with(86)
             ->willReturn($reseller);
 
+        $notificationMapper
+            ->method('getById')
+            ->willReturnMap([
+                [1, $notificationNew],
+                [2, $notificationChanged],
+            ]);
+
         $mapperFactory
             ->method('getMapper')
             ->willReturnMap([
                 ['Reseller', $resellerMapper],
                 ['Client', $clientMapper],
                 ['Employee', $employeeMapper],
+                ['Notification', $notificationMapper],
             ]);
 
         return $mapperFactory;
+    }
+
+    public function mockMail(): Mail
+    {
+        return new class extends Mail {
+            //always return true (isSuccess) for every try to send email
+            public function mail(
+                string $to,
+                string $subject,
+                string $message,
+                string $headers,
+                string $params
+            ): bool {
+                return true;
+            }
+        };
     }
 }

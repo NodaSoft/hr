@@ -2,13 +2,13 @@
 
 namespace NodaSoft\DataMapper\Mapper;
 
+use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\EntityInterface\Entity;
-use NodaSoft\DataMapper\Entity\Reseller;
 
-class ResellerMapper implements Mapper
+class NotificationMapper implements Mapper
 {
     /**
-     * @return null|Reseller
+     * @return null|Notification
      */
     public function getById(int $id): ?Entity
     {

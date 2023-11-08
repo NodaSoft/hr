@@ -3,9 +3,10 @@
 namespace NodaSoft\ReferencesOperation\InitialData;
 
 use NodaSoft\DataMapper\Entity\Client;
+use NodaSoft\DataMapper\Entity\Employee;
+use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\Dto\TsReturnDto;
-use NodaSoft\ReferencesOperation\InitialData\InitialData;
 
 class TsReturnInitialData implements InitialData
 {
@@ -26,6 +27,9 @@ class TsReturnInitialData implements InitialData
 
     /** @var Client */
     private $client;
+
+    /** @var Employee[] */
+    private $employees;
 
     public function getMessageTemplate(): TsReturnDto
     {
@@ -85,5 +89,22 @@ class TsReturnInitialData implements InitialData
     public function setClient(Client $client): void
     {
         $this->client = $client;
+    }
+
+    /**
+     * @return Employee[]
+     */
+    public function getEmployees(): array
+    {
+        return $this->employees;
+    }
+
+    /**
+     * @param Employee[] $employees
+     * @return void
+     */
+    public function setEmployees(array $employees): void
+    {
+        $this->employees = $employees;
     }
 }

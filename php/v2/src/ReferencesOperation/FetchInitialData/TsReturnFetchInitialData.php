@@ -4,20 +4,18 @@ namespace NodaSoft\ReferencesOperation\FetchInitialData;
 
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
+use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ClientMapper;
 use NodaSoft\DataMapper\Mapper\EmployeeMapper;
+use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
-
 use NodaSoft\Factory\Dto\TsReturnDtoFactory;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
 use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
-use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;
-use NW\WebService\References\Operations\Notification\Status;
-use function NW\WebService\References\Operations\Notification\__;
 
 class TsReturnFetchInitialData implements FetchInitialData
 {
@@ -32,32 +30,14 @@ class TsReturnFetchInitialData implements FetchInitialData
     {
         //todo: set error codes 400 and 500 as it was
 
-        $notificationType = $params->getNotificationType();
-
         try {
             $reseller = $this->getReseller($params->getResellerId());
             $client = $this->getClient($params->getClientId(), $reseller);
             $creator = $this->getCreator($params->getCreatorId());
             $expert = $this->getExpert($params->getExpertId());
+            $employees = $this->getEmployees($params->getResellerId());
         } catch (\Exception $e) {
             throw new \Exception($e->getMessage());
-        }
-
-        $differences = '';
-        if ($notificationType === TsReturnOperationCommand::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $params->getResellerId());
-        } elseif (
-            $notificationType === TsReturnOperationCommand::TYPE_CHANGE
-            && ! empty($params->getDifferencesFrom())
-            && ! empty($params->getDifferencesTo())) {
-            $differences = __(
-                'PositionStatusHasChanged',
-                [
-                    'FROM' => Status::getName($params->getDifferencesFrom()),
-                    'TO'   => Status::getName($params->getDifferencesTo()),
-                ],
-                $params->getResellerId()
-            );
         }
 
         $templateFactory = new TsReturnDtoFactory();
@@ -65,10 +45,9 @@ class TsReturnFetchInitialData implements FetchInitialData
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setDifferences($differences);
+        $messageTemplate->setDifferences($this->composeDifferences($params));
 
         if (! $messageTemplate->isValid()) {
-            var_dump($messageTemplate->toArray());
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
             throw new \Exception("Template Data ({$emptyKey}) is empty!");
         }
@@ -76,10 +55,11 @@ class TsReturnFetchInitialData implements FetchInitialData
         $data = new TsReturnInitialData();
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
-        $data->setNotificationType($notificationType);
+        $data->setNotificationType($params->getNotificationType());
         $data->setDifferencesFrom($params->getDifferencesFrom());
         $data->setDifferencesTo($params->getDifferencesTo());
         $data->setClient($client);
+        $data->setEmployees($employees);
 
         return $data;
     }
@@ -99,10 +79,10 @@ class TsReturnFetchInitialData implements FetchInitialData
     {
         /** @var ClientMapper $clientMapper */
         $clientMapper = $this->mapperFactory->getMapper('Client');
-        $client = $clientMapper->getById($clientId);
+        $client = $clientMapper->getById($clientId); //todo: replace condition with getter by filter if it's needed
         if (is_null($client)
-            || $client->isCustomer()
-            || $client->hasReseller($reseller)) {
+            || ! $client->isCustomer()
+            || ! $client->hasReseller($reseller)) {
             throw new \Exception('Client not found!');
         }
         return $client;
@@ -133,5 +113,40 @@ class TsReturnFetchInitialData implements FetchInitialData
     public function setMapperFactory(MapperFactory $mapperFactory): void
     {
         $this->mapperFactory = $mapperFactory;
+    }
+
+    /**
+     * @param int $resellerId
+     * @return Employee[]
+     */
+    public function getEmployees(int $resellerId): array
+    {
+        /** @var EmployeeMapper $employeeMapper */
+        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
+        return $employeeMapper->getAllByReseller($resellerId);
+    }
+
+    /**
+     * @param TsReturnOperationParams $params
+     * @return string
+     */
+    public function composeDifferences(ReferencesOperationParams $params): string
+    {
+        $messageTemplate = $this->getMessageTemplate($params);
+        return $messageTemplate->composeMessage($params);
+    }
+
+    /**
+     * @param TsReturnOperationParams $params
+     * @return Notification
+     * @throws \Exception
+     */
+    public function getMessageTemplate(
+        ReferencesOperationParams $params
+    ): Notification
+    {
+        /** @var NotificationMapper $notificationMapper */
+        $notificationMapper = $this->mapperFactory->getMapper('Notification');
+        return $notificationMapper->getById($params->getNotificationType());
     }
 }

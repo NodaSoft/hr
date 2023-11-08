@@ -2,6 +2,8 @@
 
 namespace NodaSoft\Result\Notification;
 
+use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+
 class NotificationResult
 {
     /** @var bool */
@@ -9,6 +11,9 @@ class NotificationResult
 
     /** @var string */
     private $errorMessage;
+
+    /** @var EmailEntity */
+    private $recipient;
 
     public function isSent(): bool
     {
@@ -37,5 +42,15 @@ class NotificationResult
             $array[$key] = $value;
         }
         return $array;
+    }
+
+    public function getRecipient(): EmailEntity
+    {
+        return $this->recipient;
+    }
+
+    public function setRecipient(EmailEntity $recipient): void
+    {
+        $this->recipient = $recipient;
     }
 }

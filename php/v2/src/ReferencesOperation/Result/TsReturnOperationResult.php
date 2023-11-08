@@ -2,15 +2,16 @@
 
 namespace NodaSoft\ReferencesOperation\Result;
 
-use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
+use NodaSoft\Mail\Result;
+use NodaSoft\Mail\ResultCollection;
 use NodaSoft\Result\Notification\NotificationResult;
 
 class TsReturnOperationResult implements ReferencesOperationResult
 {
-    /** @var NotificationResult */
-    private $employeeEmail;
+    /** @var ResultCollection */
+    private $employeeEmails;
 
-    /** @var NotificationResult */
+    /** @var Result */
     private $clientEmail;
 
     /** @var NotificationResult */
@@ -18,19 +19,8 @@ class TsReturnOperationResult implements ReferencesOperationResult
 
     public function __construct()
     {
-        $this->employeeEmail = new NotificationResult();
-        $this->clientEmail = new NotificationResult();
+        $this->employeeEmails = new ResultCollection();
         $this->clientSms = new NotificationResult();
-    }
-
-    public function markEmployeeEmailSent(): void
-    {
-        $this->employeeEmail->setIsSent(true);
-    }
-
-    public function markClientEmailSent(): void
-    {
-        $this->clientEmail->setIsSent(true);
     }
 
     public function markClientSmsSent(): void
@@ -46,18 +36,18 @@ class TsReturnOperationResult implements ReferencesOperationResult
     public function toArray(): array
     {
         return [
-            'employeeEmail' => $this->employeeEmail->isSent(),
-            'clientEmail' => $this->clientEmail->isSent(),
+            'employeeEmails' => $this->employeeEmails->toArray(),
+            'clientEmail' => $this->clientEmail->toArray(),
             'clientSms' => $this->clientSms->toArray(),
         ];
     }
 
-    public function getEmployeeEmail(): NotificationResult
+    public function getEmployeeEmails(): ResultCollection
     {
-        return $this->employeeEmail;
+        return $this->employeeEmails;
     }
 
-    public function getClientEmail(): NotificationResult
+    public function getClientEmail(): Result
     {
         return $this->clientEmail;
     }
@@ -65,5 +55,15 @@ class TsReturnOperationResult implements ReferencesOperationResult
     public function getClientSms(): NotificationResult
     {
         return $this->clientSms;
+    }
+
+    public function addEmployeeEmailResult(Result $result): void
+    {
+        $this->employeeEmails->add($result);
+    }
+
+    public function setClientEmailResult(Result $result): void
+    {
+        $this->clientEmail = $result;
     }
 }

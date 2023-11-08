@@ -2,7 +2,6 @@
 
 namespace NodaSoft\ReferencesOperation\Params;
 
-use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 use NodaSoft\Request\Request;
 
 class TsReturnOperationParams implements ReferencesOperationParams

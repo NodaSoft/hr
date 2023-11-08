@@ -2,45 +2,22 @@
 
 namespace NodaSoft\DataMapper\Entity;
 
-class Client implements Entity
-{
-    /** @var int */
-    private $id;
+use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+use NodaSoft\DataMapper\EntityInterface\Entity;
+use NodaSoft\DataMapper\EntityTrait;
 
-    /** @var string */
-    private $name;
+class Client implements Entity, EmailEntity
+{
+    use EntityTrait\EmailEntity;
 
     /** @var Reseller */
-    private $reseller;
-
-    /** @var string */
-    private $email;
+    private $reseller; //todo: should I rename reseller to seller?
 
     /** @var int */
     private $cellphoneNumber;
 
     /** @var bool */
     private $isCustomer;
-
-    public function setId(int $id): void
-    {
-        $this->id = $id;
-    }
-
-    public function getId(): int
-    {
-        return $this->id;
-    }
-
-    public function setName(string $name): void
-    {
-        $this->name = $name;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
 
     public function getFullName(): string
     {
@@ -59,22 +36,8 @@ class Client implements Entity
 
     public function hasReseller(Reseller $reseller): bool
     {
-        return $this->reseller->getId() === $reseller->getId();
-    }
-
-    public function hasEmail(): bool
-    {
-        return is_null($this->getEmail());
-    }
-
-    public function getEmail(): ?string
-    {
-        return $this->email ?? null;
-    }
-
-    public function setEmail(string $email): void
-    {
-        $this->email = $email;
+        return isset($this->reseller)
+            && $this->reseller->getId() === $reseller->getId();
     }
 
     public function hasCellphoneNumber(): bool
