@@ -29,11 +29,6 @@ class ReferencesOperationTest extends TestCase
 {
     const COMPLAINT_STATUS = ['new' => 1, 'changed' => 2];
 
-    protected function setUp(): void
-    {
-        require_once '/var/www/html/others.php';
-    }
-
     /**
      * @dataProvider operationDataProvider
      */
