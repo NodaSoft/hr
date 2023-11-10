@@ -49,6 +49,8 @@ class Status
 
 abstract class ReferencesOperation
 {
+    const HTTP_BAD_REQUEST = 400;
+
     abstract public function doOperation(): array;
 
     public function getRequest($pName)
