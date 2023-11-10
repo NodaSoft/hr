@@ -2,8 +2,8 @@
 
 namespace NodaSoft\ReferencesOperation\Result;
 
-use NodaSoft\Mail\Result;
-use NodaSoft\Mail\ResultCollection;
+use NodaSoft\Message\Result;
+use NodaSoft\Message\ResultCollection;
 use NodaSoft\Result\Notification\NotificationResult;
 
 class TsReturnOperationResult implements ReferencesOperationResult
@@ -14,23 +14,12 @@ class TsReturnOperationResult implements ReferencesOperationResult
     /** @var Result */
     private $clientEmail;
 
-    /** @var NotificationResult */
+    /** @var ?Result */
     private $clientSms;
 
     public function __construct()
     {
         $this->employeeEmails = new ResultCollection();
-        $this->clientSms = new NotificationResult();
-    }
-
-    public function markClientSmsSent(): void
-    {
-        $this->clientSms->setIsSent(true);
-    }
-
-    public function setClientSmsErrorMessage(string $message): void
-    {
-        $this->clientSms->setErrorMessage($message);
     }
 
     public function toArray(): array
@@ -52,7 +41,7 @@ class TsReturnOperationResult implements ReferencesOperationResult
         return $this->clientEmail;
     }
 
-    public function getClientSms(): NotificationResult
+    public function getClientSms(): Result
     {
         return $this->clientSms;
     }
@@ -65,5 +54,10 @@ class TsReturnOperationResult implements ReferencesOperationResult
     public function setClientEmailResult(Result $result): void
     {
         $this->clientEmail = $result;
+    }
+
+    public function setClientSmsResult(Result $result): void
+    {
+        $this->clientSms = $result;
     }
 }

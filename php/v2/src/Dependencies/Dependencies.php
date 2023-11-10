@@ -2,12 +2,19 @@
 
 namespace NodaSoft\Dependencies;
 
-use NodaSoft\Mail\Mail;
+use NodaSoft\Message\Client\EmailClient;
+use NodaSoft\Message\Client\SmsClient;
+use NodaSoft\Message\Messenger;
 
 class Dependencies
 {
-    public function getMail(): Mail
+    public function getMailService(): Messenger
     {
-        return new Mail();
+        return new Messenger(new EmailClient());
+    }
+
+    public function getSmsService(): Messenger
+    {
+        return new Messenger(new SmsClient());
     }
 }

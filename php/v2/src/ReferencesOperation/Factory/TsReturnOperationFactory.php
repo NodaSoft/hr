@@ -70,7 +70,8 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
         $command = new TsReturnOperationCommand();
         $command->setResult($result);
         $command->setInitialData($initialData);
-        $command->setMail($dependencies->getMail());
+        $command->setMail($dependencies->getMailService());
+        $command->setSms($dependencies->getSmsService());
         return $command;
     }
 }

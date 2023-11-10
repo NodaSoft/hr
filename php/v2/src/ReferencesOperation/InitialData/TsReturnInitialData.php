@@ -16,8 +16,8 @@ class TsReturnInitialData implements InitialData
     /** @var Reseller */
     private $reseller;
 
-    /** @var int */
-    private $notificationType;
+    /** @var Notification */
+    private $notification;
 
     /** @var ?int */
     private $differencesFrom;
@@ -51,14 +51,14 @@ class TsReturnInitialData implements InitialData
         $this->reseller = $reseller;
     }
 
-    public function getNotificationType(): int
+    public function getNotification(): Notification
     {
-        return $this->notificationType;
+        return $this->notification;
     }
 
-    public function setNotificationType(int $notificationType): void
+    public function setNotification(Notification $notification): void
     {
-        $this->notificationType = $notificationType;
+        $this->notification = $notification;
     }
 
     public function getDifferencesFrom(): ?int

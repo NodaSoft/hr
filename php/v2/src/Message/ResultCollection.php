@@ -1,8 +1,6 @@
 <?php
 
-namespace NodaSoft\Mail;
-
-use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+namespace NodaSoft\Message;
 
 class ResultCollection implements \Iterator
 {

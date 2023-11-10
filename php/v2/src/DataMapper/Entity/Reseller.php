@@ -2,13 +2,13 @@
 
 namespace NodaSoft\DataMapper\Entity;
 
-use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
 use NodaSoft\DataMapper\EntityInterface\Entity;
 use NodaSoft\DataMapper\EntityTrait;
 
-class Reseller implements Entity, EmailEntity
+class Reseller implements Entity, MessageRecipientEntity
 {
-    use EntityTrait\EmailEntity;
+    use EntityTrait\MessageRecipientEntity;
 
     public function getFullName(): string
     {

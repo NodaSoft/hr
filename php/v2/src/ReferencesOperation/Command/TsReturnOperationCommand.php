@@ -2,32 +2,29 @@
 
 namespace NodaSoft\ReferencesOperation\Command;
 
-use NodaSoft\Mail\Mail;
+use NodaSoft\Message\Message;
+use NodaSoft\Message\Messenger;
+use NodaSoft\Message\Result;
+use NodaSoft\Message\Template\ComplaintStatus;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\MailFactory\TsReturnOperationComplaintMessageFactory;
+use NodaSoft\Message\Factory\MessageFactory;
+use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
-use NW\WebService\References\Operations\Notification\NotificationEvents;
-use NW\WebService\References\Operations\Notification\NotificationManager;
 
 class TsReturnOperationCommand implements ReferencesOperationCommand
 {
-    public const TYPE_NEW = 1;
-
-    public const TYPE_CHANGE = 2;
-
     /** @var TsReturnOperationResult */
     private $result;
 
-    /**
-     * @var InitialData
-     */
+    /** @var InitialData */
     private $initialData;
 
-    /**
-     * @var Mail
-     */
+    /** @var Messenger */
     private $mail;
+
+    /** @var Messenger */
+    private $sms;
 
     /**
      * @param TsReturnOperationResult $result
@@ -43,9 +40,14 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
         $this->initialData = $initialData;
     }
 
-    public function setMail(Mail $mail): void
+    public function setMail(Messenger $mail): void
     {
         $this->mail = $mail;
+    }
+
+    public function setSms(Messenger $sms): void
+    {
+        $this->sms = $sms;
     }
 
     /**
@@ -53,44 +55,39 @@ class TsReturnOperationCommand implements ReferencesOperationCommand
      */
     public function execute(): ReferencesOperationResult
     {
+        /** @var TsReturnInitialData $initialData */
         $initialData = $this->initialData;
         $client = $initialData->getClient();
-        $templateData = $initialData->getMessageTemplate()->toArray();
-        $resellerId = $initialData->getReseller();
-        $notificationType = $initialData->getNotificationType();
 
-        $messageFactory = new TsReturnOperationComplaintMessageFactory();
+        $complaintTemplate = new MessageFactory(new ComplaintStatus());
+        $reseller = $initialData->getReseller();
 
         foreach ($initialData->getEmployees() as $employee) {
-            $message = $messageFactory->makeMessage($employee, $initialData);
+            $message = $complaintTemplate->makeMessage($employee, $reseller, $initialData);
             $result = $this->mail->send($message);
             $this->result->addEmployeeEmailResult($result);
         }
 
-        $message = $messageFactory->makeMessage($client, $initialData);
+        $message = $complaintTemplate->makeMessage($client, $reseller, $initialData);
         $result = $this->mail->send($message);
-        $this->result->setClientEmailResult($result); //todo: handle logic
+        $this->result->setClientEmailResult($result);
 
-        // Шлём клиентское уведомление, только если произошла смена статуса
-        if ($notificationType === self::TYPE_CHANGE
-            && ! is_null($initialData->getDifferencesTo())) {
-
-            if (! empty($client->getCellphoneNumber())) {
-                $result = NotificationManager::send(
-                    $resellerId,
-                    $client->getId(),
-                    NotificationEvents::CHANGE_RETURN_STATUS,
-                    $initialData->getDifferencesTo(),
-                    $templateData
-                );
-                if ($result->hasError()) {
-                    $this->result->setClientSmsErrorMessage($result->getErrorMessage());
-                    return $this->result;
-                }
-                $this->result->markClientSmsSent();
-            }
-        }
+        $result = $this->sendClientSms($initialData, $message);
+        $this->result->setClientSmsResult($result);
 
         return $this->result;
+    }
+
+    public function sendClientSms(InitialData $data, Message $message): Result
+    {
+        if ($data->getNotification()->getName() !== "complaint status changed"
+            || is_null($data->getDifferencesTo())) { //todo: replace the condition with a unit logic
+            $result = new Result($message->getRecipient(), get_class($this->sms));
+            $result->setIsSent(false);
+            $result->setErrorMessage("Wrong parameters. The message was not sent.");
+            return $result;
+        }
+
+        return $this->sms->send($message);
     }
 }

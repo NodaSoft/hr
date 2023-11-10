@@ -1,8 +1,8 @@
 <?php
 
-namespace NodaSoft\Mail;
+namespace NodaSoft\Message;
 
-use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
 
 class Message
 {
@@ -10,7 +10,7 @@ class Message
     private $subject;
 
     /** @var string */
-    private $message;
+    private $body;
 
     /** @var string */
     private $headers;
@@ -18,13 +18,11 @@ class Message
     /** @var string */
     private $params;
 
-    /** @var EmailEntity */
+    /** @var MessageRecipientEntity */
     private $recipient;
 
-    public function getTo(): string
-    {
-        return $this->recipient->getEmail();
-    }
+    /** @var MessageRecipientEntity */
+    private $sender;
 
     public function getSubject(): string
     {
@@ -36,14 +34,14 @@ class Message
         $this->subject = $subject;
     }
 
-    public function getMessage(): string
+    public function getBody(): string
     {
-        return $this->message;
+        return $this->body;
     }
 
-    public function setMessage(string $message): void
+    public function setBody(string $body): void
     {
-        $this->message = $message;
+        $this->body = $body;
     }
 
     public function getHeaders(): string
@@ -66,13 +64,23 @@ class Message
         $this->params = $params;
     }
 
-    public function setRecipient(EmailEntity $recipient): void
+    public function setRecipient(MessageRecipientEntity $recipient): void
     {
         $this->recipient = $recipient;
     }
 
-    public function getRecipient(): EmailEntity
+    public function getRecipient(): MessageRecipientEntity
     {
         return $this->recipient;
+    }
+
+    public function getSender(): MessageRecipientEntity
+    {
+        return $this->sender;
+    }
+
+    public function setSender(MessageRecipientEntity $sender): void
+    {
+        $this->sender = $sender;
     }
 }

@@ -40,12 +40,14 @@ class TsReturnFetchInitialData implements FetchInitialData
             throw new \Exception($e->getMessage());
         }
 
+        $notification = $this->getNotification($params->getNotificationType());
+
         $templateFactory = new TsReturnDtoFactory();
         $messageTemplate = $templateFactory->makeTsReturnDto($params);
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setDifferences($this->composeDifferences($params));
+        $messageTemplate->setDifferences($notification->composeMessage($params));
 
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
@@ -55,7 +57,7 @@ class TsReturnFetchInitialData implements FetchInitialData
         $data = new TsReturnInitialData();
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
-        $data->setNotificationType($params->getNotificationType());
+        $data->setNotification($notification);
         $data->setDifferencesFrom($params->getDifferencesFrom());
         $data->setDifferencesTo($params->getDifferencesTo());
         $data->setClient($client);
@@ -128,25 +130,13 @@ class TsReturnFetchInitialData implements FetchInitialData
 
     /**
      * @param TsReturnOperationParams $params
-     * @return string
-     */
-    public function composeDifferences(ReferencesOperationParams $params): string
-    {
-        $messageTemplate = $this->getMessageTemplate($params);
-        return $messageTemplate->composeMessage($params);
-    }
-
-    /**
-     * @param TsReturnOperationParams $params
      * @return Notification
      * @throws \Exception
      */
-    public function getMessageTemplate(
-        ReferencesOperationParams $params
-    ): Notification
+    public function getNotification(int $id): ?Notification
     {
         /** @var NotificationMapper $notificationMapper */
         $notificationMapper = $this->mapperFactory->getMapper('Notification');
-        return $notificationMapper->getById($params->getNotificationType());
+        return $notificationMapper->getById($id);
     }
 }

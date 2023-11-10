@@ -2,7 +2,7 @@
 
 namespace NodaSoft\Result\Notification;
 
-use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
 
 class NotificationResult
 {
@@ -12,7 +12,7 @@ class NotificationResult
     /** @var string */
     private $errorMessage;
 
-    /** @var EmailEntity */
+    /** @var MessageRecipientEntity */
     private $recipient;
 
     public function isSent(): bool
@@ -44,12 +44,12 @@ class NotificationResult
         return $array;
     }
 
-    public function getRecipient(): EmailEntity
+    public function getRecipient(): MessageRecipientEntity
     {
         return $this->recipient;
     }
 
-    public function setRecipient(EmailEntity $recipient): void
+    public function setRecipient(MessageRecipientEntity $recipient): void
     {
         $this->recipient = $recipient;
     }

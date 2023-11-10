@@ -1,8 +1,8 @@
 <?php
 
-namespace NodaSoft\Mail;
+namespace NodaSoft\Message;
 
-use NodaSoft\DataMapper\EntityInterface\EmailEntity;
+use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
 
 class Result
 {
@@ -12,15 +12,22 @@ class Result
     /** @var string */
     private $errorMessage;
 
-    /** @var EmailEntity */
+    /** @var MessageRecipientEntity */
     private $recipient;
 
+    /**
+     * @var string
+     */
+    private $clientClass;
+
     public function __construct(
-        EmailEntity $recipient,
-        bool $isSent = false,
-        string $errorMessage = ""
+        MessageRecipientEntity $recipient,
+        string                 $clientClass,
+        bool                   $isSent = false,
+        string                 $errorMessage = ""
     ) {
         $this->recipient = $recipient;
+        $this->clientClass = $clientClass;
         $this->isSent = $isSent;
         $this->errorMessage = $errorMessage;
     }
@@ -45,12 +52,12 @@ class Result
         return $this->errorMessage;
     }
 
-    public function setRecipient(EmailEntity $recipient): void
+    public function setRecipient(MessageRecipientEntity $recipient): void
     {
         $this->recipient = $recipient;
     }
 
-    public function getRecipient(): EmailEntity
+    public function getRecipient(): MessageRecipientEntity
     {
         return $this->recipient;
     }
@@ -59,8 +66,14 @@ class Result
     {
         return [
             'isSent' => $this->isSent,
+            'clientClass' => $this->clientClass,
             'errorMessage' => $this->errorMessage,
             'recipient' => $this->recipient->toArray(),
         ];
+    }
+
+    public function getClientClass(): string
+    {
+        return $this->clientClass;
     }
 }

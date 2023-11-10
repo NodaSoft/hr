@@ -12,7 +12,10 @@ use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
 use NodaSoft\Dependencies\Dependencies;
-use NodaSoft\Mail\Mail;
+use NodaSoft\Message\Client\EmailClient;
+use NodaSoft\Message\Client\SmsClient;
+use NodaSoft\Message\Message;
+use NodaSoft\Message\Messenger;
 use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
 use NodaSoft\Request\HttpRequest;
@@ -24,6 +27,8 @@ use PHPUnit\Framework\TestCase;
  */
 class ReferencesOperationTest extends TestCase
 {
+    const COMPLAINT_STATUS = ['new' => 1, 'changed' => 2];
+
     protected function setUp(): void
     {
         require_once '/var/www/html/others.php';
@@ -41,14 +46,12 @@ class ReferencesOperationTest extends TestCase
         string $errorMessage
     ): void {
         $_REQUEST['data'] = $data;
-        $mail = $this->mockMail();
-        $dependency = $this->createMock(Dependencies::class);
-        $dependency->method('getMail')->willReturn($mail);
+        $dependencies = $this->mockDependencies();
         $request = new HttpRequest();
         $factory = new TsReturnOperationFactory();
         $mapperFactory = $this->getMapperFactoryMock();
         $tsReturnOperation = new ReferencesOperation(
-            $dependency,
+            $dependencies,
             $factory,
             $request,
             $mapperFactory
@@ -73,7 +76,7 @@ class ReferencesOperationTest extends TestCase
     {
         return [
             'resellerId' => 86, //int
-            'notificationType' => 2, //int
+            'notificationType' => self::COMPLAINT_STATUS['changed'], //int
             'clientId' => 27, //int
             'creatorId' => 12, //int
             'expertId' => 7, //int
@@ -128,15 +131,15 @@ class ReferencesOperationTest extends TestCase
         $client->setId(27);
         $client->setName('Anna');
         $client->setEmail("Anna.27@gmail.com");
-        $client->setCellphoneNumber(555989898);
+        $client->setCellphone(5559898989);
         $client->setIsCustomer(true);
         $client->setReseller($reseller);
 
-        $notificationNew->setId(1);
-        $notificationNew->setName('new');
+        $notificationNew->setId(self::COMPLAINT_STATUS['new']);
+        $notificationNew->setName('complaint status new');
         $notificationNew->setTemplate("Added new entry (reseller id: #resellerId#).");
-        $notificationChanged->setId(2);
-        $notificationChanged->setName('change');
+        $notificationChanged->setId(self::COMPLAINT_STATUS['changed']);
+        $notificationChanged->setName('complaint status changed');
         $notificationChanged->setTemplate("Entry status changed (resseler id: #resellerId#): previous status: #differencesFrom#, current status: #differencesTo#");
 
         $employeeMapper
@@ -180,19 +183,37 @@ class ReferencesOperationTest extends TestCase
         return $mapperFactory;
     }
 
-    public function mockMail(): Mail
+    private function mockDependencies(): Dependencies
     {
-        return new class extends Mail {
-            //always return true (isSuccess) for every try to send email
-            public function mail(
-                string $to,
-                string $subject,
-                string $message,
-                string $headers,
-                string $params
-            ): bool {
+        $mail = $this->mockMail();
+        $sms = $this->mockSms();
+        $dependency = $this->createMock(Dependencies::class);
+        $dependency->method('getMailService')->willReturn($mail);
+        $dependency->method('getSmsService')->willReturn($sms);
+        return $dependency;
+    }
+
+    public function mockMail(): Messenger
+    {
+        $emailClient = new class extends EmailClient {
+            //mock the class: always return true (isSuccess) for every try to send email
+            public function send(Message $message): bool
+            {
                 return true;
             }
         };
+        return new Messenger($emailClient);
+    }
+
+    private function mockSms(): Messenger
+    {
+        $smsClient = new class extends SmsClient {
+            //mock the class: always return true (isSuccess) for every try to send email
+            public function send(Message $message): bool
+            {
+                return true;
+            }
+        };
+        return new Messenger($smsClient);
     }
 }
