@@ -66,6 +66,14 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
             return false;
         }
 
+        if (empty($this->creatorId)) {
+            return false;
+        }
+
+        if (empty($this->expertId)) {
+            return false;
+        }
+
         return true;
     }
 

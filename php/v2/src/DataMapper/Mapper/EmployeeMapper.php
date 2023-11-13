@@ -2,6 +2,7 @@
 
 namespace NodaSoft\DataMapper\Mapper;
 
+use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\EntityInterface\Entity;
 
@@ -15,12 +16,8 @@ class EmployeeMapper implements Mapper
         // TODO: Implement getById() method.
     }
 
-    /**
-     * @param int $resellerId
-     * @return Employee[]
-     */
-    public function getAllByReseller(int $resellerId): array
+    public function getAllByIds(array $employeeIds): EmployeeCollection
     {
-        // todo: Implement getAllByReseller() method.
+        // TODO: Implement getAllByIds() method
     }
 }

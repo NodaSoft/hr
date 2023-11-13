@@ -2,15 +2,9 @@
 
 namespace NodaSoft\ReferencesOperation\FetchInitialData;
 
-use NodaSoft\DataMapper\Entity\Client;
-use NodaSoft\DataMapper\Entity\Employee;
-use NodaSoft\DataMapper\Entity\Notification;
-use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\DataMapper\Mapper\ClientMapper;
-use NodaSoft\DataMapper\Mapper\EmployeeMapper;
+use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\DataMapper\Mapper\ResellerMapper;
 use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
@@ -34,15 +28,27 @@ class ReturnOperationNewFetchInitialData implements FetchInitialData
      */
     public function fetch(ReferencesOperationParams $params): InitialData
     {
-        try {
-            $reseller = $this->getReseller($params->getResellerId());
-            $client = $this->getClient($params->getClientId(), $reseller);
-            $creator = $this->getEmployee($params->getCreatorId());
-            $expert = $this->getEmployee($params->getExpertId());
-            $notification = $this->getNotification($params->getNotificationType());
-        } catch (\Exception $e) {
-            throw new \Exception("An entity was not found.", 400, $e);
+        /** @var NotificationMapper $notificationMapper */
+        $notificationMapper = $this->mapperFactory->getMapper('Notification');
+        $notification = $notificationMapper->getByName('complaint new');
+
+        if (is_null($notification)) {
+            throw new \Exception('Notification was not found!', 500);
         }
+
+        /** @var ComplaintMapper $complaintMapper */
+        $complaintMapper = $this->mapperFactory->getMapper('Complaint');
+        $complaint = $complaintMapper->getById($params->getComplaintId());
+
+        if (is_null($complaint)) {
+            throw new \Exception('Complaint was not found!', 400);
+        }
+
+        $reseller = $complaint->getReseller();
+        $client = $complaint->getClient();
+        $creator = $complaint->getCreator();
+        $expert = $complaint->getExpert();
+        $employees = $reseller->getEmployees();
 
         $templateFactory = new GenericDtoFactory();
         /** @var ReturnOperationNewMessageBodyList $messageTemplate */
@@ -65,69 +71,8 @@ class ReturnOperationNewFetchInitialData implements FetchInitialData
         $data->setReseller($reseller);
         $data->setNotification($notification);
         $data->setClient($client);
-        $data->setEmployees($reseller->getEmployees());
+        $data->setEmployees($employees);
 
         return $data;
-    }
-
-    public function getReseller(int $resellerId): Reseller
-    {
-        /** @var ResellerMapper $resellerMapper */
-        $resellerMapper = $this->mapperFactory->getMapper('Reseller');
-        $reseller = $resellerMapper->getById($resellerId);
-        if (is_null($reseller)) {
-            throw new \Exception('Reseller not found!');
-        }
-        return $reseller;
-    }
-
-    public function getClient(int $clientId, Reseller $reseller): Client
-    {
-        /** @var ClientMapper $clientMapper */
-        $clientMapper = $this->mapperFactory->getMapper('Client');
-        $client = $clientMapper->getById($clientId); //todo: replace condition with getter by filter if it's needed
-        if (is_null($client)
-            || ! $client->isCustomer()
-            || ! $client->hasReseller($reseller)) {
-            throw new \Exception('Client not found!');
-        }
-        return $client;
-    }
-
-    public function getEmployee(int $employeeId): Employee
-    {
-        /** @var EmployeeMapper $employeeMapper */
-        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
-        $creator = $employeeMapper->getById($employeeId);
-        if (is_null($creator)) {
-            throw new \Exception('Creator not found!');
-        }
-        return $creator;
-    }
-
-    /**
-     * @param int $resellerId
-     * @return Employee[]
-     */
-    public function getEmployees(int $resellerId): array
-    {
-        /** @var EmployeeMapper $employeeMapper */
-        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
-        $employee = $employeeMapper->getAllByReseller($resellerId);
-        if (is_null($employee)) {
-            throw new \Exception('Employee not found!');
-        }
-        return $employee;
-    }
-
-    public function getNotification(int $id): Notification
-    {
-        /** @var NotificationMapper $notificationMapper */
-        $notificationMapper = $this->mapperFactory->getMapper('Notification');
-        $notification = $notificationMapper->getById($id);
-        if (is_null($notification)) {
-            throw new \Exception('Notification not found!');
-        }
-        return $notification;
     }
 }

@@ -2,19 +2,18 @@
 
 namespace Tests\Unit\ReferencesOperation\Operation;
 
+use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
+use NodaSoft\DataMapper\Entity\Complaint;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\DataMapper\Mapper\ClientMapper;
-use NodaSoft\DataMapper\Mapper\EmployeeMapper;
+use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\DataMapper\Mapper\ResellerMapper;
 use NodaSoft\Dependencies\Dependencies;
 use NodaSoft\Message\Client\EmailClient;
 use NodaSoft\Message\Client\SmsClient;
-use NodaSoft\Message\Message;
 use NodaSoft\Message\Messenger;
 use NodaSoft\ReferencesOperation\Factory\ReturnOperationStatusChangedFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
@@ -44,7 +43,7 @@ class ReferencesOperationTest extends TestCase
         $dependencies = $this->mockDependencies();
         $request = new HttpRequest();
         $factory = new ReturnOperationStatusChangedFactory();
-        $mapperFactory = $this->getMapperFactoryMock();
+        $mapperFactory = $this->mockMapperFactory();
         $tsReturnOperation = new ReferencesOperation(
             $dependencies,
             $factory,
@@ -88,90 +87,50 @@ class ReferencesOperationTest extends TestCase
         ];
     }
 
-    private function getMapperFactoryMock(): MapperFactory
+    private function mockMapperFactory(): MapperFactory
     {
+        $expert = new Employee(7, 'Boris', 'boris@mail.com');
+        $creator = new Employee(12, 'Sarah', 'sarah@mail.com');
+        $employees = new EmployeeCollection([
+            new Employee(64, 'Mark', 'mark@mail.ru'),
+            new Employee(65, 'Nana', 'nana@mail.ru'),
+        ]);
+        $reseller = new Reseller(86, 'Bob', 'reseller@mail.ru', 1234567890, $employees);
+        $client = new Client(27, 'Anna', 'anna.27@gmail.com', 5559898989, true, $reseller);
+        $notificationNew = new Notification(
+            self::COMPLAINT_STATUS['new'],
+            'complaint new',
+            'Added new entry (reseller id: #resellerId#).'
+        );
+        $notificationChanged = new Notification(
+            self::COMPLAINT_STATUS['changed'],
+            'complaint status changed',
+            'Status changed (#complaintId#): previous status: #differencesFrom#, current status: #differencesTo#'
+        );
+        $complaint = new Complaint(1, 'Test Complaint', $creator, $client, $expert, $reseller);
+
+
         $mapperFactory = $this->createMock(MapperFactory::class);
-        $employeeMapper = $this->createMock(EmployeeMapper::class);
-        $clientMapper = $this->createMock(ClientMapper::class);
-        $resellerMapper = $this->createMock(ResellerMapper::class);
         $notificationMapper = $this->createMock(NotificationMapper::class);
+        $complaintMapper = $this->createMock(ComplaintMapper::class);
 
-        $expert = new Employee();
-        $creator = new Employee();
-        $employee1 = new Employee();
-        $employee2 = new Employee();
-        $client = new Client();
-        $reseller = new Reseller();
-        $notificationNew = new Notification();
-        $notificationChanged = new Notification();
-
-        $expert->setId(7);
-        $expert->setName("Boris");
-        $expert->setEmail("Boris@mail.com");
-
-        $creator->setId(12);
-        $creator->setName('Sarah');
-
-        $employee1->setId(64);
-        $employee1->setName("Mark");
-        $employee1->setEmail("mark@mail.ru");
-
-        $employee2->setId(65);
-        $employee2->setName("Nana");
-        $employee2->setEmail("nana@mail.ru");
-
-        $reseller->setId(86);
-        $reseller->setEmail('reseller@mail.ru');
-
-        $client->setId(27);
-        $client->setName('Anna');
-        $client->setEmail("Anna.27@gmail.com");
-        $client->setCellphone(5559898989);
-        $client->setIsCustomer(true);
-        $client->setReseller($reseller);
-
-        $notificationNew->setId(self::COMPLAINT_STATUS['new']);
-        $notificationNew->setName('complaint status new');
-        $notificationNew->setTemplate("Added new entry (reseller id: #resellerId#).");
-        $notificationChanged->setId(self::COMPLAINT_STATUS['changed']);
-        $notificationChanged->setName('complaint status changed');
-        $notificationChanged->setTemplate("Entry status changed (resseler id: #resellerId#): previous status: #differencesFrom#, current status: #differencesTo#");
-
-        $employeeMapper
+        $complaintMapper
             ->method('getById')
             ->willReturnMap([
-                [12, $creator],
-                [7, $expert],
+                [1, $complaint],
             ]);
 
-        $employeeMapper
-            ->method('getAllByReseller')
-            ->with(86)
-            ->willReturn([$employee1, $employee2]);
-
-        $clientMapper
-            ->method('getById')
-            ->with(27)
-            ->willReturn($client);
-
-        $resellerMapper
-            ->method('getById')
-            ->with(86)
-            ->willReturn($reseller);
-
         $notificationMapper
-            ->method('getById')
+            ->method('getByName')
             ->willReturnMap([
-                [1, $notificationNew],
-                [2, $notificationChanged],
+                ['complaint new', $notificationNew],
+                ['complaint status changed', $notificationChanged],
             ]);
 
         $mapperFactory
             ->method('getMapper')
             ->willReturnMap([
-                ['Reseller', $resellerMapper],
-                ['Client', $clientMapper],
-                ['Employee', $employeeMapper],
+                ['Complaint', $complaintMapper],
                 ['Notification', $notificationMapper],
             ]);
 
@@ -180,35 +139,20 @@ class ReferencesOperationTest extends TestCase
 
     private function mockDependencies(): Dependencies
     {
-        $mail = $this->mockMail();
-        $sms = $this->mockSms();
+        $emailClient = $this->createMock(EmailClient::class);
+        $emailClient->method('send')->withAnyParameters()->willReturn(true);
+        $emailClient->method('isValid')->withAnyParameters()->willReturn(true);
+        $mailMessenger = new Messenger($emailClient);
+
+        $smsClient = $this->createMock(SmsClient::class);
+        $smsClient->method('send')->withAnyParameters()->willReturn(true);
+        $smsClient->method('isValid')->withAnyParameters()->willReturn(true);
+        $smsMessenger = new Messenger($smsClient);
+
         $dependency = $this->createMock(Dependencies::class);
-        $dependency->method('getMailService')->willReturn($mail);
-        $dependency->method('getSmsService')->willReturn($sms);
+        $dependency->method('getMailService')->willReturn($mailMessenger);
+        $dependency->method('getSmsService')->willReturn($smsMessenger);
+
         return $dependency;
-    }
-
-    public function mockMail(): Messenger
-    {
-        $emailClient = new class extends EmailClient {
-            //mock the class: always return true (isSuccess) for every try to send email
-            public function send(Message $message): bool
-            {
-                return true;
-            }
-        };
-        return new Messenger($emailClient);
-    }
-
-    private function mockSms(): Messenger
-    {
-        $smsClient = new class extends SmsClient {
-            //mock the class: always return true (isSuccess) for every try to send email
-            public function send(Message $message): bool
-            {
-                return true;
-            }
-        };
-        return new Messenger($smsClient);
     }
 }

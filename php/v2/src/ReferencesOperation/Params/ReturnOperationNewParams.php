@@ -59,6 +59,14 @@ class ReturnOperationNewParams implements ReferencesOperationParams
             return false;
         }
 
+        if (empty($this->creatorId)) {
+            return false;
+        }
+
+        if (empty($this->expertId)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -71,7 +79,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         return $array;
     }
 
-    public function getResellerId(): ?int
+    public function getResellerId(): int
     {
         return $this->resellerId;
     }
@@ -81,7 +89,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->resellerId = $resellerId;
     }
 
-    public function getClientId(): ?int
+    public function getClientId(): int
     {
         return $this->clientId;
     }
@@ -91,7 +99,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->clientId = $clientId;
     }
 
-    public function getCreatorId(): ?int
+    public function getCreatorId(): int
     {
         return $this->creatorId;
     }
@@ -101,7 +109,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->creatorId = $creatorId;
     }
 
-    public function getExpertId(): ?int
+    public function getExpertId(): int
     {
         return $this->expertId;
     }
@@ -111,7 +119,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->expertId = $expertId;
     }
 
-    public function getNotificationType(): ?int
+    public function getNotificationType(): int
     {
         return $this->notificationType;
     }
@@ -121,7 +129,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->notificationType = $notificationType;
     }
 
-    public function getComplaintId(): ?int
+    public function getComplaintId(): int
     {
         return $this->complaintId;
     }
@@ -141,7 +149,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->complaintNumber = $complaintNumber;
     }
 
-    public function getConsumptionId(): ?int
+    public function getConsumptionId(): int
     {
         return $this->consumptionId;
     }
@@ -151,7 +159,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->consumptionId = $consumptionId;
     }
 
-    public function getConsumptionNumber(): ?string
+    public function getConsumptionNumber(): string
     {
         return $this->consumptionNumber;
     }
@@ -161,7 +169,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->consumptionNumber = $consumptionNumber;
     }
 
-    public function getAgreementNumber(): ?string
+    public function getAgreementNumber(): string
     {
         return $this->agreementNumber;
     }
@@ -171,7 +179,7 @@ class ReturnOperationNewParams implements ReferencesOperationParams
         $this->agreementNumber = $agreementNumber;
     }
 
-    public function getDate(): ?string
+    public function getDate(): string
     {
         return $this->date;
     }

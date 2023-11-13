@@ -4,7 +4,6 @@ namespace NodaSoft\ReferencesOperation\InitialData;
 
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
-use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;

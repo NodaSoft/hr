@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\ReferencesOperation\Command;
 
+use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
@@ -79,10 +80,10 @@ class ReturnOperationNewCommandTest extends TestCase
         $data = new ReturnOperationNewInitialData();
         $reseller = new Reseller(31, 'John', 'john@mail.ru', 1234567890);
         $data->setReseller($reseller);
-        $data->setEmployees([
+        $data->setEmployees(new EmployeeCollection([
             new Employee(21, 'Bob', 'bob@mail.ru', 9876543210),
             new Employee(23, 'Mark', 'mark@mailru', 1111111111),
-        ]);
+        ]));
         $data->setClient(new Client(11, 'Anna', 'anna@mail.ru', 2222222222, true, $reseller));
         $data->setNotification(new Notification(1, 'new', 'reseller: #resellerId#, client: #clientId#, date: #date#'));
         $data->setMessageTemplate($list);
