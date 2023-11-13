@@ -6,11 +6,11 @@ use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\Dto\TsReturnDto;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
 
-class TsReturnInitialData implements InitialData
+class ReturnOperationStatusChangedInitialData implements InitialData
 {
-    /** @var TsReturnDto */
+    /** @var ReturnOperationStatusChangedMessageBodyList */
     private $messageTemplate;
 
     /** @var Reseller */
@@ -31,12 +31,12 @@ class TsReturnInitialData implements InitialData
     /** @var Employee[] */
     private $employees;
 
-    public function getMessageTemplate(): TsReturnDto
+    public function getMessageTemplate(): ReturnOperationStatusChangedMessageBodyList
     {
         return $this->messageTemplate;
     }
 
-    public function setMessageTemplate(TsReturnDto $messageTemplate): void
+    public function setMessageTemplate(ReturnOperationStatusChangedMessageBodyList $messageTemplate): void
     {
         $this->messageTemplate = $messageTemplate;
     }

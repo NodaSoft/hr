@@ -5,7 +5,7 @@ namespace NodaSoft\Message\Factory;
 use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
 use NodaSoft\Message\Message;
 use NodaSoft\Message\Template\Template;
-use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
+use NodaSoft\ReferencesOperation\InitialData\InitialData;
 
 class MessageFactory
 {
@@ -20,13 +20,19 @@ class MessageFactory
     public function makeMessage(
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender,
-        TsReturnInitialData $initialData
+        InitialData $initialData
     ): Message {
+        $template = $this->template;
+
+        $subject = $template->composeSubject($initialData, $recipient, $sender);
+        $body = $template->composeBody($initialData, $recipient, $sender);
+
         $message = new Message();
         $message->setRecipient($recipient);
         $message->setSender($sender);
-        $message->setSubject($this->template->composeSubject($initialData));
-        $message->setBody($this->template->composeBody($initialData));
+        $message->setSubject($subject);
+        $message->setBody($body);
+
         return $message;
     }
 }

@@ -6,7 +6,7 @@ use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
 use NodaSoft\Request\Request;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
-use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
 use NodaSoft\Dependencies\Dependencies;
 
 class ReferencesOperation
@@ -33,8 +33,8 @@ class ReferencesOperation
     }
 
     /**
+     * @return ReturnOperationNewResult
      * @throws \Exception
-     * @return TsReturnOperationResult
      */
     public function doOperation(): ReferencesOperationResult
     {

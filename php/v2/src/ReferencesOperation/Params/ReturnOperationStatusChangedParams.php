@@ -4,7 +4,7 @@ namespace NodaSoft\ReferencesOperation\Params;
 
 use NodaSoft\Request\Request;
 
-class TsReturnOperationParams implements ReferencesOperationParams
+class ReturnOperationStatusChangedParams implements ReferencesOperationParams
 {
     /** @var ?int */
     private $resellerId;

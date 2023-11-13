@@ -2,15 +2,13 @@
 
 namespace Tests\Unit\ReferencesOperation\Result;
 
-use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Client\SmsClient;
 use NodaSoft\Message\Result;
-use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
 use PHPUnit\Framework\TestCase;
 
-class TsReturnOperationResultTest extends TestCase
+class ReturnOperationNewResultTest extends TestCase
 {
     public function testToArray(): void
     {
@@ -39,29 +37,6 @@ class TsReturnOperationResultTest extends TestCase
                     ],
                 ],
             ],
-            'clientEmail' => [
-                'isSent' => true,
-                'clientClass' => EmailClient::class,
-                'errorMessage' => '',
-                'recipient' => [
-                    'id' => 345,
-                    'name' => "Anna",
-                    'email' => "anna@mail.com",
-                    'cellphone' => 1234567890,
-                ],
-            ],
-            'clientSms' => [
-                'isSent' => true,
-                'clientClass' => SmsClient::class,
-                'errorMessage' => 'Foo Bar Baz',
-                'recipient' => [
-                    'id' => 345,
-                    'name' => 'Anna',
-                    'email' => 'anna@mail.com',
-                    'cellphone' => 1234567890,
-                ]
-
-            ],
         ];
 
         $bob = new Employee();
@@ -72,11 +47,6 @@ class TsReturnOperationResultTest extends TestCase
         $sarah->setId($origin['employeeEmails'][1]['recipient']['id']);
         $sarah->setName($origin['employeeEmails'][1]['recipient']['name']);
         $sarah->setEmail($origin['employeeEmails'][1]['recipient']['email']);
-        $client = new Client();
-        $client->setId($origin['clientEmail']['recipient']['id']);
-        $client->setName($origin['clientEmail']['recipient']['name']);
-        $client->setEmail($origin['clientEmail']['recipient']['email']);
-        $client->setCellphone(1234567890);
         $bobEmailResult = new Result(
             $bob,
             EmailClient::class,
@@ -89,23 +59,9 @@ class TsReturnOperationResultTest extends TestCase
             $origin['employeeEmails'][1]['isSent'],
             $origin['employeeEmails'][1]['errorMessage']
         );
-        $clientEmailResult = new Result(
-            $client,
-            EmailClient::class,
-            $origin['clientEmail']['isSent'],
-            $origin['clientEmail']['errorMessage']
-        );
-        $clientSmsResult = new Result(
-            $client,
-            SmsClient::class,
-            $origin['clientSms']['isSent'],
-            $origin['clientSms']['errorMessage']
-        );
-        $result = new TsReturnOperationResult();
+        $result = new ReturnOperationNewResult();
         $result->addEmployeeEmailResult($bobEmailResult);
         $result->addEmployeeEmailResult($sarahEmailResult);
-        $result->setClientEmailResult($clientEmailResult);
-        $result->setClientSmsResult($clientSmsResult);
         $resultArray = $result->toArray();
         $this->assertSame($origin, $resultArray);
     }

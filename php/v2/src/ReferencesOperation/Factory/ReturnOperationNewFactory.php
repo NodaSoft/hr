@@ -5,18 +5,18 @@ namespace NodaSoft\ReferencesOperation\Factory;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\Dependencies\Dependencies;
 use NodaSoft\ReferencesOperation\FetchInitialData\FetchInitialData;
-use NodaSoft\ReferencesOperation\FetchInitialData\TsReturnFetchInitialData;
+use NodaSoft\ReferencesOperation\FetchInitialData\ReturnOperationNewFetchInitialData;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
+use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
-use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Params\ReturnOperationNewParams;
 use NodaSoft\ReferencesOperation\Command\ReferencesOperationCommand;
-use NodaSoft\ReferencesOperation\Command\TsReturnOperationCommand;
+use NodaSoft\ReferencesOperation\Command\ReturnOperationNewCommand;
 use NodaSoft\Request\Request;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
-use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
+use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
 
-class TsReturnOperationFactory implements ReferencesOperationFactory
+class ReturnOperationNewFactory implements ReferencesOperationFactory
 {
     /** @var Request */
     private $request;
@@ -27,39 +27,39 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
     }
 
     /**
-     * @return TsReturnOperationResult
+     * @return ReturnOperationNewResult
      */
     public function getResult(): ReferencesOperationResult
     {
-        return new TsReturnOperationResult();
+        return new ReturnOperationNewResult();
     }
 
     /**
-     * @return TsReturnOperationParams
+     * @return ReturnOperationNewParams
      */
     public function getParams(): ReferencesOperationParams
     {
-        $params = new TsReturnOperationParams();
+        $params = new ReturnOperationNewParams();
         $params->setRequest($this->request);
         return $params;
     }
 
     /**
      * @param MapperFactory $mapperFactory
-     * @return FetchInitialData
+     * @return ReturnOperationNewFetchInitialData
      */
     public function getFetchInitialData(
         MapperFactory $mapperFactory
     ): FetchInitialData {
-        $fetch = new TsReturnFetchInitialData();
+        $fetch = new ReturnOperationNewFetchInitialData();
         $fetch->setMapperFactory($mapperFactory);
         return $fetch;
     }
 
     /**
-     * @param ReferencesOperationResult $result
-     * @param TsReturnInitialData $initialData
-     * @return ReferencesOperationCommand
+     * @param ReturnOperationNewResult $result
+     * @param ReturnOperationNewInitialData $initialData
+     * @return ReturnOperationNewCommand
      */
     public function getCommand(
         ReferencesOperationResult $result,
@@ -67,11 +67,10 @@ class TsReturnOperationFactory implements ReferencesOperationFactory
         Dependencies $dependencies
     ): ReferencesOperationCommand
     {
-        $command = new TsReturnOperationCommand();
+        $command = new ReturnOperationNewCommand();
         $command->setResult($result);
         $command->setInitialData($initialData);
         $command->setMail($dependencies->getMailService());
-        $command->setSms($dependencies->getSmsService());
         return $command;
     }
 }

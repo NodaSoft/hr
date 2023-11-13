@@ -2,15 +2,15 @@
 
 namespace Tests\Unit\Dto;
 
-use NodaSoft\Dto\TsReturnDto;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
 use PHPUnit\Framework\TestCase;
 
-class TsReturnDtoTest extends TestCase
+class ReturnOperationStatusChangedMessageBodyListTest extends TestCase
 {
     /** @dataProvider tsReturnDataProvider */
     public function testIsValid(array $data, bool $shouldBeValid): void
     {
-        $dto = new TsReturnDto();
+        $dto = new ReturnOperationStatusChangedMessageBodyList();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
             $dto->$setter($value);
@@ -21,7 +21,7 @@ class TsReturnDtoTest extends TestCase
     public function testToArray(): void
     {
         $data = self::getValidData();
-        $dto = new TsReturnDto();
+        $dto = new ReturnOperationStatusChangedMessageBodyList();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
             $dto->$setter($value);
@@ -55,7 +55,7 @@ class TsReturnDtoTest extends TestCase
             'consumptionNumber' => 'M654JG',
             'agreementNumber' => 'FF123-4',
             'date' => '2004-11-07',
-            'differences' => 'Foo Bar Baz',
+            'statement' => 'Foo Bar Baz',
         ];
     }
 

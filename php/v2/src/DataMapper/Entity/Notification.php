@@ -13,6 +13,16 @@ class Notification implements Entity
     /** @var string */
     private $template;
 
+    public function __construct(
+        int $id = null,
+        string $name = null,
+        string $template = null
+    ) {
+        if ($id) $this->setId($id);
+        if ($name) $this->setName($name);
+        if ($template) $this->setTemplate($template);
+    }
+
     public function composeMessage(ReferencesOperationParams $params): string
     {
         $message = $this->getTemplate();

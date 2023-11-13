@@ -14,7 +14,7 @@ class Messenger
 
     public function send(Message $message): Result
     {
-        $result = new Result($message->getRecipient(), static::class);
+        $result = new Result($message->getRecipient(), get_class($this->client));
 
         if (! $this->client->isValid($message)) {
             $result->setErrorMessage("Invalid parameters. Is failed to send a message.");

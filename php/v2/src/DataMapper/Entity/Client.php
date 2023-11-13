@@ -19,6 +19,22 @@ class Client implements Entity, MessageRecipientEntity
     /** @var bool */
     private $isCustomer;
 
+    public function __construct(
+        int $id = null,
+        string $name = null,
+        string $email = null,
+        int $cellphone = null,
+        bool $isCustomer = null,
+        Reseller $reseller = null
+    ) {
+        if ($id) $this->setId($id);
+        if ($name) $this->setName($name);
+        if ($email) $this->setEmail($email);
+        if ($cellphone) $this->setCellphone($cellphone);
+        if (is_bool($isCustomer)) $this->setIsCustomer($isCustomer);
+        if ($reseller) $this->setReseller($reseller);
+    }
+
     public function getFullName(): string
     {
         return $this->getName() . ' ' . $this->getId();

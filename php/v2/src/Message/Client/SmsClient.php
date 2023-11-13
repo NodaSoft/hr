@@ -20,7 +20,6 @@ class SmsClient implements Client
 
     public function isCellphoneValid(?int $cellphone): bool
     {
-        print "\n\n\nstrlen: " . strlen((string) $cellphone);
         return strlen((string) $cellphone) === 10;
     }
 }

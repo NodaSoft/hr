@@ -16,10 +16,10 @@ use NodaSoft\Message\Client\EmailClient;
 use NodaSoft\Message\Client\SmsClient;
 use NodaSoft\Message\Message;
 use NodaSoft\Message\Messenger;
-use NodaSoft\ReferencesOperation\Factory\TsReturnOperationFactory;
+use NodaSoft\ReferencesOperation\Factory\ReturnOperationStatusChangedFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
+use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
 use NodaSoft\Request\HttpRequest;
-use NodaSoft\ReferencesOperation\Result\TsReturnOperationResult;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -43,7 +43,7 @@ class ReferencesOperationTest extends TestCase
         $_REQUEST['data'] = $data;
         $dependencies = $this->mockDependencies();
         $request = new HttpRequest();
-        $factory = new TsReturnOperationFactory();
+        $factory = new ReturnOperationStatusChangedFactory();
         $mapperFactory = $this->getMapperFactoryMock();
         $tsReturnOperation = new ReferencesOperation(
             $dependencies,
@@ -51,7 +51,7 @@ class ReferencesOperationTest extends TestCase
             $request,
             $mapperFactory
         );
-        /** @var TsReturnOperationResult $result */
+        /** @var ReturnOperationStatusChangedResult $result */
         $result = $tsReturnOperation->doOperation();
         $employeeEmails = $result->getEmployeeEmails()->getList();
 

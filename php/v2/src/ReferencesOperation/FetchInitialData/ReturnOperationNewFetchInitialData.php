@@ -11,55 +11,61 @@ use NodaSoft\DataMapper\Mapper\ClientMapper;
 use NodaSoft\DataMapper\Mapper\EmployeeMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\DataMapper\Mapper\ResellerMapper;
-use NodaSoft\Factory\Dto\TsReturnDtoFactory;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
-use NodaSoft\ReferencesOperation\Params\TsReturnOperationParams;
+use NodaSoft\ReferencesOperation\Params\ReturnOperationNewParams;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\InitialData\TsReturnInitialData;
+use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
 
-class TsReturnFetchInitialData implements FetchInitialData
+class ReturnOperationNewFetchInitialData implements FetchInitialData
 {
     /** @var MapperFactory */
     private $mapperFactory;
 
+    public function setMapperFactory(MapperFactory $mapperFactory): void
+    {
+        $this->mapperFactory = $mapperFactory;
+    }
+
     /**
-     * @param TsReturnOperationParams $params
-     * @return TsReturnInitialData
+     * @param ReturnOperationNewParams $params
+     * @return ReturnOperationNewInitialData
      */
     public function fetch(ReferencesOperationParams $params): InitialData
     {
-        //todo: set error codes 400 and 500 as it was
-
         try {
             $reseller = $this->getReseller($params->getResellerId());
             $client = $this->getClient($params->getClientId(), $reseller);
-            $creator = $this->getCreator($params->getCreatorId());
-            $expert = $this->getExpert($params->getExpertId());
+            $creator = $this->getEmployee($params->getCreatorId());
+            $expert = $this->getEmployee($params->getExpertId());
             $employees = $this->getEmployees($params->getResellerId());
+            $notification = $this->getNotification($params->getNotificationType());
         } catch (\Exception $e) {
-            throw new \Exception($e->getMessage());
+            throw new \Exception("An entity was not found.", 400, $e);
         }
 
-        $notification = $this->getNotification($params->getNotificationType());
 
-        $templateFactory = new TsReturnDtoFactory();
-        $messageTemplate = $templateFactory->makeTsReturnDto($params);
+        $templateFactory = new GenericDtoFactory();
+        /** @var ReturnOperationNewMessageBodyList $messageTemplate */
+        $messageTemplate = $templateFactory->fillDtoParams(
+            new ReturnOperationNewMessageBodyList(),
+            $params
+        );
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setDifferences($notification->composeMessage($params));
+        $messageTemplate->setStatement($notification->composeMessage($params));
 
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
-            throw new \Exception("Template Data ({$emptyKey}) is empty!");
+            throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
         }
 
-        $data = new TsReturnInitialData();
+        $data = new ReturnOperationNewInitialData();
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotification($notification);
-        $data->setDifferencesFrom($params->getDifferencesFrom());
-        $data->setDifferencesTo($params->getDifferencesTo());
         $data->setClient($client);
         $data->setEmployees($employees);
 
@@ -90,31 +96,15 @@ class TsReturnFetchInitialData implements FetchInitialData
         return $client;
     }
 
-    public function getCreator(int $creatorId): Employee
+    public function getEmployee(int $employeeId): Employee
     {
         /** @var EmployeeMapper $employeeMapper */
         $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
-        $creator = $employeeMapper->getById($creatorId);
+        $creator = $employeeMapper->getById($employeeId);
         if (is_null($creator)) {
             throw new \Exception('Creator not found!');
         }
         return $creator;
-    }
-
-    public function getExpert(int $expertId): Employee
-    {
-        /** @var EmployeeMapper $employeeMapper */
-        $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
-        $expert = $employeeMapper->getById($expertId);
-        if (is_null($expert)) {
-            throw new \Exception('Expert not found!');
-        }
-        return $expert;
-    }
-
-    public function setMapperFactory(MapperFactory $mapperFactory): void
-    {
-        $this->mapperFactory = $mapperFactory;
     }
 
     /**
@@ -125,18 +115,21 @@ class TsReturnFetchInitialData implements FetchInitialData
     {
         /** @var EmployeeMapper $employeeMapper */
         $employeeMapper = $this->mapperFactory->getMapper('Employee'); // todo: duplication of EmployeeMapper initialization
-        return $employeeMapper->getAllByReseller($resellerId);
+        $employee = $employeeMapper->getAllByReseller($resellerId);
+        if (is_null($employee)) {
+            throw new \Exception('Employee not found!');
+        }
+        return $employee;
     }
 
-    /**
-     * @param TsReturnOperationParams $params
-     * @return Notification
-     * @throws \Exception
-     */
-    public function getNotification(int $id): ?Notification
+    public function getNotification(int $id): Notification
     {
         /** @var NotificationMapper $notificationMapper */
         $notificationMapper = $this->mapperFactory->getMapper('Notification');
-        return $notificationMapper->getById($id);
+        $notification = $notificationMapper->getById($id);
+        if (is_null($notification)) {
+            throw new \Exception('Notification not found!');
+        }
+        return $notification;
     }
 }

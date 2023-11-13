@@ -4,9 +4,8 @@ namespace NodaSoft\ReferencesOperation\Result;
 
 use NodaSoft\Message\Result;
 use NodaSoft\Message\ResultCollection;
-use NodaSoft\Result\Notification\NotificationResult;
 
-class TsReturnOperationResult implements ReferencesOperationResult
+class ReturnOperationStatusChangedResult implements ReferencesOperationResult
 {
     /** @var ResultCollection */
     private $employeeEmails;

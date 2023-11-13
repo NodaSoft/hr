@@ -1,8 +1,8 @@
 <?php
 
-namespace NodaSoft\Dto;
+namespace NodaSoft\GenericDto\Dto;
 
-class TsReturnDto
+class ReturnOperationStatusChangedMessageBodyList implements DtoInterface
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -41,7 +41,7 @@ class TsReturnDto
     private $DATE;
 
     /** @var string */
-    private $DIFFERENCES;
+    private $STATEMENT;
 
     public function getComplaintId(): int
     {
@@ -163,14 +163,14 @@ class TsReturnDto
         $this->DATE = $date;
     }
 
-    public function getDifferences(): string
+    public function getStatement(): string
     {
-        return $this->DIFFERENCES;
+        return $this->STATEMENT;
     }
 
-    public function setDifferences(string $differences): void
+    public function setStatement(string $statement): void
     {
-        $this->DIFFERENCES = $differences;
+        $this->STATEMENT = $statement;
     }
 
     public function toArray(): array
