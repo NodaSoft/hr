@@ -2,6 +2,7 @@
 
 namespace NodaSoft\ReferencesOperation\InitialData;
 
+use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
@@ -22,7 +23,7 @@ class ReturnOperationNewInitialData implements InitialData
     /** @var Client */
     private $client;
 
-    /** @var Employee[] */
+    /** @var EmployeeCollection */
     private $employees;
 
     public function getMessageTemplate(): ReturnOperationNewMessageBodyList
@@ -65,19 +66,12 @@ class ReturnOperationNewInitialData implements InitialData
         $this->client = $client;
     }
 
-    /**
-     * @return Employee[]
-     */
-    public function getEmployees(): array
+    public function getEmployees(): EmployeeCollection
     {
         return $this->employees;
     }
 
-    /**
-     * @param Employee[] $employees
-     * @return void
-     */
-    public function setEmployees(array $employees): void
+    public function setEmployees(EmployeeCollection $employees): void
     {
         $this->employees = $employees;
     }

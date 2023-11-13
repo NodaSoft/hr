@@ -39,7 +39,6 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
             $client = $this->getClient($params->getClientId(), $reseller);
             $creator = $this->getEmployee($params->getCreatorId());
             $expert = $this->getEmployee($params->getExpertId());
-            $employees = $this->getEmployees($params->getResellerId());
             $notification = $this->getNotification($params->getNotificationType());
         } catch (\Exception $e) {
             throw new \Exception("An entity was not found.", 400, $e);
@@ -69,7 +68,7 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $data->setDifferencesFrom($params->getDifferencesFrom());
         $data->setDifferencesTo($params->getDifferencesTo());
         $data->setClient($client);
-        $data->setEmployees($employees);
+        $data->setEmployees($reseller->getEmployees());
 
         return $data;
     }
