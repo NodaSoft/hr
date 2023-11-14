@@ -49,7 +49,8 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $creator = $complaint->getCreator();
         $expert = $complaint->getExpert();
         $employees = $reseller->getEmployees();
-
+        $status = $complaint->getStatus();
+        $previousStatus = $complaint->getPreviousStatus();
 
         $templateFactory = new GenericDtoFactory();
         /** @var ReturnOperationStatusChangedMessageBodyList $messageTemplate */
@@ -73,8 +74,8 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $data->setNotification($notification);
         $data->setClient($client);
         $data->setEmployees($employees);
-        $data->setDifferencesFrom($params->getDifferencesFrom()); // todo: fix name (should be previous status and new status)
-        $data->setDifferencesTo($params->getDifferencesTo());
+        $data->setCurrentStatusName($status->getName());
+        $data->setPreviousStatusName($previousStatus->getName());
 
         return $data;
     }

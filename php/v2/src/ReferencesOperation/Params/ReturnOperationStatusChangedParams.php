@@ -39,11 +39,11 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
     /** @var ?string */
     private $date;
 
-    /** @var ?int */
-    private $differencesFrom;
+    /** @var int */
+    private $previousStatusId;
 
-    /** @var ?int */
-    private $differencesTo;
+    /** @var int */
+    private $currentStatusId;
 
     public function setRequest(Request $request): void
     {
@@ -196,23 +196,23 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->date = $date;
     }
 
-    public function getDifferencesFrom(): ?int
+    public function getPreviousStatusId(): ?int
     {
-        return $this->differencesFrom;
+        return $this->previousStatusId;
     }
 
-    public function getDifferencesTo(): ?int
+    public function getCurrentStatusId(): ?int
     {
-        return $this->differencesTo;
+        return $this->currentStatusId;
     }
 
     public function setDifferences(?array $differences): void
     {
-        $this->differencesFrom = $differences['from']
+        $this->previousStatusId = $differences['from']
             ? (int) $differences['from']
             : null;
 
-        $this->differencesTo = $differences['to']
+        $this->currentStatusId = $differences['to']
             ? (int) $differences['to']
             : null;
     }

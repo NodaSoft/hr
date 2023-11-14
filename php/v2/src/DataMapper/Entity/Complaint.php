@@ -21,13 +21,21 @@ class Complaint implements Entity
     /** @var Reseller */
     private $reseller;
 
+    /** @var ComplaintStatus */
+    private $status;
+
+    /** @var ?ComplaintStatus */
+    private $previousStatus = null;
+
     public function __construct(
         int $id = null,
         string $name = null,
         Employee $creator = null,
         Client $client = null,
         Employee $expert = null,
-        Reseller $reseller = null
+        Reseller $reseller = null,
+        ComplaintStatus $status = null,
+        ComplaintStatus $previousStatus = null
     ) {
         if ($id) $this->setId($id);
         if ($name) $this->setName($name);
@@ -35,6 +43,8 @@ class Complaint implements Entity
         if ($client) $this->setClient($client);
         if ($expert) $this->setExpert($expert);
         if ($reseller) $this->setReseller($reseller);
+        if ($status) $this->setStatus($status);
+        if ($previousStatus) $this->setPreviousStatus($previousStatus);
     }
 
     public function setCreator(Employee $creator): void
@@ -47,6 +57,11 @@ class Complaint implements Entity
         $this->client = $client;
     }
 
+    public function setStatus(ComplaintStatus $status): void
+    {
+        $this->status = $status;
+    }
+
     public function setExpert(Employee $expert): void
     {
         $this->expert = $expert;
@@ -55,6 +70,11 @@ class Complaint implements Entity
     public function setReseller(Reseller $reseller): void
     {
         $this->reseller = $reseller;
+    }
+
+    public function setPreviousStatus(ComplaintStatus $previousStatus): void
+    {
+        $this->previousStatus = $previousStatus;
     }
 
     public function getCreator(): Employee
@@ -75,5 +95,15 @@ class Complaint implements Entity
     public function getReseller(): Reseller
     {
         return $this->reseller;
+    }
+
+    public function getStatus(): ComplaintStatus
+    {
+        return $this->status;
+    }
+
+    public function getPreviousStatus(): ?ComplaintStatus
+    {
+        return $this->previousStatus;
     }
 }

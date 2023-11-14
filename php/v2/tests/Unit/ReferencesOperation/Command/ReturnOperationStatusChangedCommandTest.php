@@ -7,13 +7,13 @@ use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Message\Client\EmailClient;
 use NodaSoft\Message\Client\SmsClient;
 use NodaSoft\Message\Messenger;
 use NodaSoft\ReferencesOperation\Command\ReturnOperationStatusChangedCommand;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
+use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitialData;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
@@ -83,11 +83,11 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
         ]);
     }
 
-    private function mockInitialData(): ReturnOperationNewInitialData
+    private function mockInitialData(): ReturnOperationStatusChangedInitialData
     {
         $dtoFactory = new GenericDtoFactory();
         $list = $dtoFactory->fillDtoArray(
-            new ReturnOperationNewMessageBodyList(),
+            new ReturnOperationStatusChangedMessageBodyList(),
             [
                 'complaintId' => 4343421,
                 'complaintNumber' => '06.07.2008FV',
@@ -104,7 +104,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
                 'date' => '11.12.2023'
             ]
         );
-        $data = new ReturnOperationNewInitialData();
+        $data = new ReturnOperationStatusChangedInitialData();
         $reseller = new Reseller(31, 'John', 'john@mail.ru', 1234567890);
         $data->setReseller($reseller);
         $data->setEmployees(new EmployeeCollection([
@@ -114,6 +114,8 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
         $data->setClient(new Client(11, 'Anna', 'anna@mail.ru', 2222222222, true, $reseller));
         $data->setNotification(new Notification(1, 'new', 'reseller: #resellerId#, client: #clientId#, date: #date#'));
         $data->setMessageTemplate($list);
+        $data->setCurrentStatusName('Reopened');
+        $data->setPreviousStatusName('Closed');
         return $data;
     }
 }

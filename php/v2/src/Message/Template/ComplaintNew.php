@@ -9,39 +9,40 @@ use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
 class ComplaintNew implements Template
 {
     /**
-     * @param ReturnOperationNewInitialData $initialData
+     * @param ReturnOperationNewInitialData $data
      * @param MessageRecipientEntity $recipient
      * @param MessageRecipientEntity $sender
      * @return string
      */
     public function composeSubject(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string {
         return "There is a new complaint ("
-            . $initialData->getMessageTemplate()->getComplaintId()
+            . $data->getMessageTemplate()->getComplaintId()
             . ")";
     }
 
 
     /**
-     * @param ReturnOperationNewInitialData $initialData
+     * @param ReturnOperationNewInitialData $data
      * @param MessageRecipientEntity $recipient
      * @param MessageRecipientEntity $sender
      * @return string
      */
     public function composeBody(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string
     {
-        $params = $initialData->getMessageTemplate();
-        $message = "There is a new complaint ("
+        $params = $data->getMessageTemplate();
+        $message = "Hello, " . $recipient->getFullName()
+            . ". Be informed that there is a new complaint №"
             . $params->getComplaintId()
-            . "). Reseller id: "
-            . $initialData->getReseller()->getId();
+            . "registered. Reseller id: "
+            . $data->getReseller()->getId();
 
         foreach ($params->toArray() as $key => $value) {
             $message .= "$key: $value";

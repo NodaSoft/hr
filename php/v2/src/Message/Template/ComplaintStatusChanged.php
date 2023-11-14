@@ -9,38 +9,39 @@ use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitial
 class ComplaintStatusChanged implements Template
 {
     /**
-     * @param ReturnOperationStatusChangedInitialData $initialData
+     * @param ReturnOperationStatusChangedInitialData $data
      * @param MessageRecipientEntity $recipient
      * @param MessageRecipientEntity $sender
      * @return string
      */
     public function composeSubject(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string
     {
         return "Complaint status has been changed ("
-            . $initialData->getMessageTemplate()->getComplaintId()
+            . $data->getMessageTemplate()->getComplaintId()
             . ")";
     }
 
     /**
-     * @param ReturnOperationStatusChangedInitialData $initialData
+     * @param ReturnOperationStatusChangedInitialData $data
      * @param MessageRecipientEntity $recipient
      * @param MessageRecipientEntity $sender
      * @return string
      */
     public function composeBody(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string {
-        $params = $initialData->getMessageTemplate();
-        $message = "Complaint status has been changed ("
-            . $params->getComplaintId()
-            . "). Reseller id: "
-            . $initialData->getReseller()->getId();
+        $params = $data->getMessageTemplate();
+        $message = "Hello, " . $recipient->getFullName()
+            . ". Be informed that complaint №" . $params->getComplaintId()
+            . " status has been changed from " . $data->getPreviousStatusName()
+            . " to " . $data->getCurrentStatusName()
+            . "). Reseller id: " . $data->getReseller()->getId();
 
         foreach ($params->toArray() as $key => $value) {
             $message .= "$key: $value";

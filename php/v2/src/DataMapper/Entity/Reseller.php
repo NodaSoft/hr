@@ -33,14 +33,18 @@ class Reseller implements Entity, MessageRecipientEntity
         return $this->employees;
     }
 
-    public function setEmployees(
-        EmployeeCollection $employees
-    ): void {
+    public function setEmployees(EmployeeCollection $employees): void
+    {
         $this->employees = $employees;
     }
 
     public function addEmployee(Employee $employee): void
     {
         $this->employees->add($employee);
+    }
+
+    public function getFullName(): string
+    {
+        return $this->getName() . ' ' . $this->getId();
     }
 }

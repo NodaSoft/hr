@@ -19,11 +19,11 @@ class ReturnOperationStatusChangedInitialData implements InitialData
     /** @var Notification */
     private $notification;
 
-    /** @var ?int */
-    private $differencesFrom;
+    /** @var string */
+    private $previousStatusName;
 
-    /** @var ?int */
-    private $differencesTo;
+    /** @var string */
+    private $currentStatusName;
 
     /** @var Client */
     private $client;
@@ -36,7 +36,9 @@ class ReturnOperationStatusChangedInitialData implements InitialData
         return $this->messageTemplate;
     }
 
-    public function setMessageTemplate(ReturnOperationStatusChangedMessageBodyList $messageTemplate): void
+    public function setMessageTemplate(
+        ReturnOperationStatusChangedMessageBodyList $messageTemplate
+    ): void
     {
         $this->messageTemplate = $messageTemplate;
     }
@@ -61,24 +63,24 @@ class ReturnOperationStatusChangedInitialData implements InitialData
         $this->notification = $notification;
     }
 
-    public function getDifferencesFrom(): ?int
+    public function getPreviousStatusName(): string
     {
-        return $this->differencesFrom;
+        return $this->previousStatusName;
     }
 
-    public function setDifferencesFrom(?int $differencesFrom): void
+    public function setPreviousStatusName(string $previousStatusName): void
     {
-        $this->differencesFrom = $differencesFrom;
+        $this->previousStatusName = $previousStatusName;
     }
 
-    public function getDifferencesTo(): ?int
+    public function getCurrentStatusName(): string
     {
-        return $this->differencesTo;
+        return $this->currentStatusName;
     }
 
-    public function setDifferencesTo(?int $differencesTo): void
+    public function setCurrentStatusName(string $currentStatusName): void
     {
-        $this->differencesTo = $differencesTo;
+        $this->currentStatusName = $currentStatusName;
     }
 
     public function getClient(): Client

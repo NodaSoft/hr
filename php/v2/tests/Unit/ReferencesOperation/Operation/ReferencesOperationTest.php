@@ -5,6 +5,7 @@ namespace Tests\Unit\ReferencesOperation\Operation;
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Complaint;
+use NodaSoft\DataMapper\Entity\ComplaintStatus;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
@@ -74,9 +75,9 @@ class ReferencesOperationTest extends TestCase
             'clientId' => 27, //int
             'creatorId' => 12, //int
             'expertId' => 7, //int
-            'differences' => [
-                'from' => 1, //int
-                'to' => 1, //int
+            'statuses' => [
+                'previous' => 1, //int
+                'current' => 2, //int
             ],
             'complaintId' => 1, //int
             'complaintNumber' => 1, //string
@@ -105,9 +106,11 @@ class ReferencesOperationTest extends TestCase
         $notificationChanged = new Notification(
             self::COMPLAINT_STATUS['changed'],
             'complaint status changed',
-            'Status changed (#complaintId#): previous status: #differencesFrom#, current status: #differencesTo#'
+            'Status changed (#complaintId#): previous status: #previousStatusName#, status: #currentStatusName#'
         );
-        $complaint = new Complaint(1, 'Test Complaint', $creator, $client, $expert, $reseller);
+        $closed = new ComplaintStatus(8, 'Closed');
+        $reopened = new ComplaintStatus(9, 'Reopened');
+        $complaint = new Complaint(1, 'Test Complaint', $creator, $client, $expert, $reseller, $reopened, $closed);
 
 
         $mapperFactory = $this->createMock(MapperFactory::class);

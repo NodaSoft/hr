@@ -8,13 +8,13 @@ use NodaSoft\ReferencesOperation\InitialData\InitialData;
 interface Template
 {
     public function composeSubject(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string;
 
     public function composeBody(
-        InitialData $initialData,
+        InitialData $data,
         MessageRecipientEntity $recipient,
         MessageRecipientEntity $sender
     ): string;
