@@ -108,15 +108,17 @@ func processTask(t *task, doneCh chan *task, failCh chan error) {
 }
 
 func printTasks(doneCh chan *task, failCh chan error) {
-	result := make(map[int]*task)
+	var result []*task
 	var errs []*error
+
+	resDone := make(chan struct{})
 
 	go func() {
 		for t := range doneCh {
-			// Непонятно зачем здеась мапа, видимо чтобы убедиться, что в нее нельзя писать параллельно,
-			// оставил на всякий случай
-			result[t.id] = t
+			result = append(result, t)
 		}
+
+		resDone <- struct{}{}
 	}()
 
 	for e := range failCh {
@@ -124,18 +126,22 @@ func printTasks(doneCh chan *task, failCh chan error) {
 		errs = append(errs, &e)
 	}
 
+	<-resDone
+
 	fmt.Println("Errors:")
+
 	for _, e := range errs {
 		fmt.Println(*e)
 	}
 
 	fmt.Println()
-
 	fmt.Println("Completed tasks:")
+
 	for _, r := range result {
 		fmt.Println(*r)
 	}
 
+	fmt.Println()
 	fmt.Printf("Completed %d tasks, failed %d tasks", len(result), len(errs))
 }
 
