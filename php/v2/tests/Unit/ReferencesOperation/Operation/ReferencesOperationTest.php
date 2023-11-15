@@ -17,7 +17,7 @@ use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Messenger;
 use NodaSoft\Operation\Factory\NotifyComplaintStatusChangedFactory;
-use NodaSoft\Operation\Operation\Operation;
+use NodaSoft\Operation\Operation;
 use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 use NodaSoft\Request\HttpRequest;
 use PHPUnit\Framework\TestCase;

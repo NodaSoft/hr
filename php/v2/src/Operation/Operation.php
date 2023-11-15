@@ -1,6 +1,6 @@
 <?php
 
-namespace NodaSoft\Operation\Operation;
+namespace NodaSoft\Operation;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\Operation\Factory\OperationFactory;
