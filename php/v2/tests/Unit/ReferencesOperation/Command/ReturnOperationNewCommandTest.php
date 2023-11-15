@@ -9,8 +9,8 @@ use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Messenger;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Messenger;
 use NodaSoft\ReferencesOperation\Command\ReturnOperationNewCommand;
 use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
@@ -85,7 +85,12 @@ class ReturnOperationNewCommandTest extends TestCase
             new Employee(23, 'Mark', 'mark@mailru', 1111111111),
         ]));
         $data->setClient(new Client(11, 'Anna', 'anna@mail.ru', 2222222222, true, $reseller));
-        $data->setNotification(new Notification(1, 'new', 'reseller: #resellerId#, client: #clientId#, date: #date#'));
+        $data->setNotification(new Notification(
+            1,
+            'new',
+            'reseller: #resellerId#, client: #clientId#, date: #date#',
+            'reseller: #resellerId#, client: #clientId#, date: #date#')
+        );
         $data->setMessageTemplate($list);
         return $data;
     }

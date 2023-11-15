@@ -1,6 +1,6 @@
 <?php
 
-namespace NodaSoft\Message;
+namespace NodaSoft\Messenger;
 
 class ResultCollection implements \Iterator
 {

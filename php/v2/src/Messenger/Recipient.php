@@ -1,8 +1,8 @@
 <?php
 
-namespace NodaSoft\DataMapper\EntityInterface;
+namespace NodaSoft\Messenger;
 
-interface MessageRecipientEntity extends Entity
+interface Recipient
 {
     public function getFullName(): string;
 

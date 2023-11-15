@@ -9,9 +9,9 @@ use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Client\SmsClient;
-use NodaSoft\Message\Messenger;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Client\SmsClient;
+use NodaSoft\Messenger\Messenger;
 use NodaSoft\ReferencesOperation\Command\ReturnOperationStatusChangedCommand;
 use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitialData;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
@@ -112,10 +112,13 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
             new Employee(23, 'Mark', 'mark@mailru', 1111111111),
         ]));
         $data->setClient(new Client(11, 'Anna', 'anna@mail.ru', 2222222222, true, $reseller));
-        $data->setNotification(new Notification(1, 'new', 'reseller: #resellerId#, client: #clientId#, date: #date#'));
+        $data->setNotification(new Notification(
+            1,
+            'new',
+            'reseller: #resellerId#, client: #clientId#, date: #date#',
+            'reseller: #resellerId#, client: #clientId#, date: #date#'
+        ));
         $data->setMessageTemplate($list);
-        $data->setCurrentStatusName('Reopened');
-        $data->setPreviousStatusName('Closed');
         return $data;
     }
 }

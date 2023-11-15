@@ -1,8 +1,8 @@
 <?php
 
-namespace NodaSoft\Message;
+namespace NodaSoft\Messenger;
 
-use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
+use NodaSoft\Messenger\Recipient;
 
 class Result
 {
@@ -12,7 +12,7 @@ class Result
     /** @var string */
     private $errorMessage;
 
-    /** @var MessageRecipientEntity */
+    /** @var Recipient */
     private $recipient;
 
     /**
@@ -21,10 +21,10 @@ class Result
     private $clientClass;
 
     public function __construct(
-        MessageRecipientEntity $recipient,
-        string                 $clientClass,
-        bool                   $isSent = false,
-        string                 $errorMessage = ""
+        Recipient $recipient,
+        string    $clientClass,
+        bool      $isSent = false,
+        string    $errorMessage = ""
     ) {
         $this->recipient = $recipient;
         $this->clientClass = $clientClass;
@@ -52,12 +52,12 @@ class Result
         return $this->errorMessage;
     }
 
-    public function setRecipient(MessageRecipientEntity $recipient): void
+    public function setRecipient(Recipient $recipient): void
     {
         $this->recipient = $recipient;
     }
 
-    public function getRecipient(): MessageRecipientEntity
+    public function getRecipient(): Recipient
     {
         return $this->recipient;
     }

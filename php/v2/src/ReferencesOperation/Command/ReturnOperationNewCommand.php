@@ -2,10 +2,9 @@
 
 namespace NodaSoft\ReferencesOperation\Command;
 
-use NodaSoft\Message\Messenger;
-use NodaSoft\Message\Template\ComplaintNew;
+use NodaSoft\Messenger\Message;
+use NodaSoft\Messenger\Messenger;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\Message\Factory\MessageFactory;
 use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
@@ -45,14 +44,13 @@ class ReturnOperationNewCommand implements ReferencesOperationCommand
      */
     public function execute(): ReferencesOperationResult
     {
-        $initialData = $this->initialData;
+        $data = $this->initialData;
+        $reseller = $data->getReseller();
 
-        $complaintTemplate = new MessageFactory(new ComplaintNew());
-        $reseller = $initialData->getReseller();
+        $message = new Message($data->getNotification(), $data->getMessageTemplate());
 
-        foreach ($initialData->getEmployees() as $employee) {
-            $message = $complaintTemplate->makeMessage($employee, $reseller, $initialData);
-            $result = $this->mail->send($message);
+        foreach ($data->getEmployees() as $employee) {
+            $result = $this->mail->send($message, $employee, $reseller);
             $this->result->addEmployeeEmailResult($result);
         }
 

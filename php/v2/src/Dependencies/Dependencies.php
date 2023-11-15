@@ -2,9 +2,9 @@
 
 namespace NodaSoft\Dependencies;
 
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Client\SmsClient;
-use NodaSoft\Message\Messenger;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Client\SmsClient;
+use NodaSoft\Messenger\Messenger;
 
 class Dependencies
 {

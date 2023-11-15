@@ -3,8 +3,8 @@
 namespace Tests\Unit\ReferencesOperation\Result;
 
 use NodaSoft\DataMapper\Entity\Employee;
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Result;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Result;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
 use PHPUnit\Framework\TestCase;
 

@@ -1,10 +1,10 @@
 <?php
 
-namespace NodaSoft\Message\Factory;
+namespace NodaSoft\Messenger\Factory;
 
-use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
-use NodaSoft\Message\Message;
-use NodaSoft\Message\Template\Template;
+use NodaSoft\Messenger\Recipient;
+use NodaSoft\Messenger\Message;
+use NodaSoft\Messenger\Template\Template;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
 
 class MessageFactory
@@ -18,8 +18,8 @@ class MessageFactory
     }
 
     public function makeMessage(
-        MessageRecipientEntity $recipient,
-        MessageRecipientEntity $sender,
+        Recipient   $recipient,
+        Recipient   $sender,
         InitialData $initialData
     ): Message {
         $template = $this->template;
@@ -27,7 +27,8 @@ class MessageFactory
         $subject = $template->composeSubject($initialData, $recipient, $sender);
         $body = $template->composeBody($initialData, $recipient, $sender);
 
-        $message = new Message();
+        return new Message($content, $recipient, $sender);
+
         $message->setRecipient($recipient);
         $message->setSender($sender);
         $message->setSubject($subject);

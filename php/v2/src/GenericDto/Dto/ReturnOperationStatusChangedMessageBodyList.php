@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationStatusChangedMessageBodyList implements DtoInterface
+class ReturnOperationStatusChangedMessageBodyList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -41,7 +41,10 @@ class ReturnOperationStatusChangedMessageBodyList implements DtoInterface
     private $DATE;
 
     /** @var string */
-    private $STATEMENT;
+    private $PREVIOUS_STATUS;
+
+    /** @var string */
+    private $CURRENT_STATUS;
 
     public function getComplaintId(): int
     {
@@ -163,14 +166,24 @@ class ReturnOperationStatusChangedMessageBodyList implements DtoInterface
         $this->DATE = $date;
     }
 
-    public function getStatement(): string
+    public function getPreviousStatus(): string
     {
-        return $this->STATEMENT;
+        return $this->PREVIOUS_STATUS;
     }
 
-    public function setStatement(string $statement): void
+    public function setPreviousStatus(string $name): void
     {
-        $this->STATEMENT = $statement;
+        $this->PREVIOUS_STATUS = $name;
+    }
+
+    public function getCurrentStatus(): string
+    {
+        return $this->CURRENT_STATUS;
+    }
+
+    public function setCurrentStatus(string $name): void
+    {
+        $this->CURRENT_STATUS = $name;
     }
 
     public function toArray(): array

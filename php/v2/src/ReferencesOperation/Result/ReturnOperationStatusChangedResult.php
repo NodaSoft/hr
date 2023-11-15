@@ -2,8 +2,8 @@
 
 namespace NodaSoft\ReferencesOperation\Result;
 
-use NodaSoft\Message\Result;
-use NodaSoft\Message\ResultCollection;
+use NodaSoft\Messenger\Result;
+use NodaSoft\Messenger\ResultCollection;
 
 class ReturnOperationStatusChangedResult implements ReferencesOperationResult
 {

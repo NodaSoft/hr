@@ -13,9 +13,9 @@ use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\Dependencies\Dependencies;
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Client\SmsClient;
-use NodaSoft\Message\Messenger;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Client\SmsClient;
+use NodaSoft\Messenger\Messenger;
 use NodaSoft\ReferencesOperation\Factory\ReturnOperationStatusChangedFactory;
 use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
@@ -101,11 +101,13 @@ class ReferencesOperationTest extends TestCase
         $notificationNew = new Notification(
             self::COMPLAINT_STATUS['new'],
             'complaint new',
+            'Added new entry (reseller id: #resellerId#).',
             'Added new entry (reseller id: #resellerId#).'
         );
         $notificationChanged = new Notification(
             self::COMPLAINT_STATUS['changed'],
             'complaint status changed',
+            'Status changed (#complaintId#): previous status: #previousStatusName#, status: #currentStatusName#',
             'Status changed (#complaintId#): previous status: #previousStatusName#, status: #currentStatusName#'
         );
         $closed = new ComplaintStatus(8, 'Closed');

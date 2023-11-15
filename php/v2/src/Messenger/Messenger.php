@@ -1,6 +1,8 @@
 <?php
 
-namespace NodaSoft\Message;
+namespace NodaSoft\Messenger;
+
+use NodaSoft\Messenger\Recipient;
 
 class Messenger
 {
@@ -12,17 +14,20 @@ class Messenger
         $this->client = $client;
     }
 
-    public function send(Message $message): Result
-    {
-        $result = new Result($message->getRecipient(), get_class($this->client));
+    public function send(
+        Message   $message,
+        Recipient $recipient,
+        Recipient $sender
+    ): Result {
+        $result = new Result($recipient, get_class($this->client));
 
-        if (! $this->client->isValid($message)) {
+        if (! $this->client->isValid($message, $recipient, $sender)) {
             $result->setErrorMessage("Invalid parameters. Is failed to send a message.");
             return $result;
         }
 
         try {
-            $isSent = $this->client->send($message);
+            $isSent = $this->client->send($message, $recipient, $sender);
             $result->setIsSent($isSent);
         } catch (\Throwable $th) {
             $result->setErrorMessage($th->getMessage());

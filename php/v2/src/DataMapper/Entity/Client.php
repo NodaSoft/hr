@@ -2,11 +2,11 @@
 
 namespace NodaSoft\DataMapper\Entity;
 
-use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
+use NodaSoft\Messenger\Recipient;
 use NodaSoft\DataMapper\EntityInterface\Entity;
 use NodaSoft\DataMapper\EntityTrait;
 
-class Client implements Entity, MessageRecipientEntity
+class Client implements Entity, Recipient
 {
     use EntityTrait\MessageRecipientEntity;
 

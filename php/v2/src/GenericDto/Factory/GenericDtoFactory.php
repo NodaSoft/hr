@@ -2,21 +2,21 @@
 
 namespace NodaSoft\GenericDto\Factory;
 
-use NodaSoft\GenericDto\Dto\DtoInterface;
+use NodaSoft\GenericDto\Dto\Dto;
 use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
 
 class GenericDtoFactory
 {
     /**
-     * @template ParticularDTO of DtoInterface
+     * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
      * @param ReferencesOperationParams $params
      * @return ParticularDTO
      */
     public function fillDtoParams(
-        DtoInterface $dto,
+        Dto                       $dto,
         ReferencesOperationParams $params
-    ): DtoInterface {
+    ): Dto {
         foreach ($params->toArray() as $key => $value) {
             $setter = 'set' . $key;
             if (method_exists($dto, $setter)) {
@@ -27,15 +27,15 @@ class GenericDtoFactory
     }
 
     /**
-     * @template ParticularDTO of DtoInterface
+     * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
      * @param ReferencesOperationParams $params
      * @return ParticularDTO
      */
     public function fillDtoArray(
-        DtoInterface $dto,
+        Dto      $dto,
         iterable $params
-    ): DtoInterface {
+    ): Dto {
         foreach ($params as $key => $value) {
             $setter = 'set' . $key;
             if (method_exists($dto, $setter)) {

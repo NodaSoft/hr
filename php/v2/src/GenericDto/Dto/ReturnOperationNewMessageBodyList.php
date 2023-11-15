@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationNewMessageBodyList implements DtoInterface
+class ReturnOperationNewMessageBodyList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;

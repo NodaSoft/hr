@@ -3,11 +3,11 @@
 namespace NodaSoft\DataMapper\Entity;
 
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
-use NodaSoft\DataMapper\EntityInterface\MessageRecipientEntity;
+use NodaSoft\Messenger\Recipient;
 use NodaSoft\DataMapper\EntityInterface\Entity;
 use NodaSoft\DataMapper\EntityTrait;
 
-class Reseller implements Entity, MessageRecipientEntity
+class Reseller implements Entity, Recipient
 {
     use EntityTrait\MessageRecipientEntity;
 

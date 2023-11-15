@@ -4,44 +4,69 @@ namespace NodaSoft\DataMapper\Entity;
 
 use NodaSoft\DataMapper\EntityInterface\Entity;
 use NodaSoft\DataMapper\EntityTrait;
-use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\GenericDto\Dto\Dto;
+use NodaSoft\Messenger;
 
-class Notification implements Entity
+class Notification implements Entity, Messenger\Content
 {
     use EntityTrait\Entity;
 
     /** @var string */
-    private $template;
+    private $bodyTemplate;
+
+    /** @var string */
+    private $subjectTemplate;
 
     public function __construct(
         int $id = null,
         string $name = null,
-        string $template = null
+        string $bodyTemplate = null,
+        string $subjectTemplate = null
     ) {
         if ($id) $this->setId($id);
         if ($name) $this->setName($name);
-        if ($template) $this->setTemplate($template);
+        if ($bodyTemplate) $this->setBodyTemplate($bodyTemplate);
+        if ($subjectTemplate) $this->setSubjectTemplate($subjectTemplate);
     }
 
-    public function composeMessage(ReferencesOperationParams $params): string
+    public function composeMessageSubject(Dto $params): string
     {
-        $message = $this->getTemplate();
+        return $this->fillTemplate($this->subjectTemplate, $params);
+    }
+
+    public function composeMessageBody(Dto $params): string
+    {
+        return $this->fillTemplate($this->bodyTemplate, $params);
+    }
+
+    public function fillTemplate(string $template, Dto $params): string
+    {
         foreach ($params->toArray() as $param => $value) {
             $key = "#$param#";
-            if (strpos($message, $key) > 0) {
-                $message = str_replace($key, $value, $message);
+            if (strpos($template, $key) > 0) {
+                $template = str_replace($key, $value, $template);
             }
         }
-        return $message;
+        return $template;
     }
 
-    public function getTemplate(): string
+    public function getBodyTemplate(): string
     {
-        return $this->template;
+        return $this->bodyTemplate;
     }
 
-    public function setTemplate(string $template): void
+    public function setBodyTemplate(string $bodyTemplate): void
     {
-        $this->template = $template;
+        $this->bodyTemplate = $bodyTemplate;
+    }
+
+    public function getSubjectTemplate(): string
+    {
+        return $this->subjectTemplate;
+    }
+
+    public function setSubjectTemplate(string $subjectTemplate): void
+    {
+        $this->subjectTemplate = $subjectTemplate;
     }
 }

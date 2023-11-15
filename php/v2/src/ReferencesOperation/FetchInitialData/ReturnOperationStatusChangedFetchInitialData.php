@@ -49,7 +49,7 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $creator = $complaint->getCreator();
         $expert = $complaint->getExpert();
         $employees = $reseller->getEmployees();
-        $status = $complaint->getStatus();
+        $currentStatus = $complaint->getStatus();
         $previousStatus = $complaint->getPreviousStatus();
 
         $templateFactory = new GenericDtoFactory();
@@ -61,7 +61,8 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setStatement($notification->composeMessage($params));
+        $messageTemplate->setCurrentStatus($currentStatus->getName());
+        $messageTemplate->setPreviousStatus($previousStatus->getName());
 
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
@@ -74,8 +75,6 @@ class ReturnOperationStatusChangedFetchInitialData implements FetchInitialData
         $data->setNotification($notification);
         $data->setClient($client);
         $data->setEmployees($employees);
-        $data->setCurrentStatusName($status->getName());
-        $data->setPreviousStatusName($previousStatus->getName());
 
         return $data;
     }

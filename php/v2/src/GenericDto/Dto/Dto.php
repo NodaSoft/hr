@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-interface DtoInterface
+interface Dto
 {
     public function isValid(): bool;
 

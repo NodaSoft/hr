@@ -2,10 +2,9 @@
 
 namespace NodaSoft\ReferencesOperation\Command;
 
-use NodaSoft\Message\Messenger;
-use NodaSoft\Message\Template\ComplaintStatusChanged;
+use NodaSoft\Messenger\Message;
+use NodaSoft\Messenger\Messenger;
 use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\Message\Factory\MessageFactory;
 use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitialData;
 use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
@@ -57,21 +56,18 @@ class ReturnOperationStatusChangedCommand implements ReferencesOperationCommand
      */
     public function execute(): ReferencesOperationResult
     {
-        $initialData = $this->initialData;
-        $client = $initialData->getClient();
+        $data = $this->initialData;
+        $reseller = $data->getReseller();
+        $client = $data->getClient();
 
-        $statusChangedTemplate = new MessageFactory(new ComplaintStatusChanged());
-        $reseller = $initialData->getReseller();
+        $message = new Message($data->getNotification(), $data->getMessageTemplate());
 
-        foreach ($initialData->getEmployees() as $employee) {
-            $employeeMessage = $statusChangedTemplate->makeMessage($employee, $reseller, $initialData);
-            $result = $this->mail->send($employeeMessage);
-            $this->result->addEmployeeEmailResult($result);
+        foreach ($data->getEmployees() as $employee) {
+            $this->result->addEmployeeEmailResult($this->mail->send($message, $employee, $reseller));
         }
 
-        $clientMessage = $statusChangedTemplate->makeMessage($client, $reseller, $initialData);
-        $this->result->setClientEmailResult($this->mail->send($clientMessage));
-        $this->result->setClientSmsResult($this->sms->send($clientMessage));
+        $this->result->setClientEmailResult($this->mail->send($message, $client, $reseller));
+        $this->result->setClientSmsResult($this->sms->send($message, $client, $reseller));
 
         return $this->result;
     }

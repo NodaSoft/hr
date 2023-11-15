@@ -19,12 +19,6 @@ class ReturnOperationStatusChangedInitialData implements InitialData
     /** @var Notification */
     private $notification;
 
-    /** @var string */
-    private $previousStatusName;
-
-    /** @var string */
-    private $currentStatusName;
-
     /** @var Client */
     private $client;
 
@@ -38,8 +32,7 @@ class ReturnOperationStatusChangedInitialData implements InitialData
 
     public function setMessageTemplate(
         ReturnOperationStatusChangedMessageBodyList $messageTemplate
-    ): void
-    {
+    ): void {
         $this->messageTemplate = $messageTemplate;
     }
 
@@ -61,26 +54,6 @@ class ReturnOperationStatusChangedInitialData implements InitialData
     public function setNotification(Notification $notification): void
     {
         $this->notification = $notification;
-    }
-
-    public function getPreviousStatusName(): string
-    {
-        return $this->previousStatusName;
-    }
-
-    public function setPreviousStatusName(string $previousStatusName): void
-    {
-        $this->previousStatusName = $previousStatusName;
-    }
-
-    public function getCurrentStatusName(): string
-    {
-        return $this->currentStatusName;
-    }
-
-    public function setCurrentStatusName(string $currentStatusName): void
-    {
-        $this->currentStatusName = $currentStatusName;
     }
 
     public function getClient(): Client

@@ -55,7 +55,8 @@ class ReturnOperationStatusChangedMessageBodyListTest extends TestCase
             'consumptionNumber' => 'M654JG',
             'agreementNumber' => 'FF123-4',
             'date' => '2004-11-07',
-            'statement' => 'Foo Bar Baz',
+            'currentStatus' => "reopened",
+            'previousStatus' => "closed",
         ];
     }
 

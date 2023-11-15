@@ -4,9 +4,9 @@ namespace Tests\Unit\ReferencesOperation\Result;
 
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
-use NodaSoft\Message\Client\EmailClient;
-use NodaSoft\Message\Client\SmsClient;
-use NodaSoft\Message\Result;
+use NodaSoft\Messenger\Client\EmailClient;
+use NodaSoft\Messenger\Client\SmsClient;
+use NodaSoft\Messenger\Result;
 use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
