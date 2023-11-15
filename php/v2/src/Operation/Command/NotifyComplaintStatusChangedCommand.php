@@ -11,9 +11,6 @@ use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 
 class NotifyComplaintStatusChangedCommand implements Command
 {
-    /** @var ReturnOperationStatusChangedResult */
-    private $result;
-
     /** @var NotifyComplaintStatusChangedInitialData */
     private $initialData;
 
@@ -22,15 +19,6 @@ class NotifyComplaintStatusChangedCommand implements Command
 
     /** @var Messenger */
     private $sms;
-
-    /**
-     * @param ReturnOperationStatusChangedResult $result
-     * @return void
-     */
-    public function setResult(Result $result): void
-    {
-        $this->result = $result;
-    }
 
     /**
      * @param NotifyComplaintStatusChangedInitialData $initialData
@@ -56,6 +44,7 @@ class NotifyComplaintStatusChangedCommand implements Command
      */
     public function execute(): Result
     {
+        $result = new ReturnOperationStatusChangedResult();
         $data = $this->initialData;
         $reseller = $data->getReseller();
         $client = $data->getClient();
@@ -63,12 +52,12 @@ class NotifyComplaintStatusChangedCommand implements Command
         $message = new Message($data->getNotification(), $data->getMessageTemplate());
 
         foreach ($data->getEmployees() as $employee) {
-            $this->result->addEmployeeEmailResult($this->mail->send($message, $employee, $reseller));
+            $result->addEmployeeEmailResult($this->mail->send($message, $employee, $reseller));
         }
 
-        $this->result->setClientEmailResult($this->mail->send($message, $client, $reseller));
-        $this->result->setClientSmsResult($this->sms->send($message, $client, $reseller));
+        $result->setClientEmailResult($this->mail->send($message, $client, $reseller));
+        $result->setClientSmsResult($this->sms->send($message, $client, $reseller));
 
-        return $this->result;
+        return $result;
     }
 }

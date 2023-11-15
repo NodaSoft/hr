@@ -13,8 +13,6 @@ use NodaSoft\Operation\Params\NotifyComplaintNewParams;
 use NodaSoft\Operation\Command\Command;
 use NodaSoft\Operation\Command\NotifyComplaintNewCommand;
 use NodaSoft\Request\Request;
-use NodaSoft\Operation\Result\Result;
-use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 
 class NotifyComplaintNewFactory implements OperationFactory
 {
@@ -25,15 +23,6 @@ class NotifyComplaintNewFactory implements OperationFactory
     {
         $this->request = $request;
     }
-
-    /**
-     * @return NotifyComplaintNewResult
-     */
-    public function getResult(): Result
-    {
-        return new NotifyComplaintNewResult();
-    }
-
     /**
      * @return NotifyComplaintNewParams
      */
@@ -57,18 +46,15 @@ class NotifyComplaintNewFactory implements OperationFactory
     }
 
     /**
-     * @param NotifyComplaintNewResult $result
      * @param NotifyComplaintNewInitialData $initialData
      * @return NotifyComplaintNewCommand
      */
     public function getCommand(
-        Result       $result,
         InitialData  $initialData,
         Dependencies $dependencies
     ): Command
     {
         $command = new NotifyComplaintNewCommand();
-        $command->setResult($result);
         $command->setInitialData($initialData);
         $command->setMail($dependencies->getMailService());
         return $command;

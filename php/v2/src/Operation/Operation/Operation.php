@@ -38,7 +38,6 @@ class Operation
      */
     public function doOperation(): Result
     {
-        $result = $this->factory->getResult();
         $params = $this->factory->getParams();
         $fetchInitialData = $this->factory->getFetchInitialData($this->mapperFactory);
 
@@ -55,7 +54,6 @@ class Operation
         }
 
         $command = $this->factory->getCommand(
-            $result,
             $initialData,
             $this->dependencies
         );

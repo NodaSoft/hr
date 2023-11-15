@@ -9,13 +9,10 @@ use NodaSoft\Operation\InitialData\InitialData;
 use NodaSoft\Operation\Params\Params;
 use NodaSoft\Operation\Command\Command;
 use NodaSoft\Request\Request;
-use NodaSoft\Operation\Result\Result;
 
 interface OperationFactory
 {
     public function setRequest(Request $request): void;
-
-    public function getResult(): Result;
 
     public function getParams(): Params;
 
@@ -24,13 +21,11 @@ interface OperationFactory
     ): FetchInitialData;
 
     /**
-     * @param Result $result
      * @param InitialData $initialData
      * @param Dependencies $dependencies
      * @return Command
      */
     public function getCommand(
-        Result       $result,
         InitialData  $initialData,
         Dependencies $dependencies
     ): Command;

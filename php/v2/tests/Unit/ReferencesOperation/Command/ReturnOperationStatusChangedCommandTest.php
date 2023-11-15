@@ -14,7 +14,6 @@ use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Messenger;
 use NodaSoft\Operation\Command\NotifyComplaintStatusChangedCommand;
 use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
-use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationStatusChangedCommandTest extends TestCase
@@ -30,7 +29,6 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
         $command = new NotifyComplaintStatusChangedCommand();
         $command->setMail(new Messenger($emailClient));
         $command->setSms(new Messenger($smsClient));
-        $command->setResult(new ReturnOperationStatusChangedResult());
         $command->setInitialData($this->mockInitialData());
         $result = $command->execute();
         $this->assertSame($result->toArray(), [

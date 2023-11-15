@@ -11,23 +11,11 @@ use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 
 class NotifyComplaintNewCommand implements Command
 {
-    /** @var NotifyComplaintNewResult */
-    private $result;
-
     /** @var NotifyComplaintNewInitialData */
     private $initialData;
 
     /** @var Messenger */
     private $mail;
-
-    /**
-     * @param NotifyComplaintNewResult $result
-     * @return void
-     */
-    public function setResult(Result $result): void
-    {
-        $this->result = $result;
-    }
 
     public function setInitialData(InitialData $initialData): void
     {
@@ -44,16 +32,18 @@ class NotifyComplaintNewCommand implements Command
      */
     public function execute(): Result
     {
+        $result = new NotifyComplaintNewResult();
         $data = $this->initialData;
         $reseller = $data->getReseller();
 
         $message = new Message($data->getNotification(), $data->getMessageTemplate());
 
         foreach ($data->getEmployees() as $employee) {
-            $result = $this->mail->send($message, $employee, $reseller);
-            $this->result->addEmployeeEmailResult($result);
+            $result->addEmployeeEmailResult(
+                $this->mail->send($message, $employee, $reseller)
+            );
         }
 
-        return $this->result;
+        return $result;
     }
 }

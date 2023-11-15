@@ -25,7 +25,6 @@ class ReturnOperationNewCommandTest extends TestCase
         $emailClient->method('isValid')->withAnyParameters()->willReturn(true);
         $command = new NotifyComplaintNewCommand();
         $command->setMail(new Messenger($emailClient));
-        $command->setResult(new NotifyComplaintNewResult());
         $command->setInitialData($this->mockInitialData());
         $result = $command->execute();
         $this->assertSame($result->toArray(), [

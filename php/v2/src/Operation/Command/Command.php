@@ -9,7 +9,5 @@ interface Command
 {
     public function execute(): Result;
 
-    public function setResult(Result $result): void;
-
     public function setInitialData(InitialData $initialData): void;
 }
