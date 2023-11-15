@@ -5,7 +5,7 @@ namespace Tests\Unit\ReferencesOperation\Result;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Result;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
+use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationNewResultTest extends TestCase
@@ -59,7 +59,7 @@ class ReturnOperationNewResultTest extends TestCase
             $origin['employeeEmails'][1]['isSent'],
             $origin['employeeEmails'][1]['errorMessage']
         );
-        $result = new ReturnOperationNewResult();
+        $result = new NotifyComplaintNewResult();
         $result->addEmployeeEmailResult($bobEmailResult);
         $result->addEmployeeEmailResult($sarahEmailResult);
         $resultArray = $result->toArray();

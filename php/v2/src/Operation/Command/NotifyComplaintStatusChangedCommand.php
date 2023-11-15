@@ -1,20 +1,20 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Command;
+namespace NodaSoft\Operation\Command;
 
 use NodaSoft\Messenger\Message;
 use NodaSoft\Messenger\Messenger;
-use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitialData;
-use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\InitialData\InitialData;
+use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
+use NodaSoft\Operation\Result\Result;
+use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 
-class ReturnOperationStatusChangedCommand implements ReferencesOperationCommand
+class NotifyComplaintStatusChangedCommand implements Command
 {
     /** @var ReturnOperationStatusChangedResult */
     private $result;
 
-    /** @var ReturnOperationStatusChangedInitialData */
+    /** @var NotifyComplaintStatusChangedInitialData */
     private $initialData;
 
     /** @var Messenger */
@@ -27,13 +27,13 @@ class ReturnOperationStatusChangedCommand implements ReferencesOperationCommand
      * @param ReturnOperationStatusChangedResult $result
      * @return void
      */
-    public function setResult(ReferencesOperationResult $result): void
+    public function setResult(Result $result): void
     {
         $this->result = $result;
     }
 
     /**
-     * @param ReturnOperationStatusChangedInitialData $initialData
+     * @param NotifyComplaintStatusChangedInitialData $initialData
      * @return void
      */
     public function setInitialData(InitialData $initialData): void
@@ -54,7 +54,7 @@ class ReturnOperationStatusChangedCommand implements ReferencesOperationCommand
     /**
      * @return ReturnOperationStatusChangedResult
      */
-    public function execute(): ReferencesOperationResult
+    public function execute(): Result
     {
         $data = $this->initialData;
         $reseller = $data->getReseller();

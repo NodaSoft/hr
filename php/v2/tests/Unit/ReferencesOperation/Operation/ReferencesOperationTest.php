@@ -16,9 +16,9 @@ use NodaSoft\Dependencies\Dependencies;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Messenger;
-use NodaSoft\ReferencesOperation\Factory\ReturnOperationStatusChangedFactory;
-use NodaSoft\ReferencesOperation\Operation\ReferencesOperation;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\Factory\NotifyComplaintStatusChangedFactory;
+use NodaSoft\Operation\Operation\Operation;
+use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 use NodaSoft\Request\HttpRequest;
 use PHPUnit\Framework\TestCase;
 
@@ -43,9 +43,9 @@ class ReferencesOperationTest extends TestCase
         $_REQUEST['data'] = $data;
         $dependencies = $this->mockDependencies();
         $request = new HttpRequest();
-        $factory = new ReturnOperationStatusChangedFactory();
+        $factory = new NotifyComplaintStatusChangedFactory();
         $mapperFactory = $this->mockMapperFactory();
-        $tsReturnOperation = new ReferencesOperation(
+        $tsReturnOperation = new Operation(
             $dependencies,
             $factory,
             $request,

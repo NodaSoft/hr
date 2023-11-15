@@ -1,17 +1,17 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Operation;
+namespace NodaSoft\Operation\Operation;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\ReferencesOperation\Factory\ReferencesOperationFactory;
+use NodaSoft\Operation\Factory\OperationFactory;
 use NodaSoft\Request\Request;
-use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
+use NodaSoft\Operation\Result\Result;
+use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 use NodaSoft\Dependencies\Dependencies;
 
-class ReferencesOperation
+class Operation
 {
-    /** @var ReferencesOperationFactory $factory */
+    /** @var OperationFactory $factory */
     private $factory;
 
     /** @var MapperFactory $mapperFactory */
@@ -21,10 +21,10 @@ class ReferencesOperation
     private $dependencies;
 
     public function __construct(
-        Dependencies $dependencies,
-        ReferencesOperationFactory $factory,
-        Request $request,
-        MapperFactory $mapperFactory
+        Dependencies     $dependencies,
+        OperationFactory $factory,
+        Request          $request,
+        MapperFactory    $mapperFactory
     ) {
         $this->dependencies = $dependencies;
         $factory->setRequest($request);
@@ -33,10 +33,10 @@ class ReferencesOperation
     }
 
     /**
-     * @return ReturnOperationNewResult
+     * @return NotifyComplaintNewResult
      * @throws \Exception
      */
-    public function doOperation(): ReferencesOperationResult
+    public function doOperation(): Result
     {
         $result = $this->factory->getResult();
         $params = $this->factory->getParams();

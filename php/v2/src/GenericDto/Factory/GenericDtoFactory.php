@@ -3,19 +3,19 @@
 namespace NodaSoft\GenericDto\Factory;
 
 use NodaSoft\GenericDto\Dto\Dto;
-use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
+use NodaSoft\Operation\Params\Params;
 
 class GenericDtoFactory
 {
     /**
      * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
-     * @param ReferencesOperationParams $params
+     * @param Params $params
      * @return ParticularDTO
      */
     public function fillDtoParams(
         Dto                       $dto,
-        ReferencesOperationParams $params
+        Params $params
     ): Dto {
         foreach ($params->toArray() as $key => $value) {
             $setter = 'set' . $key;
@@ -29,7 +29,7 @@ class GenericDtoFactory
     /**
      * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
-     * @param ReferencesOperationParams $params
+     * @param Params $params
      * @return ParticularDTO
      */
     public function fillDtoArray(

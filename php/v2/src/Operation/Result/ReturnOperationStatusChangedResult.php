@@ -1,24 +1,23 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Result;
+namespace NodaSoft\Operation\Result;
 
-use NodaSoft\Messenger\Result;
-use NodaSoft\Messenger\ResultCollection;
+use NodaSoft\Messenger;
 
-class ReturnOperationStatusChangedResult implements ReferencesOperationResult
+class ReturnOperationStatusChangedResult implements Result
 {
-    /** @var ResultCollection */
+    /** @var Messenger\ResultCollection */
     private $employeeEmails;
 
-    /** @var Result */
+    /** @var Messenger\Result */
     private $clientEmail;
 
-    /** @var ?Result */
+    /** @var ?Messenger\Result */
     private $clientSms;
 
     public function __construct()
     {
-        $this->employeeEmails = new ResultCollection();
+        $this->employeeEmails = new Messenger\ResultCollection();
     }
 
     public function toArray(): array
@@ -30,32 +29,32 @@ class ReturnOperationStatusChangedResult implements ReferencesOperationResult
         ];
     }
 
-    public function getEmployeeEmails(): ResultCollection
+    public function getEmployeeEmails(): Messenger\ResultCollection
     {
         return $this->employeeEmails;
     }
 
-    public function getClientEmail(): Result
+    public function getClientEmail(): Messenger\Result
     {
         return $this->clientEmail;
     }
 
-    public function getClientSms(): Result
+    public function getClientSms(): Messenger\Result
     {
         return $this->clientSms;
     }
 
-    public function addEmployeeEmailResult(Result $result): void
+    public function addEmployeeEmailResult(Messenger\Result $result): void
     {
         $this->employeeEmails->add($result);
     }
 
-    public function setClientEmailResult(Result $result): void
+    public function setClientEmailResult(Messenger\Result $result): void
     {
         $this->clientEmail = $result;
     }
 
-    public function setClientSmsResult(Result $result): void
+    public function setClientSmsResult(Messenger\Result $result): void
     {
         $this->clientSms = $result;
     }

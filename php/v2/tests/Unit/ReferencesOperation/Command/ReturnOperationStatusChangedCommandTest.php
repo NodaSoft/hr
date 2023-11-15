@@ -12,9 +12,9 @@ use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Messenger;
-use NodaSoft\ReferencesOperation\Command\ReturnOperationStatusChangedCommand;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationStatusChangedInitialData;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\Command\NotifyComplaintStatusChangedCommand;
+use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
+use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationStatusChangedCommandTest extends TestCase
@@ -27,7 +27,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
         $smsClient = $this->createMock(SmsClient::class);
         $smsClient->method('send')->withAnyParameters()->willReturn(true);
         $smsClient->method('isValid')->withAnyParameters()->willReturn(true);
-        $command = new ReturnOperationStatusChangedCommand();
+        $command = new NotifyComplaintStatusChangedCommand();
         $command->setMail(new Messenger($emailClient));
         $command->setSms(new Messenger($smsClient));
         $command->setResult(new ReturnOperationStatusChangedResult());
@@ -83,7 +83,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
         ]);
     }
 
-    private function mockInitialData(): ReturnOperationStatusChangedInitialData
+    private function mockInitialData(): NotifyComplaintStatusChangedInitialData
     {
         $dtoFactory = new GenericDtoFactory();
         $list = $dtoFactory->fillDtoArray(
@@ -104,7 +104,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
                 'date' => '11.12.2023'
             ]
         );
-        $data = new ReturnOperationStatusChangedInitialData();
+        $data = new NotifyComplaintStatusChangedInitialData();
         $reseller = new Reseller(31, 'John', 'john@mail.ru', 1234567890);
         $data->setReseller($reseller);
         $data->setEmployees(new EmployeeCollection([

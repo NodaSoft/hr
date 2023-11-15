@@ -1,10 +1,10 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Params;
+namespace NodaSoft\Operation\Params;
 
 use NodaSoft\Request\Request;
 
-class ReturnOperationStatusChangedParams implements ReferencesOperationParams
+class NotifyComplaintNewParams implements Params
 {
     /** @var ?int */
     private $resellerId;
@@ -39,12 +39,6 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
     /** @var ?string */
     private $date;
 
-    /** @var int */
-    private $previousStatusId;
-
-    /** @var int */
-    private $currentStatusId;
-
     public function setRequest(Request $request): void
     {
         foreach ($this as $key => $value) {
@@ -52,7 +46,6 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
             if (method_exists($this, $setter)) {
                 $this->$setter($request->getData($key));
             }
-            $this->setDifferences($request->getData('differences'));
         }
     }
 
@@ -86,7 +79,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         return $array;
     }
 
-    public function getResellerId(): ?int
+    public function getResellerId(): int
     {
         return $this->resellerId;
     }
@@ -96,7 +89,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->resellerId = $resellerId;
     }
 
-    public function getClientId(): ?int
+    public function getClientId(): int
     {
         return $this->clientId;
     }
@@ -106,7 +99,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->clientId = $clientId;
     }
 
-    public function getCreatorId(): ?int
+    public function getCreatorId(): int
     {
         return $this->creatorId;
     }
@@ -116,7 +109,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->creatorId = $creatorId;
     }
 
-    public function getExpertId(): ?int
+    public function getExpertId(): int
     {
         return $this->expertId;
     }
@@ -126,7 +119,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->expertId = $expertId;
     }
 
-    public function getNotificationType(): ?int
+    public function getNotificationType(): int
     {
         return $this->notificationType;
     }
@@ -136,7 +129,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->notificationType = $notificationType;
     }
 
-    public function getComplaintId(): ?int
+    public function getComplaintId(): int
     {
         return $this->complaintId;
     }
@@ -156,7 +149,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->complaintNumber = $complaintNumber;
     }
 
-    public function getConsumptionId(): ?int
+    public function getConsumptionId(): int
     {
         return $this->consumptionId;
     }
@@ -166,7 +159,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->consumptionId = $consumptionId;
     }
 
-    public function getConsumptionNumber(): ?string
+    public function getConsumptionNumber(): string
     {
         return $this->consumptionNumber;
     }
@@ -176,7 +169,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->consumptionNumber = $consumptionNumber;
     }
 
-    public function getAgreementNumber(): ?string
+    public function getAgreementNumber(): string
     {
         return $this->agreementNumber;
     }
@@ -186,7 +179,7 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
         $this->agreementNumber = $agreementNumber;
     }
 
-    public function getDate(): ?string
+    public function getDate(): string
     {
         return $this->date;
     }
@@ -194,26 +187,5 @@ class ReturnOperationStatusChangedParams implements ReferencesOperationParams
     public function setDate(?string $date): void
     {
         $this->date = $date;
-    }
-
-    public function getPreviousStatusId(): ?int
-    {
-        return $this->previousStatusId;
-    }
-
-    public function getCurrentStatusId(): ?int
-    {
-        return $this->currentStatusId;
-    }
-
-    public function setDifferences(?array $differences): void
-    {
-        $this->previousStatusId = $differences['from']
-            ? (int) $differences['from']
-            : null;
-
-        $this->currentStatusId = $differences['to']
-            ? (int) $differences['to']
-            : null;
     }
 }

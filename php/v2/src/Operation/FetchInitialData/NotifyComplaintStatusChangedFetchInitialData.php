@@ -1,18 +1,18 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\FetchInitialData;
+namespace NodaSoft\Operation\FetchInitialData;
 
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
-use NodaSoft\ReferencesOperation\Params\ReferencesOperationParams;
-use NodaSoft\ReferencesOperation\Params\ReturnOperationNewParams;
-use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
+use NodaSoft\Operation\Params\Params;
+use NodaSoft\Operation\Params\NotifyComplaintStatusChangedParams;
+use NodaSoft\Operation\InitialData\InitialData;
+use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
 
-class ReturnOperationNewFetchInitialData implements FetchInitialData
+class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
 {
     /** @var MapperFactory */
     private $mapperFactory;
@@ -23,14 +23,14 @@ class ReturnOperationNewFetchInitialData implements FetchInitialData
     }
 
     /**
-     * @param ReturnOperationNewParams $params
-     * @return ReturnOperationNewInitialData
+     * @param NotifyComplaintStatusChangedParams $params
+     * @return NotifyComplaintStatusChangedInitialData
      */
-    public function fetch(ReferencesOperationParams $params): InitialData
+    public function fetch(Params $params): InitialData
     {
         /** @var NotificationMapper $notificationMapper */
         $notificationMapper = $this->mapperFactory->getMapper('Notification');
-        $notification = $notificationMapper->getByName('complaint new');
+        $notification = $notificationMapper->getByName('complaint status changed');
 
         if (is_null($notification)) {
             throw new \Exception('Notification was not found!', 500);
@@ -49,24 +49,27 @@ class ReturnOperationNewFetchInitialData implements FetchInitialData
         $creator = $complaint->getCreator();
         $expert = $complaint->getExpert();
         $employees = $reseller->getEmployees();
+        $currentStatus = $complaint->getStatus();
+        $previousStatus = $complaint->getPreviousStatus();
 
         $templateFactory = new GenericDtoFactory();
-        /** @var ReturnOperationNewMessageBodyList $messageTemplate */
+        /** @var ReturnOperationStatusChangedMessageBodyList $messageTemplate */
         $messageTemplate = $templateFactory->fillDtoParams(
-            new ReturnOperationNewMessageBodyList(),
+            new ReturnOperationStatusChangedMessageBodyList(),
             $params
         );
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setStatement($notification->fillTemplate($params));
+        $messageTemplate->setCurrentStatus($currentStatus->getName());
+        $messageTemplate->setPreviousStatus($previousStatus->getName());
 
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];
             throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
         }
 
-        $data = new ReturnOperationNewInitialData();
+        $data = new NotifyComplaintStatusChangedInitialData();
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotification($notification);

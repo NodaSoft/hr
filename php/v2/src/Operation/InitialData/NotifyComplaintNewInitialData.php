@@ -1,16 +1,16 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\InitialData;
+namespace NodaSoft\Operation\InitialData;
 
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
 
-class ReturnOperationStatusChangedInitialData implements InitialData
+class NotifyComplaintNewInitialData implements InitialData
 {
-    /** @var ReturnOperationStatusChangedMessageBodyList */
+    /** @var ReturnOperationNewMessageBodyList */
     private $messageTemplate;
 
     /** @var Reseller */
@@ -25,14 +25,13 @@ class ReturnOperationStatusChangedInitialData implements InitialData
     /** @var EmployeeCollection */
     private $employees;
 
-    public function getMessageTemplate(): ReturnOperationStatusChangedMessageBodyList
+    public function getMessageTemplate(): ReturnOperationNewMessageBodyList
     {
         return $this->messageTemplate;
     }
 
-    public function setMessageTemplate(
-        ReturnOperationStatusChangedMessageBodyList $messageTemplate
-    ): void {
+    public function setMessageTemplate(ReturnOperationNewMessageBodyList $messageTemplate): void
+    {
         $this->messageTemplate = $messageTemplate;
     }
 

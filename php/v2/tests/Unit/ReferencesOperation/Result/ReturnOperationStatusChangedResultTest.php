@@ -7,7 +7,7 @@ use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Result;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationStatusChangedResultTest extends TestCase

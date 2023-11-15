@@ -5,7 +5,7 @@ namespace NodaSoft\Messenger\Factory;
 use NodaSoft\Messenger\Recipient;
 use NodaSoft\Messenger\Message;
 use NodaSoft\Messenger\Template\Template;
-use NodaSoft\ReferencesOperation\InitialData\InitialData;
+use NodaSoft\Operation\InitialData\InitialData;
 
 class MessageFactory
 {

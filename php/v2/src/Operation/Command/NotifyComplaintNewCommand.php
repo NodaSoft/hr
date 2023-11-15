@@ -1,30 +1,30 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Command;
+namespace NodaSoft\Operation\Command;
 
 use NodaSoft\Messenger\Message;
 use NodaSoft\Messenger\Messenger;
-use NodaSoft\ReferencesOperation\InitialData\InitialData;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
-use NodaSoft\ReferencesOperation\Result\ReferencesOperationResult;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
+use NodaSoft\Operation\InitialData\InitialData;
+use NodaSoft\Operation\InitialData\NotifyComplaintNewInitialData;
+use NodaSoft\Operation\Result\Result;
+use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 
-class ReturnOperationNewCommand implements ReferencesOperationCommand
+class NotifyComplaintNewCommand implements Command
 {
-    /** @var ReturnOperationNewResult */
+    /** @var NotifyComplaintNewResult */
     private $result;
 
-    /** @var ReturnOperationNewInitialData */
+    /** @var NotifyComplaintNewInitialData */
     private $initialData;
 
     /** @var Messenger */
     private $mail;
 
     /**
-     * @param ReturnOperationNewResult $result
+     * @param NotifyComplaintNewResult $result
      * @return void
      */
-    public function setResult(ReferencesOperationResult $result): void
+    public function setResult(Result $result): void
     {
         $this->result = $result;
     }
@@ -40,9 +40,9 @@ class ReturnOperationNewCommand implements ReferencesOperationCommand
     }
 
     /**
-     * @return ReturnOperationNewResult
+     * @return NotifyComplaintNewResult
      */
-    public function execute(): ReferencesOperationResult
+    public function execute(): Result
     {
         $data = $this->initialData;
         $reseller = $data->getReseller();

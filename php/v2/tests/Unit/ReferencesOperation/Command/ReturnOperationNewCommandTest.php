@@ -11,9 +11,9 @@ use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Messenger;
-use NodaSoft\ReferencesOperation\Command\ReturnOperationNewCommand;
-use NodaSoft\ReferencesOperation\InitialData\ReturnOperationNewInitialData;
-use NodaSoft\ReferencesOperation\Result\ReturnOperationNewResult;
+use NodaSoft\Operation\Command\NotifyComplaintNewCommand;
+use NodaSoft\Operation\InitialData\NotifyComplaintNewInitialData;
+use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationNewCommandTest extends TestCase
@@ -23,9 +23,9 @@ class ReturnOperationNewCommandTest extends TestCase
         $emailClient = $this->createMock(EmailClient::class);
         $emailClient->method('send')->withAnyParameters()->willReturn(true);
         $emailClient->method('isValid')->withAnyParameters()->willReturn(true);
-        $command = new ReturnOperationNewCommand();
+        $command = new NotifyComplaintNewCommand();
         $command->setMail(new Messenger($emailClient));
-        $command->setResult(new ReturnOperationNewResult());
+        $command->setResult(new NotifyComplaintNewResult());
         $command->setInitialData($this->mockInitialData());
         $result = $command->execute();
         $this->assertSame($result->toArray(), [
@@ -56,7 +56,7 @@ class ReturnOperationNewCommandTest extends TestCase
         ]);
     }
 
-    private function mockInitialData(): ReturnOperationNewInitialData
+    private function mockInitialData(): NotifyComplaintNewInitialData
     {
         $dtoFactory = new GenericDtoFactory();
         $list = $dtoFactory->fillDtoArray(
@@ -77,7 +77,7 @@ class ReturnOperationNewCommandTest extends TestCase
                 'date' => '11.12.2023'
             ]
         );
-        $data = new ReturnOperationNewInitialData();
+        $data = new NotifyComplaintNewInitialData();
         $reseller = new Reseller(31, 'John', 'john@mail.ru', 1234567890);
         $data->setReseller($reseller);
         $data->setEmployees(new EmployeeCollection([

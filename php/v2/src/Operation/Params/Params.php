@@ -1,10 +1,10 @@
 <?php
 
-namespace NodaSoft\ReferencesOperation\Params;
+namespace NodaSoft\Operation\Params;
 
 use NodaSoft\Request\Request;
 
-interface ReferencesOperationParams
+interface Params
 {
     public function setRequest(Request $request): void;
 
