@@ -69,7 +69,6 @@ class NotifyComplaintNewFetchInitialData implements FetchInitialData
         $data->setMessageTemplate($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotification($notification);
-        $data->setClient($client);
         $data->setEmployees($employees);
 
         return $data;

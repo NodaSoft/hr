@@ -83,7 +83,6 @@ class ReturnOperationNewCommandTest extends TestCase
             new Employee(21, 'Bob', 'bob@mail.ru', 9876543210),
             new Employee(23, 'Mark', 'mark@mailru', 1111111111),
         ]));
-        $data->setClient(new Client(11, 'Anna', 'anna@mail.ru', 2222222222, true, $reseller));
         $data->setNotification(new Notification(
             1,
             'new',

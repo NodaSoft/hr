@@ -3,7 +3,6 @@
 namespace NodaSoft\Operation\InitialData;
 
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
-use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
 use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
@@ -18,9 +17,6 @@ class NotifyComplaintNewInitialData implements InitialData
 
     /** @var Notification */
     private $notification;
-
-    /** @var Client */
-    private $client;
 
     /** @var EmployeeCollection */
     private $employees;
@@ -53,16 +49,6 @@ class NotifyComplaintNewInitialData implements InitialData
     public function setNotification(Notification $notification): void
     {
         $this->notification = $notification;
-    }
-
-    public function getClient(): Client
-    {
-        return $this->client;
-    }
-
-    public function setClient(Client $client): void
-    {
-        $this->client = $client;
     }
 
     public function getEmployees(): EmployeeCollection
