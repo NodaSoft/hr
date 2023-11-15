@@ -59,7 +59,6 @@ class NotifyComplaintNewFetchInitialData implements FetchInitialData
         $messageTemplate->setCreatorName($creator->getFullName());
         $messageTemplate->setExpertName($expert->getFullName());
         $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setStatement($notification->fillTemplate($params));
 
         if (! $messageTemplate->isValid()) {
             $emptyKey = $messageTemplate->getEmptyKeys()[0];

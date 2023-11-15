@@ -40,9 +40,6 @@ class ReturnOperationNewMessageBodyList implements Dto
     /** @var string */
     private $DATE;
 
-    /** @var string */
-    private $STATEMENT;
-
     public function getComplaintId(): int
     {
         return $this->COMPLAINT_ID;
@@ -161,16 +158,6 @@ class ReturnOperationNewMessageBodyList implements Dto
     public function setDate(string $date): void
     {
         $this->DATE = $date;
-    }
-
-    public function getStatement(): string
-    {
-        return $this->STATEMENT;
-    }
-
-    public function setStatement(string $statement): void
-    {
-        $this->STATEMENT = $statement;
     }
 
     public function toArray(): array
