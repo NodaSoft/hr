@@ -47,12 +47,6 @@ class Client implements Entity, Recipient
         $this->reseller = $reseller;
     }
 
-    public function hasReseller(Reseller $reseller): bool
-    {
-        return isset($this->reseller)
-            && $this->reseller->getId() === $reseller->getId();
-    }
-
     public function isCustomer(): bool
     {
         return $this->isCustomer;
