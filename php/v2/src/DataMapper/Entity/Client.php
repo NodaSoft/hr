@@ -13,9 +13,6 @@ class Client implements Entity, Recipient
     /** @var Reseller */
     private $reseller; //todo: should I rename reseller to seller?
 
-    /** @var int */
-    private $cellphoneNumber;
-
     /** @var bool */
     private $isCustomer;
 
