@@ -18,5 +18,8 @@ interface Recipient
 
     public function hasCellphone(): bool;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array;
 }

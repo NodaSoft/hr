@@ -42,6 +42,9 @@ trait MessageRecipientEntity
         return ! is_null($this->getCellphone());
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
