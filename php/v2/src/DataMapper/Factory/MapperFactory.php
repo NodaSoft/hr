@@ -10,9 +10,17 @@ class MapperFactory
     {
         $mapperNamespace = preg_replace("/Factory$/", "Mapper", __NAMESPACE__);
         $name = $mapperNamespace . $instance . "Mapper";
+
         if (! class_exists($name)) {
             throw new \Exception("Mapper class $name doesn't exist.");
         }
-        return new $name();
+
+        $mapper = new $name();
+
+        if (! $mapper instanceof Mapper) {
+            throw new \Exception("Should be instance of " . self::class);
+        }
+
+        return $mapper;
     }
 }
