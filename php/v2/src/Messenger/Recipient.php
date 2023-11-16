@@ -17,4 +17,6 @@ interface Recipient
     public function setCellphone(int $number): void;
 
     public function hasCellphone(): bool;
+
+    public function toArray(): array;
 }

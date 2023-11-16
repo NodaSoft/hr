@@ -2,8 +2,6 @@
 
 namespace NodaSoft\Messenger;
 
-use NodaSoft\Messenger\Recipient;
-
 class Result
 {
     /** @var bool */
@@ -15,16 +13,14 @@ class Result
     /** @var Recipient */
     private $recipient;
 
-    /**
-     * @var string
-     */
+    /** @var string */
     private $clientClass;
 
     public function __construct(
         Recipient $recipient,
-        string    $clientClass,
-        bool      $isSent = false,
-        string    $errorMessage = ""
+        string $clientClass,
+        bool $isSent = false,
+        string $errorMessage = ""
     ) {
         $this->recipient = $recipient;
         $this->clientClass = $clientClass;
