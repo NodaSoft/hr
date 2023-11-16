@@ -38,6 +38,6 @@ class EmailClient implements Client
 
     private function isValidEmail(?string $email): bool
     {
-        return filter_var($email, FILTER_VALIDATE_EMAIL);
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
     }
 }
