@@ -70,6 +70,9 @@ class NotifyComplaintNewParams implements Params
         return true;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $array = [];
