@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Dto;
 
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageContentList;
 use PHPUnit\Framework\TestCase;
 
 class ReturnOperationNewMessageBodyListTest extends TestCase
@@ -10,7 +10,7 @@ class ReturnOperationNewMessageBodyListTest extends TestCase
     /** @dataProvider tsReturnDataProvider */
     public function testIsValid(array $data, bool $shouldBeValid): void
     {
-        $dto = new ReturnOperationNewMessageBodyList();
+        $dto = new ReturnOperationNewMessageContentList();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
             $dto->$setter($value);
@@ -21,7 +21,7 @@ class ReturnOperationNewMessageBodyListTest extends TestCase
     public function testToArray(): void
     {
         $data = self::getValidData();
-        $dto = new ReturnOperationNewMessageBodyList();
+        $dto = new ReturnOperationNewMessageContentList();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
             $dto->$setter($value);

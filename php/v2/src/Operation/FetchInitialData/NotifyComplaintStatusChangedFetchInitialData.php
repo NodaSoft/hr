@@ -6,7 +6,7 @@ use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
 use NodaSoft\Operation\Params\Params;
 use NodaSoft\Operation\Params\NotifyComplaintStatusChangedParams;
 use NodaSoft\Operation\InitialData\InitialData;
@@ -53,9 +53,9 @@ class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
         $previousStatus = $complaint->getPreviousStatus();
 
         $templateFactory = new GenericDtoFactory();
-        /** @var ReturnOperationStatusChangedMessageBodyList $messageTemplate */
+        /** @var ReturnOperationStatusChangedMessageContentList $messageTemplate */
         $messageTemplate = $templateFactory->fillDtoParams(
-            new ReturnOperationStatusChangedMessageBodyList(),
+            new ReturnOperationStatusChangedMessageContentList(),
             $params
         );
         $messageTemplate->setCreatorName($creator->getFullName());
@@ -70,7 +70,7 @@ class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
         }
 
         $data = new NotifyComplaintStatusChangedInitialData();
-        $data->setMessageTemplate($messageTemplate);
+        $data->setMessageContentList($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotification($notification);
         $data->setClient($client);

@@ -7,7 +7,7 @@ use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageContentList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Messenger;
@@ -59,7 +59,7 @@ class ReturnOperationNewCommandTest extends TestCase
     {
         $dtoFactory = new GenericDtoFactory();
         $list = $dtoFactory->fillDtoArray(
-            new ReturnOperationNewMessageBodyList(),
+            new ReturnOperationNewMessageContentList(),
             [
                 'complaintId' => 4343421,
                 'complaintNumber' => '06.07.2008FV',
@@ -89,7 +89,7 @@ class ReturnOperationNewCommandTest extends TestCase
             'reseller: #resellerId#, client: #clientId#, date: #date#',
             'reseller: #resellerId#, client: #clientId#, date: #date#')
         );
-        $data->setMessageTemplate($list);
+        $data->setMessageContentList($list);
         return $data;
     }
 }

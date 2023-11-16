@@ -5,7 +5,7 @@ namespace NodaSoft\Operation\FetchInitialData;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageContentList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Operation\Params\Params;
 use NodaSoft\Operation\Params\NotifyComplaintNewParams;
@@ -51,9 +51,9 @@ class NotifyComplaintNewFetchInitialData implements FetchInitialData
         $employees = $reseller->getEmployees();
 
         $templateFactory = new GenericDtoFactory();
-        /** @var ReturnOperationNewMessageBodyList $messageTemplate */
+        /** @var ReturnOperationNewMessageContentList $messageTemplate */
         $messageTemplate = $templateFactory->fillDtoParams(
-            new ReturnOperationNewMessageBodyList(),
+            new ReturnOperationNewMessageContentList(),
             $params
         );
         $messageTemplate->setCreatorName($creator->getFullName());
@@ -66,7 +66,7 @@ class NotifyComplaintNewFetchInitialData implements FetchInitialData
         }
 
         $data = new NotifyComplaintNewInitialData();
-        $data->setMessageTemplate($messageTemplate);
+        $data->setMessageContentList($messageTemplate);
         $data->setReseller($reseller);
         $data->setNotification($notification);
         $data->setEmployees($employees);

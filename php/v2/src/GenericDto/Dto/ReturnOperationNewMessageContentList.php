@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationNewMessageBodyList implements Dto
+class ReturnOperationNewMessageContentList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -39,6 +39,34 @@ class ReturnOperationNewMessageBodyList implements Dto
 
     /** @var string */
     private $DATE;
+
+    public function toArray(): array
+    {
+        $array = [];
+        foreach ($this as $key => $value) {
+            $array[$key] = $value;
+        }
+        return $array;
+    }
+
+    public function isValid(): bool
+    {
+        return empty($this->getEmptyKeys());
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getEmptyKeys(): array
+    {
+        $emptyKeys = [];
+        foreach ($this as $key => $value) {
+            if (empty($value)) {
+                $emptyKeys[] = $key;
+            }
+        }
+        return $emptyKeys;
+    }
 
     public function getComplaintId(): int
     {
@@ -158,33 +186,5 @@ class ReturnOperationNewMessageBodyList implements Dto
     public function setDate(string $date): void
     {
         $this->DATE = $date;
-    }
-
-    public function toArray(): array
-    {
-        $array = [];
-        foreach ($this as $key => $value) {
-            $array[$key] = $value;
-        }
-        return $array;
-    }
-
-    public function isValid(): bool
-    {
-        return empty($this->getEmptyKeys());
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getEmptyKeys(): array
-    {
-        $emptyKeys = [];
-        foreach ($this as $key => $value) {
-            if (empty($value)) {
-                $emptyKeys[] = $key;
-            }
-        }
-        return $emptyKeys;
     }
 }

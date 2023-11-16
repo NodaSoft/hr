@@ -6,12 +6,12 @@ use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
 
 class NotifyComplaintStatusChangedInitialData implements InitialData
 {
-    /** @var ReturnOperationStatusChangedMessageBodyList */
-    private $messageTemplate;
+    /** @var ReturnOperationStatusChangedMessageContentList */
+    private $messageContentList;
 
     /** @var Reseller */
     private $reseller;
@@ -25,15 +25,15 @@ class NotifyComplaintStatusChangedInitialData implements InitialData
     /** @var EmployeeCollection */
     private $employees;
 
-    public function getMessageTemplate(): ReturnOperationStatusChangedMessageBodyList
+    public function getMessageContentList(): ReturnOperationStatusChangedMessageContentList
     {
-        return $this->messageTemplate;
+        return $this->messageContentList;
     }
 
-    public function setMessageTemplate(
-        ReturnOperationStatusChangedMessageBodyList $messageTemplate
+    public function setMessageContentList(
+        ReturnOperationStatusChangedMessageContentList $messageContentList
     ): void {
-        $this->messageTemplate = $messageTemplate;
+        $this->messageContentList = $messageContentList;
     }
 
     public function getReseller(): Reseller

@@ -7,7 +7,7 @@ use NodaSoft\DataMapper\Entity\Client;
 use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
 use NodaSoft\GenericDto\Factory\GenericDtoFactory;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
@@ -85,7 +85,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
     {
         $dtoFactory = new GenericDtoFactory();
         $list = $dtoFactory->fillDtoArray(
-            new ReturnOperationStatusChangedMessageBodyList(),
+            new ReturnOperationStatusChangedMessageContentList(),
             [
                 'complaintId' => 4343421,
                 'complaintNumber' => '06.07.2008FV',
@@ -116,7 +116,7 @@ class ReturnOperationStatusChangedCommandTest extends TestCase
             'reseller: #resellerId#, client: #clientId#, date: #date#',
             'reseller: #resellerId#, client: #clientId#, date: #date#'
         ));
-        $data->setMessageTemplate($list);
+        $data->setMessageContentList($list);
         return $data;
     }
 }

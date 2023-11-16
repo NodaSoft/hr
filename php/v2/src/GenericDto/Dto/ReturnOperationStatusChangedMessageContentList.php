@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationStatusChangedMessageBodyList implements Dto
+class ReturnOperationStatusChangedMessageContentList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -45,6 +45,34 @@ class ReturnOperationStatusChangedMessageBodyList implements Dto
 
     /** @var string */
     private $CURRENT_STATUS;
+
+    public function toArray(): array
+    {
+        $array = [];
+        foreach ($this as $key => $value) {
+            $array[$key] = $value;
+        }
+        return $array;
+    }
+
+    public function isValid(): bool
+    {
+        return empty($this->getEmptyKeys());
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getEmptyKeys(): array
+    {
+        $emptyKeys = [];
+        foreach ($this as $key => $value) {
+            if (empty($value)) {
+                $emptyKeys[] = $key;
+            }
+        }
+        return $emptyKeys;
+    }
 
     public function getComplaintId(): int
     {
@@ -184,33 +212,5 @@ class ReturnOperationStatusChangedMessageBodyList implements Dto
     public function setCurrentStatus(string $name): void
     {
         $this->CURRENT_STATUS = $name;
-    }
-
-    public function toArray(): array
-    {
-        $array = [];
-        foreach ($this as $key => $value) {
-            $array[$key] = $value;
-        }
-        return $array;
-    }
-
-    public function isValid(): bool
-    {
-        return empty($this->getEmptyKeys());
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getEmptyKeys(): array
-    {
-        $emptyKeys = [];
-        foreach ($this as $key => $value) {
-            if (empty($value)) {
-                $emptyKeys[] = $key;
-            }
-        }
-        return $emptyKeys;
     }
 }

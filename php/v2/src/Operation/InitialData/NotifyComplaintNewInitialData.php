@@ -5,12 +5,12 @@ namespace NodaSoft\Operation\InitialData;
 use NodaSoft\DataMapper\Collection\EmployeeCollection;
 use NodaSoft\DataMapper\Entity\Notification;
 use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageBodyList;
+use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageContentList;
 
 class NotifyComplaintNewInitialData implements InitialData
 {
-    /** @var ReturnOperationNewMessageBodyList */
-    private $messageTemplate;
+    /** @var ReturnOperationNewMessageContentList */
+    private $messageContentList;
 
     /** @var Reseller */
     private $reseller;
@@ -21,14 +21,14 @@ class NotifyComplaintNewInitialData implements InitialData
     /** @var EmployeeCollection */
     private $employees;
 
-    public function getMessageTemplate(): ReturnOperationNewMessageBodyList
+    public function getMessageContentList(): ReturnOperationNewMessageContentList
     {
-        return $this->messageTemplate;
+        return $this->messageContentList;
     }
 
-    public function setMessageTemplate(ReturnOperationNewMessageBodyList $messageTemplate): void
+    public function setMessageContentList(ReturnOperationNewMessageContentList $messageContentList): void
     {
-        $this->messageTemplate = $messageTemplate;
+        $this->messageContentList = $messageContentList;
     }
 
     public function getReseller(): Reseller

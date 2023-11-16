@@ -36,7 +36,7 @@ class NotifyComplaintNewCommand implements Command
         $data = $this->initialData;
         $reseller = $data->getReseller();
 
-        $message = new Message($data->getNotification(), $data->getMessageTemplate());
+        $message = new Message($data->getNotification(), $data->getMessageContentList());
 
         foreach ($data->getEmployees() as $employee) {
             $result->addEmployeeEmailResult(

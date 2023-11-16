@@ -49,7 +49,7 @@ class NotifyComplaintStatusChangedCommand implements Command
         $reseller = $data->getReseller();
         $client = $data->getClient();
 
-        $message = new Message($data->getNotification(), $data->getMessageTemplate());
+        $message = new Message($data->getNotification(), $data->getMessageContentList());
 
         foreach ($data->getEmployees() as $employee) {
             $result->addEmployeeEmailResult($this->mail->send($message, $employee, $reseller));
