@@ -21,7 +21,7 @@ class NotifyComplaintStatusChangedParams implements Params
     /** @var ?int */
     private $notificationType;
 
-    /** @var ?int */
+    /** @var int */
     private $complaintId;
 
     /** @var ?string */
@@ -51,6 +51,10 @@ class NotifyComplaintStatusChangedParams implements Params
 
     public function isValid(): bool
     {
+        if (! isset($this->complaintId)) {
+            return false;
+        }
+
         if (empty($this->resellerId)) {
             return false;
         }
@@ -132,12 +136,12 @@ class NotifyComplaintStatusChangedParams implements Params
         $this->notificationType = $notificationType;
     }
 
-    public function getComplaintId(): ?int
+    public function getComplaintId(): int
     {
         return $this->complaintId;
     }
 
-    public function setComplaintId(?int $complaintId): void
+    public function setComplaintId(int $complaintId): void
     {
         $this->complaintId = $complaintId;
     }
