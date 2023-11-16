@@ -35,6 +35,9 @@ class NotificationResult
         $this->errorMessage = $errorMessage;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $array = [];
