@@ -33,7 +33,7 @@ class Operation
     }
 
     /**
-     * @return NotifyComplaintNewResult
+     * @return Result
      * @throws \Exception
      */
     public function doOperation(): Result
