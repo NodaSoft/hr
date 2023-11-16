@@ -16,6 +16,10 @@ class EmployeeMapper implements Mapper
         // TODO: Implement getById() method.
     }
 
+    /**
+     * @param int[] $employeeIds
+     * @return EmployeeCollection
+     */
     public function getAllByIds(array $employeeIds): EmployeeCollection
     {
         // TODO: Implement getAllByIds() method
