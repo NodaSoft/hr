@@ -9,11 +9,11 @@ class ReturnOperationStatusChangedResult implements Result
     /** @var Messenger\ResultCollection */
     private $employeeEmails;
 
-    /** @var Messenger\Result */
-    private $clientEmail;
+    /** @var ?Messenger\Result */
+    private $clientEmail = null;
 
     /** @var ?Messenger\Result */
-    private $clientSms;
+    private $clientSms = null;
 
     public function __construct()
     {
@@ -27,8 +27,8 @@ class ReturnOperationStatusChangedResult implements Result
     {
         return [
             'employeeEmails' => $this->employeeEmails->toArray(),
-            'clientEmail' => $this->clientEmail->toArray(),
-            'clientSms' => $this->clientSms->toArray(),
+            'clientEmail' => $this->clientEmail ? $this->clientEmail->toArray() : null,
+            'clientSms' => $this->clientSms ? $this->clientSms->toArray() : null,
         ];
     }
 
@@ -37,12 +37,12 @@ class ReturnOperationStatusChangedResult implements Result
         return $this->employeeEmails;
     }
 
-    public function getClientEmail(): Messenger\Result
+    public function getClientEmail(): ?Messenger\Result
     {
         return $this->clientEmail;
     }
 
-    public function getClientSms(): Messenger\Result
+    public function getClientSms(): ?Messenger\Result
     {
         return $this->clientSms;
     }
