@@ -2,6 +2,9 @@
 
 namespace NodaSoft\Messenger;
 
+/**
+ * @implements \Iterator<int, Result>
+ */
 class ResultCollection implements \Iterator
 {
     /** @var Result[] */
@@ -15,6 +18,9 @@ class ResultCollection implements \Iterator
         $this->collection[] = $result;
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function toArray(): array
     {
         return array_map(function (Result $result) {
