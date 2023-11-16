@@ -6,23 +6,23 @@ trait MessageRecipientEntity
 {
     use Entity;
 
-    /** @var null|string */
+    /** @var string */
     private $email;
 
     /** @var int */
     private $cellphone;
 
-    public function setEmail(?string $email): void
+    public function setEmail(string $email): void
     {
         $this->email = $email;
     }
 
     public function hasEmail(): bool
     {
-        return ! is_null($this->getEmail());
+        return ! is_null($this->email);
     }
 
-    public function getEmail(): ?string
+    public function getEmail(): string
     {
         return $this->email;
     }
