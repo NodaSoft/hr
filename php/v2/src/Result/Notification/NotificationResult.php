@@ -7,7 +7,7 @@ use NodaSoft\Messenger\Recipient;
 class NotificationResult
 {
     /** @var bool */
-    private $isSent;
+    private $isSent = false;
 
     /** @var string */
     private $errorMessage;
@@ -17,7 +17,7 @@ class NotificationResult
 
     public function isSent(): bool
     {
-        return $this->isSent ?? false;
+        return $this->isSent;
     }
 
     public function setIsSent(bool $isSent): void
