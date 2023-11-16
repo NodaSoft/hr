@@ -4,6 +4,9 @@ namespace NodaSoft\DataMapper\EntityInterface;
 
 interface Entity
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array;
 
     public function getId(): int;
