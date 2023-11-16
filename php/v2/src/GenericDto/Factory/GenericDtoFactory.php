@@ -29,7 +29,7 @@ class GenericDtoFactory
     /**
      * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
-     * @param iterable $params
+     * @param iterable<string, mixed> $params
      * @return ParticularDTO
      */
     public function fillDtoArray(
