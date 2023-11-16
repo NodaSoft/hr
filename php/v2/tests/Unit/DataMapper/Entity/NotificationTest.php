@@ -54,6 +54,9 @@ class NotificationTest extends TestCase
                 return true;
             }
 
+            /**
+             * @return array<string, mixed>
+             */
             public function toArray(): array
             {
                 $array = [];

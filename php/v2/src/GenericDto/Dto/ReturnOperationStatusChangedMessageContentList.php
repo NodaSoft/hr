@@ -46,6 +46,9 @@ class ReturnOperationStatusChangedMessageContentList implements Dto
     /** @var string */
     private $CURRENT_STATUS;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $array = [];

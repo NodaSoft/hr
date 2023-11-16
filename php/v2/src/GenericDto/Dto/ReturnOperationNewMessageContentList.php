@@ -40,6 +40,9 @@ class ReturnOperationNewMessageContentList implements Dto
     /** @var string */
     private $DATE;
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         $array = [];
