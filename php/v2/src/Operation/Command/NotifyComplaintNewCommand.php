@@ -17,6 +17,10 @@ class NotifyComplaintNewCommand implements Command
     /** @var Messenger */
     private $mail;
 
+    /**
+     * @param NotifyComplaintNewInitialData $initialData
+     * @return void
+     */
     public function setInitialData(InitialData $initialData): void
     {
         $this->initialData = $initialData;
