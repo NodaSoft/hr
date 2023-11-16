@@ -58,6 +58,9 @@ class Result
         return $this->recipient;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
