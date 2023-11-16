@@ -39,12 +39,6 @@ class NotifyComplaintStatusChangedParams implements Params
     /** @var ?string */
     private $date;
 
-    /** @var int */
-    private $previousStatusId;
-
-    /** @var int */
-    private $currentStatusId;
-
     public function setRequest(Request $request): void
     {
         foreach ($this as $key => $value) {
@@ -52,7 +46,6 @@ class NotifyComplaintStatusChangedParams implements Params
             if (method_exists($this, $setter)) {
                 $this->$setter($request->getData($key));
             }
-            $this->setDifferences($request->getData('differences'));
         }
     }
 
@@ -197,26 +190,5 @@ class NotifyComplaintStatusChangedParams implements Params
     public function setDate(?string $date): void
     {
         $this->date = $date;
-    }
-
-    public function getPreviousStatusId(): ?int
-    {
-        return $this->previousStatusId;
-    }
-
-    public function getCurrentStatusId(): ?int
-    {
-        return $this->currentStatusId;
-    }
-
-    public function setDifferences(?array $differences): void
-    {
-        $this->previousStatusId = $differences['from']
-            ? (int) $differences['from']
-            : null;
-
-        $this->currentStatusId = $differences['to']
-            ? (int) $differences['to']
-            : null;
     }
 }
