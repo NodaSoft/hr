@@ -10,7 +10,7 @@ class NotificationResult
     private $isSent = false;
 
     /** @var string */
-    private $errorMessage;
+    private $errorMessage = "";
 
     /** @var Recipient */
     private $recipient;
@@ -27,7 +27,7 @@ class NotificationResult
 
     public function getErrorMessage(): string
     {
-        return $this->errorMessage ?? "";
+        return $this->errorMessage;
     }
 
     public function setErrorMessage(string $errorMessage): void
