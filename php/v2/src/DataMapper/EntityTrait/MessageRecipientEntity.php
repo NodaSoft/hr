@@ -6,8 +6,8 @@ trait MessageRecipientEntity
 {
     use Entity;
 
-    /** @var string */
-    private $email;
+    /** @var ?string */
+    private $email = null;
 
     /** @var int */
     private $cellphone;
