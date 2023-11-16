@@ -4,6 +4,9 @@ namespace NodaSoft\DataMapper\Collection;
 
 use NodaSoft\DataMapper\Entity\Employee;
 
+/**
+ * @implements \Iterator<int, Employee>
+ */
 class EmployeeCollection implements \Iterator
 {
     /** @var Employee[] */
