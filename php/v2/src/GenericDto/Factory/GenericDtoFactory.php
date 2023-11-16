@@ -14,7 +14,7 @@ class GenericDtoFactory
      * @return ParticularDTO
      */
     public function fillDtoParams(
-        Dto                       $dto,
+        Dto $dto,
         Params $params
     ): Dto {
         foreach ($params->toArray() as $key => $value) {
@@ -29,11 +29,11 @@ class GenericDtoFactory
     /**
      * @template ParticularDTO of Dto
      * @param ParticularDTO $dto
-     * @param Params $params
+     * @param iterable $params
      * @return ParticularDTO
      */
     public function fillDtoArray(
-        Dto      $dto,
+        Dto $dto,
         iterable $params
     ): Dto {
         foreach ($params as $key => $value) {
