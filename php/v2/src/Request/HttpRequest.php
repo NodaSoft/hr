@@ -4,7 +4,7 @@ namespace NodaSoft\Request;
 
 class HttpRequest implements Request
 {
-    /** @var array */
+    /** @var array<string, mixed> */
     private $request;
 
     public function __construct()
