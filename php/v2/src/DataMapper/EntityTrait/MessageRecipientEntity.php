@@ -9,8 +9,8 @@ trait MessageRecipientEntity
     /** @var ?string */
     private $email = null;
 
-    /** @var int */
-    private $cellphone;
+    /** @var ?int */
+    private $cellphone = null;
 
     public function setEmail(string $email): void
     {
