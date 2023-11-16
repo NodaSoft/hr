@@ -20,6 +20,9 @@ class ReturnOperationStatusChangedResult implements Result
         $this->employeeEmails = new Messenger\ResultCollection();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
