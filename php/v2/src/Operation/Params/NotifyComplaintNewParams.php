@@ -44,7 +44,7 @@ class NotifyComplaintNewParams implements Params
         foreach ($this as $key => $value) {
             $setter = 'set' . $key;
             if (method_exists($this, $setter)) {
-                $this->$setter($request->getData($key));
+                $this->$setter($request->get($key));
             }
         }
     }

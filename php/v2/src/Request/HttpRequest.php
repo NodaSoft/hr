@@ -16,7 +16,7 @@ class HttpRequest implements Request
      * @param string $key
      * @return mixed
      */
-    public function getData(string $key)
+    public function get(string $key)
     {
         return $this->request['data'][$key] ?? null;
     }

@@ -5,12 +5,10 @@ namespace NodaSoft\Operation\FetchInitialData;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\GenericDto\Factory\GenericDtoFactory;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
-use NodaSoft\Operation\Params\Params;
-use NodaSoft\Operation\Params\NotifyComplaintStatusChangedParams;
+use NodaSoft\GenericDto\Factory\ReturnOperationStatusChangedMessageContentListFactory;
 use NodaSoft\Operation\InitialData\InitialData;
 use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
+use NodaSoft\Request\Request;
 
 class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
 {
@@ -23,11 +21,17 @@ class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
     }
 
     /**
-     * @param NotifyComplaintStatusChangedParams $params
+     * @param Request $request
      * @return NotifyComplaintStatusChangedInitialData
      */
-    public function fetch(Params $params): InitialData
+    public function fetch(Request $request): InitialData
     {
+        $complaintId = $request->get('complaintId');
+
+        if (! is_int($complaintId) || $complaintId <= 0) {
+            throw new \Exception('Complaint id required', 400);
+        }
+
         /** @var NotificationMapper $notificationMapper */
         $notificationMapper = $this->mapperFactory->getMapper('Notification');
         $notification = $notificationMapper->getByName('complaint status changed');
@@ -38,43 +42,26 @@ class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
 
         /** @var ComplaintMapper $complaintMapper */
         $complaintMapper = $this->mapperFactory->getMapper('Complaint');
-        $complaint = $complaintMapper->getById($params->getComplaintId());
+        $complaint = $complaintMapper->getById($complaintId);
 
         if (is_null($complaint)) {
             throw new \Exception('Complaint was not found!', 400);
         }
 
-        $reseller = $complaint->getReseller();
-        $client = $complaint->getClient();
-        $creator = $complaint->getCreator();
-        $expert = $complaint->getExpert();
-        $employees = $reseller->getEmployees();
-        $currentStatus = $complaint->getStatus();
-        $previousStatus = $complaint->getPreviousStatus();
+        $contentFactory = new ReturnOperationStatusChangedMessageContentListFactory();
+        $contentList = $contentFactory->composeContentList($complaint);
 
-        $templateFactory = new GenericDtoFactory();
-        /** @var ReturnOperationStatusChangedMessageContentList $messageTemplate */
-        $messageTemplate = $templateFactory->fillDtoParams(
-            new ReturnOperationStatusChangedMessageContentList(),
-            $params
-        );
-        $messageTemplate->setCreatorName($creator->getFullName());
-        $messageTemplate->setExpertName($expert->getFullName());
-        $messageTemplate->setClientName($client->getFullName());
-        $messageTemplate->setCurrentStatus($currentStatus->getName());
-        $messageTemplate->setPreviousStatus($previousStatus->getName());
-
-        if (! $messageTemplate->isValid()) {
-            $emptyKey = $messageTemplate->getEmptyKeys()[0];
+        if (! $contentList->isValid()) {
+            $emptyKey = $contentList->getEmptyKeys()[0];
             throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
         }
 
         $data = new NotifyComplaintStatusChangedInitialData();
-        $data->setMessageContentList($messageTemplate);
-        $data->setReseller($reseller);
+        $data->setMessageContentList($contentList);
+        $data->setReseller($complaint->getReseller());
         $data->setNotification($notification);
-        $data->setClient($client);
-        $data->setEmployees($employees);
+        $data->setClient($complaint->getClient());
+        $data->setEmployees($complaint->getReseller()->getEmployees());
 
         return $data;
     }

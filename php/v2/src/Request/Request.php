@@ -8,5 +8,5 @@ interface Request
      * @param string $key
      * @return mixed
      */
-    public function getData(string $key);
+    public function get(string $key);
 }
