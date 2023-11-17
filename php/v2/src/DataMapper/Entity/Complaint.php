@@ -27,6 +27,9 @@ class Complaint implements Entity
     /** @var ?ComplaintStatus */
     private $previousStatus = null;
 
+    /** @var string */
+    private $number;
+
     public function __construct(
         int $id = null,
         string $name = null,
@@ -105,5 +108,15 @@ class Complaint implements Entity
     public function getPreviousStatus(): ?ComplaintStatus
     {
         return $this->previousStatus;
+    }
+
+    public function getNumber(): string
+    {
+        return $this->number;
+    }
+
+    public function setNumber(string $number): void
+    {
+        $this->number = $number;
     }
 }

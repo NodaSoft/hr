@@ -16,6 +16,9 @@ class Client implements Entity, Recipient
     /** @var bool */
     private $isCustomer;
 
+    /** @var Consumption */
+    private $consumption;
+
     public function __construct(
         int $id = null,
         string $name = null,
@@ -55,5 +58,15 @@ class Client implements Entity, Recipient
     public function setIsCustomer(bool $isCustomer): void
     {
         $this->isCustomer = $isCustomer;
+    }
+
+    public function getConsumption(): Consumption
+    {
+        return $this->consumption;
+    }
+
+    public function setConsumption(Consumption $consumption): void
+    {
+        $this->consumption = $consumption;
     }
 }
