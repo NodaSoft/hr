@@ -22,7 +22,7 @@ trait MessageRecipientEntity
         return ! is_null($this->email);
     }
 
-    public function getEmail(): string
+    public function getEmail(): ?string
     {
         return $this->email;
     }
