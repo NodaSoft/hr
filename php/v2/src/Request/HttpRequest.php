@@ -46,7 +46,13 @@ class HttpRequest implements Request
 
     public function composeOperationFactoryClassName(string $uri): string
     {
-        $capitalizedWords = ucwords(preg_replace("/[_\/]/", " ", $uri));
+        $replacedUri = preg_replace("/[_\/]/", " ", $uri);
+
+        if (! is_string($replacedUri)) {
+            throw new \Exception("Expected a string from preg_replace.");
+        }
+
+        $capitalizedWords = ucwords($replacedUri);
         $words = explode(' ', $capitalizedWords);
         $interfaceReflection = new \ReflectionClass(OperationFactory::class);
         $namespace = $interfaceReflection->getNamespaceName();
