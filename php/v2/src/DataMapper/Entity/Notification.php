@@ -44,7 +44,7 @@ class Notification implements Entity, Messenger\Content
         foreach ($params->toArray() as $param => $value) {
             $key = "#$param#";
             if (strpos($template, $key) > 0) {
-                $template = str_replace($key, $value, $template);
+                $template = str_replace($key, (string) $value, $template);
             }
         }
         return $template;
