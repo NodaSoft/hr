@@ -2,6 +2,7 @@
 
 namespace NodaSoft\Operation\Command;
 
+use NodaSoft\GenericDto\Factory\ComplaintNewMessageContentListFactory;
 use NodaSoft\Messenger\Message;
 use NodaSoft\Messenger\Messenger;
 use NodaSoft\Operation\InitialData\InitialData;
@@ -11,40 +12,32 @@ use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 
 class NotifyComplaintNewCommand implements Command
 {
-    /** @var NotifyComplaintNewInitialData */
-    private $initialData;
-
     /** @var Messenger */
-    private $mail;
+    private $email;
 
-    /**
-     * @param NotifyComplaintNewInitialData $initialData
-     * @return void
-     */
-    public function setInitialData(InitialData $initialData): void
+    public function setEmail(Messenger $email): void
     {
-        $this->initialData = $initialData;
-    }
-
-    public function setMail(Messenger $mail): void
-    {
-        $this->mail = $mail;
+        $this->email = $email;
     }
 
     /**
+     * @param NotifyComplaintNewInitialData $data
      * @return NotifyComplaintNewResult
      */
-    public function execute(): Result
+    public function execute(InitialData $data): Result
     {
         $result = new NotifyComplaintNewResult();
-        $data = $this->initialData;
-        $reseller = $data->getReseller();
+        $complaint = $data->getComplaint();
+        $reseller = $complaint->getReseller();
 
-        $message = new Message($data->getNotification(), $data->getMessageContentList());
+        $contentFactory = new ComplaintNewMessageContentListFactory();
+        $contentList = $contentFactory->composeContentList($complaint);
 
-        foreach ($data->getEmployees() as $employee) {
+        $message = new Message($data->getNotification(), $contentList);
+
+        foreach ($reseller->getEmployees() as $employee) {
             $result->addEmployeeEmailResult(
-                $this->mail->send($message, $employee, $reseller)
+                $this->email->send($message, $employee, $reseller)
             );
         }
 

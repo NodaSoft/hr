@@ -2,26 +2,15 @@
 
 namespace Tests\Unit\Dto;
 
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
+use NodaSoft\GenericDto\Dto\ComplaintStatusChangedMessageContentList;
 use PHPUnit\Framework\TestCase;
 
-class ReturnOperationStatusChangedMessageBodyListTest extends TestCase
+class ComplaintStatusChangedMessageContentListTest extends TestCase
 {
-    /** @dataProvider tsReturnDataProvider */
-    public function testIsValid(array $data, bool $shouldBeValid): void
-    {
-        $dto = new ReturnOperationStatusChangedMessageContentList();
-        foreach ($data as $key => $value) {
-            $setter = 'set' . $key;
-            $dto->$setter($value);
-        }
-        $this->assertSame($shouldBeValid, $dto->isValid());
-    }
-
     public function testToArray(): void
     {
-        $data = self::getValidData();
-        $dto = new ReturnOperationStatusChangedMessageContentList();
+        $data = $this->getValidData();
+        $dto = new ComplaintStatusChangedMessageContentList();
         foreach ($data as $key => $value) {
             $setter = 'set' . $key;
             $dto->$setter($value);

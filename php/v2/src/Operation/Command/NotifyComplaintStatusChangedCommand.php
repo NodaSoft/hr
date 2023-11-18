@@ -2,36 +2,25 @@
 
 namespace NodaSoft\Operation\Command;
 
+use NodaSoft\GenericDto\Factory\ComplaintStatusChangedMessageContentListFactory;
 use NodaSoft\Messenger\Message;
 use NodaSoft\Messenger\Messenger;
 use NodaSoft\Operation\InitialData\InitialData;
 use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
 use NodaSoft\Operation\Result\Result;
-use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\Result\NotifyComplaintStatusChangedResult;
 
 class NotifyComplaintStatusChangedCommand implements Command
 {
-    /** @var NotifyComplaintStatusChangedInitialData */
-    private $initialData;
-
     /** @var Messenger */
-    private $mail;
+    private $email;
 
     /** @var Messenger */
     private $sms;
 
-    /**
-     * @param NotifyComplaintStatusChangedInitialData $initialData
-     * @return void
-     */
-    public function setInitialData(InitialData $initialData): void
+    public function setEmail(Messenger $email): void
     {
-        $this->initialData = $initialData;
-    }
-
-    public function setMail(Messenger $mail): void
-    {
-        $this->mail = $mail;
+        $this->email = $email;
     }
 
     public function setSms(Messenger $sms): void
@@ -40,22 +29,26 @@ class NotifyComplaintStatusChangedCommand implements Command
     }
 
     /**
-     * @return ReturnOperationStatusChangedResult
+     * @param NotifyComplaintStatusChangedInitialData $data
+     * @return NotifyComplaintStatusChangedResult
      */
-    public function execute(): Result
+    public function execute(InitialData $data): Result
     {
-        $result = new ReturnOperationStatusChangedResult();
-        $data = $this->initialData;
-        $reseller = $data->getReseller();
-        $client = $data->getClient();
+        $result = new NotifyComplaintStatusChangedResult();
+        $complaint = $data->getComplaint();
+        $client = $complaint->getClient();
+        $reseller = $complaint->getReseller();
 
-        $message = new Message($data->getNotification(), $data->getMessageContentList());
+        $contentFactory = new ComplaintStatusChangedMessageContentListFactory();
+        $contentList = $contentFactory->composeContentList($complaint);
 
-        foreach ($data->getEmployees() as $employee) {
-            $result->addEmployeeEmailResult($this->mail->send($message, $employee, $reseller));
+        $message = new Message($data->getNotification(), $contentList);
+
+        foreach ($reseller->getEmployees() as $employee) {
+            $result->addEmployeeEmailResult($this->email->send($message, $employee, $reseller));
         }
 
-        $result->setClientEmailResult($this->mail->send($message, $client, $reseller));
+        $result->setClientEmailResult($this->email->send($message, $client, $reseller));
         $result->setClientSmsResult($this->sms->send($message, $client, $reseller));
 
         return $result;

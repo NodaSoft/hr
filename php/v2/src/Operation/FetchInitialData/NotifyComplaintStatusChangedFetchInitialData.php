@@ -5,7 +5,6 @@ namespace NodaSoft\Operation\FetchInitialData;
 use NodaSoft\DataMapper\Factory\MapperFactory;
 use NodaSoft\DataMapper\Mapper\ComplaintMapper;
 use NodaSoft\DataMapper\Mapper\NotificationMapper;
-use NodaSoft\GenericDto\Factory\ReturnOperationStatusChangedMessageContentListFactory;
 use NodaSoft\Operation\InitialData\InitialData;
 use NodaSoft\Operation\InitialData\NotifyComplaintStatusChangedInitialData;
 use NodaSoft\Request\Request;
@@ -48,20 +47,9 @@ class NotifyComplaintStatusChangedFetchInitialData implements FetchInitialData
             throw new \Exception('Complaint was not found!', 400);
         }
 
-        $contentFactory = new ReturnOperationStatusChangedMessageContentListFactory();
-        $contentList = $contentFactory->composeContentList($complaint);
-
-        if (! $contentList->isValid()) {
-            $emptyKey = $contentList->getEmptyKeys()[0];
-            throw new \Exception("Template Data ({$emptyKey}) is empty!", 500);
-        }
-
         $data = new NotifyComplaintStatusChangedInitialData();
-        $data->setMessageContentList($contentList);
-        $data->setReseller($complaint->getReseller());
+        $data->setComplaint($complaint);
         $data->setNotification($notification);
-        $data->setClient($complaint->getClient());
-        $data->setEmployees($complaint->getReseller()->getEmployees());
 
         return $data;
     }

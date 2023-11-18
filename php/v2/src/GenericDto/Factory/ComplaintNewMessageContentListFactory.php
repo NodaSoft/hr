@@ -3,20 +3,18 @@
 namespace NodaSoft\GenericDto\Factory;
 
 use NodaSoft\DataMapper\Entity\Complaint;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
+use NodaSoft\GenericDto\Dto\ComplaintNewMessageContentList;
 
-class ReturnOperationStatusChangedMessageContentListFactory
+class ComplaintNewMessageContentListFactory
 {
     public function composeContentList(
         Complaint $complaint
-    ): ReturnOperationStatusChangedMessageContentList {
+    ): ComplaintNewMessageContentList {
         $client = $complaint->getClient();
         $consumption = $client->getConsumption();
         $creator = $complaint->getCreator();
         $expert = $complaint->getExpert();
-        $currentStatus = $complaint->getStatus();
-        $previousStatus = $complaint->getPreviousStatus();
-        $contentList = new ReturnOperationStatusChangedMessageContentList();
+        $contentList = new ComplaintNewMessageContentList();
 
         $contentList->setComplaintId($complaint->getId());
         $contentList->setComplaintNumber($complaint->getNumber());
@@ -30,8 +28,6 @@ class ReturnOperationStatusChangedMessageContentListFactory
         $contentList->setConsumptionNumber($consumption->getNumber());
         $contentList->setAgreementNumber($consumption->getAgreementNumber());
         $contentList->setDate((new \DateTime())->format(DATE_W3C));
-        $contentList->setCurrentStatus($currentStatus->getName());
-        $contentList->setPreviousStatus($previousStatus->getName());
 
         return $contentList;
     }

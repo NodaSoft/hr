@@ -4,10 +4,8 @@ namespace NodaSoft\GenericDto\Dto;
 
 interface Dto
 {
-    public function isValid(): bool;
-
     /**
-     * @return array<string, mixed>
+     * @return array<string, int|string>
      */
     public function toArray(): array;
 }

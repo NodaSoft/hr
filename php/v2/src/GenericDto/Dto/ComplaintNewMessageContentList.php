@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationStatusChangedMessageContentList implements Dto
+class ComplaintNewMessageContentList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -40,14 +40,8 @@ class ReturnOperationStatusChangedMessageContentList implements Dto
     /** @var string */
     private $DATE;
 
-    /** @var string */
-    private $PREVIOUS_STATUS;
-
-    /** @var string */
-    private $CURRENT_STATUS;
-
     /**
-     * @return array<string, mixed>
+     * @return array<string, int|string>
      */
     public function toArray(): array
     {
@@ -56,25 +50,6 @@ class ReturnOperationStatusChangedMessageContentList implements Dto
             $array[$key] = $value;
         }
         return $array;
-    }
-
-    public function isValid(): bool
-    {
-        return empty($this->getEmptyKeys());
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getEmptyKeys(): array
-    {
-        $emptyKeys = [];
-        foreach ($this as $key => $value) {
-            if (empty($value)) {
-                $emptyKeys[] = $key;
-            }
-        }
-        return $emptyKeys;
     }
 
     public function getComplaintId(): int
@@ -195,25 +170,5 @@ class ReturnOperationStatusChangedMessageContentList implements Dto
     public function setDate(string $date): void
     {
         $this->DATE = $date;
-    }
-
-    public function getPreviousStatus(): string
-    {
-        return $this->PREVIOUS_STATUS;
-    }
-
-    public function setPreviousStatus(string $name): void
-    {
-        $this->PREVIOUS_STATUS = $name;
-    }
-
-    public function getCurrentStatus(): string
-    {
-        return $this->CURRENT_STATUS;
-    }
-
-    public function setCurrentStatus(string $name): void
-    {
-        $this->CURRENT_STATUS = $name;
     }
 }

@@ -44,18 +44,8 @@ class NotificationTest extends TestCase
                 $this->number = $number;
             }
 
-            public function isValid(): bool
-            {
-                foreach ($this as $item) {
-                    if (is_null($item)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
             /**
-             * @return array<string, mixed>
+             * @return array<string, int|string>
              */
             public function toArray(): array
             {

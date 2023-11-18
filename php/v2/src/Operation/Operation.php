@@ -2,34 +2,22 @@
 
 namespace NodaSoft\Operation;
 
-use NodaSoft\DataMapper\Factory\MapperFactory;
-use NodaSoft\Operation\Factory\OperationFactory;
 use NodaSoft\Request\Request;
 use NodaSoft\Operation\Result\Result;
-use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 use NodaSoft\Dependencies\Dependencies;
 
 class Operation
 {
-    /** @var OperationFactory $factory */
-    private $factory;
-
-    /** @var MapperFactory $mapperFactory */
-    private $mapperFactory;
+    /** @var Request */
+    private $request;
 
     /** @var Dependencies */
     private $dependencies;
 
-    public function __construct(
-        Dependencies     $dependencies,
-        OperationFactory $factory,
-        Request          $request,
-        MapperFactory    $mapperFactory
-    ) {
+    public function __construct(Dependencies $dependencies)
+    {
+        $this->request = $dependencies->getRequest();
         $this->dependencies = $dependencies;
-        $factory->setRequest($request);
-        $this->factory = $factory;
-        $this->mapperFactory = $mapperFactory;
     }
 
     /**
@@ -38,28 +26,26 @@ class Operation
      */
     public function doOperation(): Result
     {
-        $params = $this->factory->getParams();
-        $fetchInitialData = $this->factory->getFetchInitialData($this->mapperFactory);
-
-        if (! $params->isValid()) {
-            $missingParams = "Required parameter is missing.";
-            throw new \Exception($missingParams, 400);
+        try {
+            $factory = $this->request->getOperationFactory($this->dependencies);
+        } catch (\Throwable $th) {
+            $somethingWrong = "Something goes wrong while trying to handle an address.";
+            throw new \Exception($somethingWrong, 400, $th);
         }
 
+        $fetchInitialData = $factory->getFetchInitialData();
+
         try {
-            $initialData = $fetchInitialData->fetch($params);
+            $initialData = $fetchInitialData->fetch($this->request);
         } catch (\Throwable $th) {
             $somethingWrong = "Something goes wrong while trying to fetch initial data.";
             throw new \Exception($somethingWrong, 500, $th);
         }
 
-        $command = $this->factory->getCommand(
-            $initialData,
-            $this->dependencies
-        );
+        $command = $factory->getCommand();
 
         try {
-            $result = $command->execute();
+            $result = $command->execute($initialData);
         } catch (\Throwable $th) {
             $somethingWrong = "Something goes wrong while trying execute a command.";
             throw new \Exception($somethingWrong, 500, $th);

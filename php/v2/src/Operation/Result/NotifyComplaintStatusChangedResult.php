@@ -4,7 +4,7 @@ namespace NodaSoft\Operation\Result;
 
 use NodaSoft\Messenger;
 
-class ReturnOperationStatusChangedResult implements Result
+class NotifyComplaintStatusChangedResult implements Result
 {
     /** @var Messenger\ResultCollection */
     private $employeeEmails;

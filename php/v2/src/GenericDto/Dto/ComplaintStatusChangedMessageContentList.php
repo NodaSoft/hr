@@ -2,7 +2,7 @@
 
 namespace NodaSoft\GenericDto\Dto;
 
-class ReturnOperationNewMessageContentList implements Dto
+class ComplaintStatusChangedMessageContentList implements Dto
 {
     /** @var int */
     private $COMPLAINT_ID;
@@ -40,8 +40,14 @@ class ReturnOperationNewMessageContentList implements Dto
     /** @var string */
     private $DATE;
 
+    /** @var string */
+    private $PREVIOUS_STATUS;
+
+    /** @var string */
+    private $CURRENT_STATUS;
+
     /**
-     * @return array<string, mixed>
+     * @return array<string, int|string>
      */
     public function toArray(): array
     {
@@ -50,11 +56,6 @@ class ReturnOperationNewMessageContentList implements Dto
             $array[$key] = $value;
         }
         return $array;
-    }
-
-    public function isValid(): bool
-    {
-        return empty($this->getEmptyKeys());
     }
 
     /**
@@ -189,5 +190,25 @@ class ReturnOperationNewMessageContentList implements Dto
     public function setDate(string $date): void
     {
         $this->DATE = $date;
+    }
+
+    public function getPreviousStatus(): string
+    {
+        return $this->PREVIOUS_STATUS;
+    }
+
+    public function setPreviousStatus(string $name): void
+    {
+        $this->PREVIOUS_STATUS = $name;
+    }
+
+    public function getCurrentStatus(): string
+    {
+        return $this->CURRENT_STATUS;
+    }
+
+    public function setCurrentStatus(string $name): void
+    {
+        $this->CURRENT_STATUS = $name;
     }
 }

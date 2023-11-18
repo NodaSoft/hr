@@ -25,7 +25,8 @@ class Client implements Entity, Recipient
         string $email = null,
         int $cellphone = null,
         bool $isCustomer = null,
-        Reseller $reseller = null
+        Reseller $reseller = null,
+        Consumption $consumption = null
     ) {
         if ($id) $this->setId($id);
         if ($name) $this->setName($name);
@@ -33,6 +34,7 @@ class Client implements Entity, Recipient
         if ($cellphone) $this->setCellphone($cellphone);
         if (is_bool($isCustomer)) $this->setIsCustomer($isCustomer);
         if ($reseller) $this->setReseller($reseller);
+        if ($consumption) $this->setConsumption($consumption);
     }
 
     public function getFullName(): string

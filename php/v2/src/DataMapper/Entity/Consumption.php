@@ -17,10 +17,14 @@ class Consumption implements Entity
 
     public function __construct(
         int $id = null,
-        string $name = null
+        string $name = null,
+        string $number = null,
+        string $agreementNumber = null
     ) {
         if ($id) $this->setId($id);
         if ($name) $this->setName($name);
+        if ($number) $this->setNumber($number);
+        if ($agreementNumber) $this->setAgreementNumber($agreementNumber);
     }
 
     public function getNumber(): string

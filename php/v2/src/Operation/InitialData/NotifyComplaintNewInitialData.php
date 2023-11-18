@@ -2,44 +2,16 @@
 
 namespace NodaSoft\Operation\InitialData;
 
-use NodaSoft\DataMapper\Collection\EmployeeCollection;
+use NodaSoft\DataMapper\Entity\Complaint;
 use NodaSoft\DataMapper\Entity\Notification;
-use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationNewMessageContentList;
 
 class NotifyComplaintNewInitialData implements InitialData
 {
-    /** @var ReturnOperationNewMessageContentList */
-    private $messageContentList;
-
-    /** @var Reseller */
-    private $reseller;
-
     /** @var Notification */
     private $notification;
 
-    /** @var EmployeeCollection */
-    private $employees;
-
-    public function getMessageContentList(): ReturnOperationNewMessageContentList
-    {
-        return $this->messageContentList;
-    }
-
-    public function setMessageContentList(ReturnOperationNewMessageContentList $messageContentList): void
-    {
-        $this->messageContentList = $messageContentList;
-    }
-
-    public function getReseller(): Reseller
-    {
-        return $this->reseller;
-    }
-
-    public function setReseller(Reseller $reseller): void
-    {
-        $this->reseller = $reseller;
-    }
+    /** @var Complaint */
+    private $complaint;
 
     public function getNotification(): Notification
     {
@@ -51,13 +23,13 @@ class NotifyComplaintNewInitialData implements InitialData
         $this->notification = $notification;
     }
 
-    public function getEmployees(): EmployeeCollection
+    public function getComplaint(): Complaint
     {
-        return $this->employees;
+        return $this->complaint;
     }
 
-    public function setEmployees(EmployeeCollection $employees): void
+    public function setComplaint(Complaint $complaint): void
     {
-        $this->employees = $employees;
+        $this->complaint = $complaint;
     }
 }

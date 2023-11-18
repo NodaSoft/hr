@@ -8,7 +8,7 @@ use NodaSoft\Messenger\Result;
 use NodaSoft\Operation\Result\NotifyComplaintNewResult;
 use PHPUnit\Framework\TestCase;
 
-class ReturnOperationNewResultTest extends TestCase
+class NotifyComplaintNewResultTest extends TestCase
 {
     public function testToArray(): void
     {

@@ -7,10 +7,10 @@ use NodaSoft\DataMapper\Entity\Employee;
 use NodaSoft\Messenger\Client\EmailClient;
 use NodaSoft\Messenger\Client\SmsClient;
 use NodaSoft\Messenger\Result;
-use NodaSoft\Operation\Result\ReturnOperationStatusChangedResult;
+use NodaSoft\Operation\Result\NotifyComplaintStatusChangedResult;
 use PHPUnit\Framework\TestCase;
 
-class ReturnOperationStatusChangedResultTest extends TestCase
+class NotifyComplaintStatusChangedResultTest extends TestCase
 {
     public function testToArray(): void
     {
@@ -101,7 +101,7 @@ class ReturnOperationStatusChangedResultTest extends TestCase
             $origin['clientSms']['isSent'],
             $origin['clientSms']['errorMessage']
         );
-        $result = new ReturnOperationStatusChangedResult();
+        $result = new NotifyComplaintStatusChangedResult();
         $result->addEmployeeEmailResult($bobEmailResult);
         $result->addEmployeeEmailResult($sarahEmailResult);
         $result->setClientEmailResult($clientEmailResult);

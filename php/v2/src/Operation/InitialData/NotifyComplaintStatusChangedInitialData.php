@@ -2,49 +2,16 @@
 
 namespace NodaSoft\Operation\InitialData;
 
-use NodaSoft\DataMapper\Collection\EmployeeCollection;
-use NodaSoft\DataMapper\Entity\Client;
+use NodaSoft\DataMapper\Entity\Complaint;
 use NodaSoft\DataMapper\Entity\Notification;
-use NodaSoft\DataMapper\Entity\Reseller;
-use NodaSoft\GenericDto\Dto\ReturnOperationStatusChangedMessageContentList;
 
 class NotifyComplaintStatusChangedInitialData implements InitialData
 {
-    /** @var ReturnOperationStatusChangedMessageContentList */
-    private $messageContentList;
-
-    /** @var Reseller */
-    private $reseller;
-
     /** @var Notification */
     private $notification;
 
-    /** @var Client */
-    private $client;
-
-    /** @var EmployeeCollection */
-    private $employees;
-
-    public function getMessageContentList(): ReturnOperationStatusChangedMessageContentList
-    {
-        return $this->messageContentList;
-    }
-
-    public function setMessageContentList(
-        ReturnOperationStatusChangedMessageContentList $messageContentList
-    ): void {
-        $this->messageContentList = $messageContentList;
-    }
-
-    public function getReseller(): Reseller
-    {
-        return $this->reseller;
-    }
-
-    public function setReseller(Reseller $reseller): void
-    {
-        $this->reseller = $reseller;
-    }
+    /** @var Complaint */
+    private $complaint;
 
     public function getNotification(): Notification
     {
@@ -56,23 +23,13 @@ class NotifyComplaintStatusChangedInitialData implements InitialData
         $this->notification = $notification;
     }
 
-    public function getClient(): Client
+    public function getComplaint(): Complaint
     {
-        return $this->client;
+        return $this->complaint;
     }
 
-    public function setClient(Client $client): void
+    public function setComplaint(Complaint $complaint): void
     {
-        $this->client = $client;
-    }
-
-    public function getEmployees(): EmployeeCollection
-    {
-        return $this->employees;
-    }
-
-    public function setEmployees(EmployeeCollection $employees): void
-    {
-        $this->employees = $employees;
+        $this->complaint = $complaint;
     }
 }

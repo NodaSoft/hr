@@ -7,7 +7,5 @@ use NodaSoft\Operation\Result\Result;
 
 interface Command
 {
-    public function execute(): Result;
-
-    public function setInitialData(InitialData $initialData): void;
+    public function execute(InitialData $data): Result;
 }

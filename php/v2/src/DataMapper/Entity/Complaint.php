@@ -38,7 +38,8 @@ class Complaint implements Entity
         Employee $expert = null,
         Reseller $reseller = null,
         ComplaintStatus $status = null,
-        ComplaintStatus $previousStatus = null
+        ComplaintStatus $previousStatus = null,
+        string $number = null
     ) {
         if ($id) $this->setId($id);
         if ($name) $this->setName($name);
@@ -48,6 +49,7 @@ class Complaint implements Entity
         if ($reseller) $this->setReseller($reseller);
         if ($status) $this->setStatus($status);
         if ($previousStatus) $this->setPreviousStatus($previousStatus);
+        if ($number) $this->setNumber($number);
     }
 
     public function setCreator(Employee $creator): void
