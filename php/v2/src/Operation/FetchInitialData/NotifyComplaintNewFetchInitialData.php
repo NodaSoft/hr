@@ -21,7 +21,7 @@ class NotifyComplaintNewFetchInitialData implements FetchInitialData
     }
 
     /**
-     * @param NotifyComplaintNewParams $request
+     * @param Request $request
      * @return NotifyComplaintNewInitialData
      */
     public function fetch(Request $request): InitialData
