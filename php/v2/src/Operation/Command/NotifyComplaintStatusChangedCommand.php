@@ -31,6 +31,7 @@ class NotifyComplaintStatusChangedCommand implements Command
     /**
      * @param NotifyComplaintStatusChangedInitialData $data
      * @return NotifyComplaintStatusChangedResult
+     * @throws \Exception Previous status required, 500
      */
     public function execute(InitialData $data): Result
     {
@@ -40,7 +41,12 @@ class NotifyComplaintStatusChangedCommand implements Command
         $reseller = $complaint->getReseller();
 
         $contentFactory = new ComplaintStatusChangedMessageContentListFactory();
-        $contentList = $contentFactory->composeContentList($complaint);
+
+        try {
+            $contentList = $contentFactory->composeContentList($complaint);
+        } catch (\Exception $e) {
+            throw new \Exception($e->getMessage(), 500, $e);
+        }
 
         $message = new Message($data->getNotification(), $contentList);
 

@@ -16,8 +16,12 @@ class ComplaintStatusChangedMessageContentListFactory
         $expert = $complaint->getExpert();
         $currentStatus = $complaint->getStatus();
         $previousStatus = $complaint->getPreviousStatus();
-        $contentList = new ComplaintStatusChangedMessageContentList();
 
+        if (is_null($previousStatus)) { // todo: replace previousStatus:null with empty string if it's possible
+            throw new \Exception("Previous status required", 500);
+        }
+
+        $contentList = new ComplaintStatusChangedMessageContentList();
         $contentList->setComplaintId($complaint->getId());
         $contentList->setComplaintNumber($complaint->getNumber());
         $contentList->setCreatorId($creator->getId());
