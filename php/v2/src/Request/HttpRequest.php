@@ -8,14 +8,14 @@ use NodaSoft\Operation\Factory\OperationFactory;
 class HttpRequest implements Request
 {
     /** @var array<string, mixed> */
-    private $request;
+    private $data;
 
     /** @var string */
     private $uri;
 
     public function __construct()
     {
-        $this->request = $_REQUEST;
+        $this->data = $_REQUEST['data'] ?? [];
         $this->uri = ltrim($_SERVER['REQUEST_URI'], '/');
     }
 
@@ -25,7 +25,7 @@ class HttpRequest implements Request
      */
     public function get(string $key)
     {
-        return $this->request['data'][$key] ?? null;
+        return $this->data[$key] ?? null;
     }
 
     public function getOperationFactory(
