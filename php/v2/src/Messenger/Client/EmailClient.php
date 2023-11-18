@@ -14,10 +14,10 @@ class EmailClient implements Client
         Recipient $sender
     ): bool {
         return mail(
-            $recipient->getEmail(),
+            $recipient->getEmail(), // should validate email by self::isValid()
             $message->getSubject(),
             $message->getBody(),
-            $this->getHeaders($sender->getEmail())
+            $this->getHeaders($sender->getEmail()) // should validate email by self::isValid()
         );
     }
 
