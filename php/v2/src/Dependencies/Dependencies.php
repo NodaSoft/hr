@@ -11,17 +11,17 @@ use NodaSoft\Request\Request;
 
 class Dependencies
 {
-    /** @var Request  */
-    private $request;
+    /** @var ? Request  */
+    private $request = null;
 
-    /** @var Messenger */
-    private $emailService;
+    /** @var ? Messenger */
+    private $emailService = null;
 
-    /** @var Messenger */
-    private $smsService;
+    /** @var ? Messenger */
+    private $smsService = null;
 
-    /** @var MapperFactory */
-    private $mapperFactory;
+    /** @var ? MapperFactory */
+    private $mapperFactory = null;
 
     public function __construct(
         ? Request $request = null,
@@ -29,10 +29,10 @@ class Dependencies
         ? Messenger $smsService = null,
         ? MapperFactory $mapperFactory = null
     ) {
-        if ($request) $this->request = $request;
-        if ($emailService) $this->emailService = $emailService;
-        if ($smsService) $this->smsService = $smsService;
-        if ($mapperFactory) $this->mapperFactory = $mapperFactory;
+        $this->request = $request;
+        $this->emailService = $emailService;
+        $this->smsService = $smsService;
+        $this->mapperFactory = $mapperFactory;
     }
 
     public function getRequest(): Request
