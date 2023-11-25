@@ -1,104 +1,152 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 )
 
-// ЗАДАНИЕ:
-// * сделать из плохого кода хороший;
-// * важно сохранить логику появления ошибочных тасков;
-// * сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через merge-request.
+type TaskID string
 
-// приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
-// В конце должно выводить успешные таски и ошибки выполнены остальных тасков
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	id                  TaskID
+	createdAt           time.Time // Момент создания задачи.
+	executionFinishedAt time.Time // Момент исполнения.
+	mustExecutionFail   bool      // Подсказка о том, что должно случиться с задачей.
 }
 
+func (t Task) String() string {
+	return fmt.Sprintf("Task (id=%v)", t.id)
+}
+
+func (t *Task) Execute() error {
+	// Имитируем вычисления.
+	time.Sleep(500 * time.Millisecond)
+	t.executionFinishedAt = time.Now().UTC()
+	if t.mustExecutionFail {
+		return fmt.Errorf("%s errored out at %s", t, t.executionFinishedAt)
+	}
+	return nil
+}
+
+func NewTask() Task {
+	t := Task{
+		id:        <-id,
+		createdAt: time.Now().UTC(),
+	}
+	// Условием тестового задания было сохранить логику возникновения ошибок:
+	if time.Now().Nanosecond()%2 > 0 {
+		t.mustExecutionFail = true
+	}
+	return t
+}
+
+var (
+	wg sync.WaitGroup
+	// Канал-источник читабельных идентификаторов задач (A, B, C, ..., A, B, C...)
+	id chan TaskID
+)
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	id = make(chan TaskID)
+
+	go func() {
+		start := "A"[0]
+		end := "Z"[0]
+		current := start
+		for {
+			id <- TaskID(current)
+			current += 1
+			if current > end {
+				current = start
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	// Канал-источник задач для исполнителей.
+	taskSourceChannel := make(chan Task, 10)
+
+	// Создатель задач.
+	wg.Add(1)
+	go func(ctx context.Context) {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				close(taskSourceChannel)
+				log.Printf("Creator exited")
+				return
+			default:
+				task := NewTask()
+				taskSourceChannel <- task
+				log.Printf("Created task: %s", task)
+			}
+		}
+	}(ctx)
+
+	// Канал с задачами, которые были успешно выполнены.
+	taskOkChannel := make(chan Task)
+	// Канал с ошибками, возникшими при выполнении задач.
+	taskErrChannel := make(chan error)
+
+	// Исполнитель задач.
+	wg.Add(1)
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		defer wg.Done()
+		for task := range taskSourceChannel {
+			err := task.Execute()
+			if err != nil {
+				taskErrChannel <- err
+				log.Printf("%s errored out", task)
+				continue
+			}
+			taskOkChannel <- task
+			log.Printf("%s was executed successfully", task)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+		close(taskOkChannel)
+		close(taskErrChannel)
+		log.Printf("Executor exited")
 	}()
 
-	time.Sleep(time.Second * 3)
+	okResults := make(map[TaskID]Task)
+	errors := []error{}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for task := range taskOkChannel {
+			log.Printf("Processing %s result for presentation", task)
+			okResults[task.id] = task
+		}
+	}()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for err := range taskErrChannel {
+			log.Printf("Processing error for presentation: %v", err)
+			errors = append(errors, err)
+		}
+	}()
+
+	wg.Wait()
+
+	fmt.Print("\nSUMMARY:\n\n")
+
+	fmt.Print("\n\tERRORS\n\n")
+	for _, v := range errors {
+		fmt.Printf("\t%v\n", v)
 	}
+	fmt.Print("\n")
+
+	fmt.Print("\tDONE TASKS\n\n")
+	for _, v := range okResults {
+		fmt.Printf("\t%s\n", v)
+	}
+	fmt.Print("\n")
 }
