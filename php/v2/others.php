@@ -11,6 +11,8 @@ class Contractor
     public $id;
     public $type;
     public $name;
+    public $email;
+    public $mobile;
 
     public static function getById(int $resellerId): self
     {
@@ -20,6 +22,17 @@ class Contractor
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
+    }
+
+    public function getResellerEmailFrom($resellerId)
+    {
+        return 'contractor@example.com';
+    }
+
+    public function getEmailsByPermit($resellerId, $event)
+    {
+        // fakes the method
+        return ['someemeil@example.com', 'someemeil2@example.com'];
     }
 }
 
@@ -57,19 +70,25 @@ abstract class ReferencesOperation
     }
 }
 
-function getResellerEmailFrom()
-{
-    return 'contractor@example.com';
-}
 
-function getEmailsByPermit($resellerId, $event)
-{
-    // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
-}
 
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
+}
+
+class MessagesClient
+{
+    public static function sendMessage(array $message, int $resellerId, int $clientid, $event, int $diffTo = 0)
+    {
+    }
+}
+
+class NotificationManager
+{
+    public static function sendNotification(int $resellerId, int $clientid, $event, int $diffTo, $templateData, $error)
+    {
+        return true;
+    }
 }

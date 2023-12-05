@@ -10,11 +10,11 @@ class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): array
     {
-        $data = (array)$this->getRequest('data');
-        $resellerId = $data['resellerId'];
-        $notificationType = (int)$data['notificationType'];
+        $data = (array) $this->getRequest('data');
+        $resellerId = (int) $data['resellerId'];
+        $notificationType = (int) $data['notificationType'];
         $result = [
             'notificationEmployeeByEmail' => false,
             'notificationClientByEmail'   => false,
@@ -24,47 +24,47 @@ class TsReturnOperation extends ReferencesOperation
             ],
         ];
 
-        if (empty((int)$resellerId)) {
-            $result['notificationClientBySms']['message'] = 'Empty resellerId';
-            return $result;
+        if (empty($resellerId)) {
+            $error = 'Empty resellerId';
         }
 
-        if (empty((int)$notificationType)) {
+        if (empty($notificationType)) {
             throw new \Exception('Empty notificationType', 400);
         }
 
-        $reseller = Seller::getById((int)$resellerId);
+        $reseller = Seller::getById($resellerId);
         if ($reseller === null) {
             throw new \Exception('Seller not found!', 400);
         }
 
-        $client = Contractor::getById((int)$data['clientId']);
+        $client = Contractor::getById((int) $data['clientId']);
         if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
             throw new \Exception('сlient not found!', 400);
         }
 
-        $cFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $cFullName = $client->name;
+        $clientFullName = $client->getFullName();
+        if (empty($clientFullName)) {
+            $clientFullName = $client->name;
         }
 
-        $cr = Employee::getById((int)$data['creatorId']);
-        if ($cr === null) {
+        $creator = Employee::getById((int) $data['creatorId']);
+        if ($creator === null) {
             throw new \Exception('Creator not found!', 400);
         }
 
-        $et = Employee::getById((int)$data['expertId']);
-        if ($et === null) {
+        $expert = Employee::getById((int) $data['expertId']);
+        if ($expert === null) {
             throw new \Exception('Expert not found!', 400);
         }
 
+
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
+            $differences = $this->toText('NewPositionAdded', null, $resellerId);
         } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
-            $differences = __('PositionStatusHasChanged', [
-                    'FROM' => Status::getName((int)$data['differences']['from']),
-                    'TO'   => Status::getName((int)$data['differences']['to']),
+            $differences = $this->toText('PositionStatusHasChanged', [
+                'FROM' => Status::getName((int) $data['differences']['from']),
+                'TO' => Status::getName((int) $data['differences']['to']),
                 ], $resellerId);
         }
 
@@ -72,11 +72,11 @@ class TsReturnOperation extends ReferencesOperation
             'COMPLAINT_ID'       => (int)$data['complaintId'],
             'COMPLAINT_NUMBER'   => (string)$data['complaintNumber'],
             'CREATOR_ID'         => (int)$data['creatorId'],
-            'CREATOR_NAME'       => $cr->getFullName(),
+            'CREATOR_NAME' => $creator->getFullName(),
             'EXPERT_ID'          => (int)$data['expertId'],
-            'EXPERT_NAME'        => $et->getFullName(),
+            'EXPERT_NAME' => $expert->getFullName(),
             'CLIENT_ID'          => (int)$data['clientId'],
-            'CLIENT_NAME'        => $cFullName,
+            'CLIENT_NAME' => $clientFullName,
             'CONSUMPTION_ID'     => (int)$data['consumptionId'],
             'CONSUMPTION_NUMBER' => (string)$data['consumptionNumber'],
             'AGREEMENT_NUMBER'   => (string)$data['agreementNumber'],
@@ -91,19 +91,19 @@ class TsReturnOperation extends ReferencesOperation
             }
         }
 
-        $emailFrom = getResellerEmailFrom($resellerId);
+        $emailFrom = $client->getResellerEmailFrom($resellerId);
         // Получаем email сотрудников из настроек
-        $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
+        $emails = $client->getEmailsByPermit($resellerId, 'tsGoodsReturn');
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
                 MessagesClient::sendMessage([
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $email,
-                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
+                        'subject' => $this->toText('complaintEmployeeEmailSubject', $templateData, $resellerId),
+                        'message' => $this->toText('complaintEmployeeEmailBody', $templateData, $resellerId),
                     ],
-                ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
+                ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS);
                 $result['notificationEmployeeByEmail'] = true;
 
             }
@@ -116,15 +116,15 @@ class TsReturnOperation extends ReferencesOperation
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $client->email,
-                           'subject'   => __('complaintClientEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
+                        'subject' => $this->toText('complaintClientEmailSubject', $templateData, $resellerId),
+                        'message' => $this->toText('complaintClientEmailBody', $templateData, $resellerId),
                     ],
                 ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to']);
                 $result['notificationClientByEmail'] = true;
             }
 
             if (!empty($client->mobile)) {
-                $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
+                $res = NotificationManager::sendNotification($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int) $data['differences']['to'], $templateData, $error);
                 if ($res) {
                     $result['notificationClientBySms']['isSent'] = true;
                 }
@@ -135,5 +135,27 @@ class TsReturnOperation extends ReferencesOperation
         }
 
         return $result;
+    }
+
+    public function toText(string $event, $message, int $id)
+    {
+        switch ($event) {
+            case "NewPositionAdded":
+                return "New position added to $id";
+
+            case "PositionStatusHasChanged":
+                return "Position status has changed from {$message['FROM']} to {$message['TO']} in for $id";
+
+            case "complaintEmployeeEmailSubject":
+                return $message['DIFFERENCES'];
+
+            case "complaintClientEmailBody":
+                //Здесь код для составления тела письма из данных массива $templateData
+                $emailBody = "";
+                return $emailBody;
+
+            default:
+                return null;
+        }
     }
 }
