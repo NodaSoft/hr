@@ -17,9 +17,10 @@ import (
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
 const (
-	taskTTL         = 20 * time.Second
-	taskChanSize    = 10
-	serverSleepTime = 3 * time.Second
+	taskTTL              = 1 * time.Second
+	taskChanSize         = 10
+	serverSleepTime      = 3 * time.Second
+	timeBetweenTaskWorks = time.Millisecond * 150
 )
 
 // A Task represents a meaninglessness of our life
@@ -50,6 +51,7 @@ func createTasks(ctx context.Context, taskChan chan Task) {
 }
 
 func (task *Task) work() {
+	defer time.Sleep(timeBetweenTaskWorks)
 	taskCreateTime, err := time.Parse(time.RFC3339, task.createTime)
 	if err != nil {
 		return
@@ -61,8 +63,6 @@ func (task *Task) work() {
 		task.resMessage = "something went wrong"
 	}
 	task.finishTime = time.Now().Format(time.RFC3339Nano)
-
-	time.Sleep(time.Millisecond * 150)
 }
 
 func sortTasks(superChan, doneTasks chan Task, undoneTasks chan error) {
