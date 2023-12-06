@@ -53,7 +53,10 @@ func createTasks(ctx context.Context, taskChan chan Task) {
 func (task *Task) work() {
 	defer time.Sleep(timeBetweenTaskWorks)
 	taskCreateTime, err := time.Parse(time.RFC3339, task.createTime)
+	task.finishTime = time.Now().Format(time.RFC3339Nano)
 	if err != nil {
+		task.successful = false
+		task.resMessage = "wrong task"
 		return
 	}
 	if taskCreateTime.After(time.Now().Add(-1 * taskTTL)) {
@@ -62,7 +65,6 @@ func (task *Task) work() {
 		task.successful = false
 		task.resMessage = "something went wrong"
 	}
-	task.finishTime = time.Now().Format(time.RFC3339Nano)
 }
 
 func sortTasks(superChan, doneTasks chan Task, undoneTasks chan error) {
