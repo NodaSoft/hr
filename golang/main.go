@@ -31,22 +31,6 @@ type Task struct {
 	resMessage string
 }
 
-func (task *Task) work() {
-	taskCreateTime, err := time.Parse(time.RFC3339, task.createTime)
-	if err != nil {
-		return
-	}
-	if taskCreateTime.After(time.Now().Add(-1 * taskTTL)) {
-		task.successful = true
-	} else {
-		task.successful = false
-		task.resMessage = "something went wrong"
-	}
-	task.finishTime = time.Now().Format(time.RFC3339Nano)
-
-	time.Sleep(time.Millisecond * 150)
-}
-
 func createTasks(ctx context.Context, taskChan chan Task) {
 	id := 0
 	for {
@@ -63,6 +47,22 @@ func createTasks(ctx context.Context, taskChan chan Task) {
 			id++
 		}
 	}
+}
+
+func (task *Task) work() {
+	taskCreateTime, err := time.Parse(time.RFC3339, task.createTime)
+	if err != nil {
+		return
+	}
+	if taskCreateTime.After(time.Now().Add(-1 * taskTTL)) {
+		task.successful = true
+	} else {
+		task.successful = false
+		task.resMessage = "something went wrong"
+	}
+	task.finishTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
 }
 
 func sortTasks(superChan, doneTasks chan Task, undoneTasks chan error) {
