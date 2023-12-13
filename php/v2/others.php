@@ -3,23 +3,41 @@
 namespace NW\WebService\References\Operations\Notification;
 
 /**
- * @property Seller $Seller
+ * @property Seller $seller
  */
 class Contractor
 {
+    // Не совсем понятно зачем тут TYPE_CUSTOMER
     const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+
+    public function __construct(
+        public readonly int $id = 0,
+        public int $type = static::TYPE_CUSTOMER,
+        public string $name = '',
+        public string $email = '',
+        public string $mobile = '',
+    )
+    {
+    }
 
     public static function getById(int $resellerId): self
     {
-        return new self($resellerId); // fakes the getById method
+        return new static($resellerId); // fakes the getById method
     }
 
     public function getFullName(): string
     {
-        return $this->name . ' ' . $this->id;
+        return $this->name . ' ' . $this->id; // пойдет, можно и лучше
+    }
+
+    // Для получения свойства seller
+    public function __get($name): mixed
+    {
+        if ($name === 'seller') {
+            return "something";
+        } else {
+            return null;
+        }
     }
 }
 
@@ -33,32 +51,33 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
+    private const NAMES = [
+        0 => 'Completed',
+        1 => 'Pending',
+        2 => 'Rejected',
+    ];
 
     public static function getName(int $id): string
     {
-        $a = [
-            0 => 'Completed',
-            1 => 'Pending',
-            2 => 'Rejected',
-        ];
-
-        return $a[$id];
+        return self::NAMES[$id] ?? 'undefined';
     }
 }
 
 abstract class ReferencesOperation
 {
-    abstract public function doOperation(): array;
+    abstract public function doOperation(array $data): array;
 
+    // этот геттер тут не нужен, кмк
+    // надо передавать данные непосредственно в метод как я сделал выше
     public function getRequest($pName)
     {
         return $_REQUEST[$pName];
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(int $resellerId): string
 {
+    // some logic here
     return 'contractor@example.com';
 }
 
@@ -68,8 +87,8 @@ function getEmailsByPermit($resellerId, $event)
     return ['someemeil@example.com', 'someemeil2@example.com'];
 }
 
-class NotificationEvents
+enum NotificationEvents: string
 {
-    const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    case CHANGE_RETURN_STATUS = 'changeReturnStatus';
+    case NEW_RETURN_STATUS = 'newReturnStatus';
 }
