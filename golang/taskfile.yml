@@ -1,0 +1,25 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  NEW_VERSION : 
+    sh: echo {{.PROJECT_VERSION}} | awk -F. -v OFS=. '{$3++; print $1, $2, $3}'
+  PROJECT_NAME_LOW:
+    sh: echo {{.PROJECT_NAME}} | tr A-Z a-z
+
+tasks:
+
+  build:
+    deps: ['update_version'] 
+    cmds:
+      - go build -ldflags "-s -w -X main.appName={{.PROJECT_NAME}} -X main.appVersion={{.NEW_VERSION}}" -trimpath -o ./bin/{{.PROJECT_NAME}}.exe {{.PROJECT_PATH}}
+
+  update_version:
+    cmds:
+      - sed -i -E "s/PROJECT_VERSION.*/PROJECT_VERSION={{.NEW_VERSION}}/" .env
+
+  docker:
+    cmds:
+      - docker build --build-arg PROJECT_NAME={{.PROJECT_NAME}} --build-arg PROJECT_VERSION={{.NEW_VERSION}} -f deploy/Dockerfile -t {{.PROJECT_NAME_LOW}} .
+      - docker run -d --name {{.PROJECT_NAME_LOW}} {{.PROJECT_NAME_LOW}}
