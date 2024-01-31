@@ -34,19 +34,19 @@ class User
      */
     public static function getUsers(int $ageFrom): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE age > {$ageFrom} LIMIT " . \Manager\User::limit);
+        $stmt = self::getInstance()->prepare('SELECT id, name, lastName, `from`, age, settings FROM Users WHERE age > ' . $ageFrom . ' LIMIT ' . \Manager\User::LIMIT); // todo поле from лучше переименовать
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $users = [];
         foreach ($rows as $row) {
-            $settings = json_decode($row['settings']);
+            $settings = json_decode($row['settings'], true);
             $users[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
                 'lastName' => $row['lastName'],
                 'from' => $row['from'],
                 'age' => $row['age'],
-                'key' => $settings['key'],
+                'key' => $settings['key'] ?? '',
             ];
         }
 
@@ -60,8 +60,9 @@ class User
      */
     public static function user(string $name): array
     {
-        $stmt = self::getInstance()->prepare("SELECT id, name, lastName, from, age, settings FROM Users WHERE name = {$name}");
-        $stmt->execute();
+        $stmt = self::getInstance()->prepare('SELECT id, name, lastName, `from`, age FROM Users WHERE name = :name');
+        $stmt->execute([':name' => $name]);
+
         $user_by_name = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return [

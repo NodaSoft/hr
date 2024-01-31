@@ -4,7 +4,7 @@ namespace Manager;
 
 class User
 {
-    const limit = 10;
+    const LIMIT = 10;
 
     /**
      * Возвращает пользователей старше заданного возраста.
@@ -13,20 +13,19 @@ class User
      */
     function getUsers(int $ageFrom): array
     {
-        $ageFrom = (int)trim($ageFrom);
-
         return \Gateway\User::getUsers($ageFrom);
     }
 
     /**
      * Возвращает пользователей по списку имен.
+     * @param array $names
      * @return array
      */
-    public static function getByNames(): array
+    public static function getByNames(array $names): array //TODO исходя из названия метода будем принимать массив
     {
         $users = [];
-        foreach ($_GET['names'] as $name) {
-            $users[] = \Gateway\User::user($name);
+        foreach ($names as $name) {
+            $users[] = \Gateway\User::user(trim($name));
         }
 
         return $users;
@@ -34,23 +33,38 @@ class User
 
     /**
      * Добавляет пользователей в базу данных.
-     * @param $users
+     * @param array $users
      * @return array
      */
-    public function users($users): array
+    public function users(array $users): array
     {
         $ids = [];
         \Gateway\User::getInstance()->beginTransaction();
         foreach ($users as $user) {
             try {
-                \Gateway\User::add($user['name'], $user['lastName'], $user['age']);
+                $this->validate_fields($user);
+                $ids[] = \Gateway\User::add((string)$user['name'], (string)$user['lastName'], (int)$user['age']);
                 \Gateway\User::getInstance()->commit();
-                $ids[] = \Gateway\User::getInstance()->lastInsertId();
             } catch (\Exception $e) {
                 \Gateway\User::getInstance()->rollBack();
             }
         }
 
         return $ids;
+    }
+
+    /**
+     * @param array $user
+     * @return void
+     * @throws \Exception
+     */
+    private function validate_fields(array $user): void
+    {
+        $fields = ['name', 'lastName', 'age'];
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $user)) {
+                throw new \Exception('empty field ' . $field);
+            }
+        }
     }
 }

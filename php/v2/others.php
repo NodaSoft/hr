@@ -1,6 +1,7 @@
 <?php
 
 namespace NW\WebService\References\Operations\Notification;
+//TODO классы по файлам расскидывать не стал, чтоб легче ревью проводить было
 
 /**
  * @property Seller $Seller
@@ -8,9 +9,11 @@ namespace NW\WebService\References\Operations\Notification;
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+    protected int $id;
+    protected int $type;
+    protected string $name;
+    protected string $email;
+    protected string $mobile;
 
     public static function getById(int $resellerId): self
     {
@@ -20,6 +23,31 @@ class Contractor
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
+    }
+
+    public function getId(): int
+    {
+        return $this->id;
+    }
+
+    public function getType(): int
+    {
+        return $this->type;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function getEmail(): string
+    {
+        return $this->email;
+    }
+
+    public function getMobile(): string
+    {
+        return $this->mobile;
     }
 }
 
@@ -33,8 +61,6 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
-
     public static function getName(int $id): string
     {
         $a = [
@@ -43,7 +69,7 @@ class Status
             2 => 'Rejected',
         ];
 
-        return $a[$id];
+        return $a[$id] ?? 'none status';
     }
 }
 
@@ -53,16 +79,16 @@ abstract class ReferencesOperation
 
     public function getRequest($pName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$pName] ?? '';
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(int $resellerId, string $event): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
@@ -71,5 +97,5 @@ function getEmailsByPermit($resellerId, $event)
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
