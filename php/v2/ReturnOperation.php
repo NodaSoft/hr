@@ -10,7 +10,7 @@ class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): array
     {
         $data = (array)$this->getRequest('data');
         $resellerId = $data['resellerId'];
@@ -24,12 +24,13 @@ class TsReturnOperation extends ReferencesOperation
             ],
         ];
 
-        if (empty((int)$resellerId)) {
+
+        if (!isset((int)$resellerId)) {
             $result['notificationClientBySms']['message'] = 'Empty resellerId';
             return $result;
         }
 
-        if (empty((int)$notificationType)) {
+        if (!isset((int)$notificationType)) {
             throw new \Exception('Empty notificationType', 400);
         }
 
@@ -42,6 +43,12 @@ class TsReturnOperation extends ReferencesOperation
         if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
             throw new \Exception('сlient not found!', 400);
         }
+        elseif ($client->type !== Contractor::TYPE_CUSTOMER) {
+            throw new \Exception('сlient has no customer!', 400);
+        }
+        elseif ($client->Seller->id !== $resellerId) {
+            throw new \Exception('сlient has not seller!', 400);
+        }
 
         $cFullName = $client->getFullName();
         if (empty($client->getFullName())) {
@@ -53,8 +60,8 @@ class TsReturnOperation extends ReferencesOperation
             throw new \Exception('Creator not found!', 400);
         }
 
-        $et = Employee::getById((int)$data['expertId']);
-        if ($et === null) {
+        $ex = Employee::getById((int)$data['expertId']);
+        if ($ex === null) {
             throw new \Exception('Expert not found!', 400);
         }
 
@@ -74,20 +81,20 @@ class TsReturnOperation extends ReferencesOperation
             'CREATOR_ID'         => (int)$data['creatorId'],
             'CREATOR_NAME'       => $cr->getFullName(),
             'EXPERT_ID'          => (int)$data['expertId'],
-            'EXPERT_NAME'        => $et->getFullName(),
+            'EXPERT_NAME'        => $ex->getFullName(),
             'CLIENT_ID'          => (int)$data['clientId'],
             'CLIENT_NAME'        => $cFullName,
             'CONSUMPTION_ID'     => (int)$data['consumptionId'],
             'CONSUMPTION_NUMBER' => (string)$data['consumptionNumber'],
             'AGREEMENT_NUMBER'   => (string)$data['agreementNumber'],
             'DATE'               => (string)$data['date'],
-            'DIFFERENCES'        => $differences,
+            'DIFFERENCES'        => $differences
         ];
 
         // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
         foreach ($templateData as $key => $tempData) {
             if (empty($tempData)) {
-                throw new \Exception("Template Data ({$key}) is empty!", 500);
+                throw new \Exception("Template Data ({$key}) is empty!", 400);
             }
         }
 
@@ -123,6 +130,7 @@ class TsReturnOperation extends ReferencesOperation
                 $result['notificationClientByEmail'] = true;
             }
 
+	    $error='';
             if (!empty($client->mobile)) {
                 $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
                 if ($res) {
