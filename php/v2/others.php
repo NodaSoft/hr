@@ -73,3 +73,50 @@ class NotificationEvents
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
     const NEW_RETURN_STATUS    = 'newReturnStatus';
 }
+
+class NotificationData
+{
+    public function __construct(
+        public int $complaintId,
+        public string $complaintNumber,
+        public int $creatorId,
+        public int $expertId,
+        public int $clientId,
+        public int $consumptionId,
+        public string $consumptionNumber,
+        public string $agreementNumber,
+        public string $date,
+        public int $differencesFrom,
+        public int $differencesTo,
+    ){
+    }
+}
+
+class ResellerView
+{
+    public static function make($name, $data, $id) : string {
+        return View::make($name, $data);
+    }
+}
+
+class MessagesClient
+{
+    public const EMAIL = 0;
+    public static function sendMessage(
+        $message, $resellerId, $status
+    ) {
+
+    }
+}
+class NotificationManager {
+    public static function send($resellerId, $clientId, $status , $newState, $data, &$error) {
+
+    }
+}
+
+class BusinessException extends \Exception {
+}
+class BusinessErrorException extends BusinessException {
+
+}
+
