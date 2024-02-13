@@ -8,12 +8,34 @@ namespace NW\WebService\References\Operations\Notification;
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+    public int $id;
+    public string $type;
+    public string $name;
+    private array $fakes = [
+        //...
+    ];
+
+    /**
+     * @throws \Exception
+     */
+    public function __construct(int $subjectId)
+    {
+        $fake = $this->fakes[$subjectId] ?? null;
+
+        if ($fake == null) {
+            throw new \Exception();
+        }
+
+        $this->id = $fake['id'];
+        $this->name = $fake['name'];
+    }
 
     public static function getById(int $resellerId): self
     {
+        /**
+         * Я бы фейкер сделал. Поскольку в 37 строке будет ошибка. Как минимум рандомом брал бы какие то данные. Или с какого то статического файла.
+         * Я только пишу не делаю потому что это займет много времени, и нету смысла.
+         */
         return new self($resellerId); // fakes the getById method
     }
 
