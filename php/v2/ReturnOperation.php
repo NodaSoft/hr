@@ -1,6 +1,8 @@
 <?php
 
-namespace NW\WebService\References\Operations\Notification;
+namespace NW\WebService\References\Operations\Notification; // я полагаю есть такое пространство имен
+require __DIR__ . '/others.php'; // Я бы вообще поднял все на composer. Сделал бы пространство имен, вынес бы каждый класс файла
+                                 // отдельно, но это долго и вроде не требуется.
 
 class TsReturnOperation extends ReferencesOperation
 {
@@ -29,38 +31,23 @@ class TsReturnOperation extends ReferencesOperation
             return $result;
         }
 
-        if (empty((int)$notificationType)) {
+        if (empty($notificationType)) {
             throw new \Exception('Empty notificationType', 400);
         }
 
-        $reseller = Seller::getById((int)$resellerId);
-        if ($reseller === null) {
-            throw new \Exception('Seller not found!', 400);
-        }
+        $reseller = Seller::getById((int)$resellerId); // я даже не знаю убрать или нет так как не используется
 
         $client = Contractor::getById((int)$data['clientId']);
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
-            throw new \Exception('сlient not found!', 400);
-        }
 
         $cFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $cFullName = $client->name;
-        }
 
         $cr = Employee::getById((int)$data['creatorId']);
-        if ($cr === null) {
-            throw new \Exception('Creator not found!', 400);
-        }
 
         $et = Employee::getById((int)$data['expertId']);
-        if ($et === null) {
-            throw new \Exception('Expert not found!', 400);
-        }
 
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
+            $differences = __('NewPositionAdded', null, $resellerId);  // тут опять же думаю что есть функция __() в проекте
         } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
             $differences = __('PositionStatusHasChanged', [
                     'FROM' => Status::getName((int)$data['differences']['from']),
@@ -96,7 +83,7 @@ class TsReturnOperation extends ReferencesOperation
         $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
-                MessagesClient::sendMessage([
+                MessagesClient::sendMessage([  // также этот класс представим что есть
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $email,
