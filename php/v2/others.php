@@ -11,6 +11,8 @@ class Contractor
     public $id;
     public $type;
     public $name;
+    public $mobile;
+    public $email;
 
     public static function getById(int $resellerId): self
     {
@@ -33,17 +35,19 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
+    const COMPLETED = 0;
+    const PENDING = 1;
+    const REJECTED = 2;
 
     public static function getName(int $id): string
     {
-        $a = [
-            0 => 'Completed',
-            1 => 'Pending',
-            2 => 'Rejected',
+        $statusNames = [
+            self::COMPLETED => 'Completed',
+            self::PENDING => 'Pending',
+            self::REJECTED => 'Rejected',
         ];
 
-        return $a[$id];
+        return $statusNames[$id] ?? '';
     }
 }
 
@@ -51,25 +55,25 @@ abstract class ReferencesOperation
 {
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    protected function getRequest(string $paramName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$paramName] ?? null;
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit($resellerId, $event): array
 {
     // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
+    return ['someemail@example.com', 'someemail2@example.com'];
 }
 
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
