@@ -2,8 +2,13 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+enum MessageTypes: int
+{
+    case EMAIL = 0;
+}
+
 /**
- * @property Seller $Seller
+ * @property Seller $seller
  */
 class Contractor
 {
@@ -19,7 +24,7 @@ class Contractor
 
     public function getFullName(): string
     {
-        return $this->name . ' ' . $this->id;
+        return $this->id ? ($this->name . ' ' . $this->id) : $this->name;
     }
 }
 
@@ -33,17 +38,20 @@ class Employee extends Contractor
 
 class Status
 {
+    const COMPLETED = 0;
+    const PENDING = 1;
+    const REJECTED = 2;
     public $id, $name;
 
     public static function getName(int $id): string
     {
-        $a = [
-            0 => 'Completed',
-            1 => 'Pending',
-            2 => 'Rejected',
+        $statusValues = [
+            self::COMPLETED => 'Completed',
+            self::PENDING => 'Pending',
+            self::REJECTED => 'Rejected',
         ];
 
-        return $a[$id];
+        return $statusValues[$id];
     }
 }
 
@@ -51,9 +59,9 @@ abstract class ReferencesOperation
 {
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    public function getRequest($paramName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$paramName];
     }
 }
 
