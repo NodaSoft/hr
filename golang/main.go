@@ -16,11 +16,11 @@ const (
 
 func main() {
 	start := time.Now()
-	// мы можем
+	// мы можем контролить извне, например таким таймаутом
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeoutSec*time.Second)
 	go func() {
-		// например мы хотим остановиться по какой-то причине,
-		// не дожидаясь наступления таймаута
+		// или мы хотим остановиться по какой-то причине,
+		// не дожидаясь наступления таймаута от контекста
 		time.Sleep(RealWaitSec * time.Second)
 		cancel()
 
