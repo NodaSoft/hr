@@ -46,18 +46,18 @@ func main() {
 
 	go taskCreator(tasksChan)
 
-	taskWorker := func(a Task) Task {
-		tt, _ := time.Parse(time.RFC3339, a.creationTime)
+	taskWorker := func(task Task) Task {
+		tt, _ := time.Parse(time.RFC3339, task.creationTime)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskResult = []byte("task has been successed")
+			task.taskResult = []byte("task has been successed")
 		} else {
-			a.taskResult = []byte("something went wrong")
+			task.taskResult = []byte("something went wrong")
 		}
-		a.finishTime = time.Now().Format(time.RFC3339Nano)
+		task.finishTime = time.Now().Format(time.RFC3339Nano)
 
 		time.Sleep(time.Millisecond * 150)
 
-		return a
+		return task
 	}
 
 	doneTasks := make(chan Task)
