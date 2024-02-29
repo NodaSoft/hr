@@ -27,7 +27,7 @@ func main() {
 	// Atomic value for holding amount of successfully created tasks, from which id's is generated
 	var successfulCounter atomic.Int32
 
-	taskCreator := func(a chan Task) {
+	taskCreator := func(tasksChan chan Task) {
 		go func() {
 			for {
 				// Set id to -1
@@ -37,7 +37,7 @@ func main() {
 					successfulCounter.Add(1)
 					id = successfulCounter.Load()
 				}
-				a <- Task{creationTime: creationTime, id: id} // передаем таск на выполнение
+				tasksChan <- Task{creationTime: creationTime, id: id} // передаем таск на выполнение
 			}
 		}()
 	}
