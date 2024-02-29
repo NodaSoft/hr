@@ -43,19 +43,20 @@ type Task struct {
 
 func main() {
 	// Atomic value for holding amount of successfully created tasks, from which id's is generated
-	var successfulCounter atomic.Int32
+	var taskCounter atomic.Int32
 
 	taskCreator := func(tasksChan chan Task) {
 		go func() {
 			for {
-				// Set id to -1
-				var id int32 = -1
-				creationTime := time.Now()
-				if !(creationTime.Nanosecond()%2 > 0) { // вот такое условие появления ошибочных тасков
-					successfulCounter.Add(1)
-					id = successfulCounter.Load()
+				task := Task{
+					id:           taskCounter.Add(1),
+					creationTime: time.Now(),
 				}
-				tasksChan <- Task{creationTime: creationTime, id: id} // передаем таск на выполнение
+
+				if task.creationTime.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					task.result = taskCreationError
+				}
+				tasksChan <- task // передаем таск на выполнение
 			}
 		}()
 	}
