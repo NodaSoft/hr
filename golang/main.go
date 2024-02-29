@@ -66,13 +66,11 @@ func main() {
 	go taskCreator(tasksChan)
 
 	taskWorker := func(task Task) Task {
-		tt, _ := time.Parse(time.RFC3339, task.creationTime)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			task.err = []byte("task has been successed")
-		} else {
-			task.err = []byte("something went wrong")
+		tt := task.creationTime
+		if !tt.After(time.Now().Add(-20 * time.Second)) {
+			task.err = taskProcessingError
 		}
-		task.finishTime = time.Now().Format(time.RFC3339Nano)
+		task.finishTime = time.Now()
 
 		time.Sleep(time.Millisecond * 150)
 
