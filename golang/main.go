@@ -16,10 +16,10 @@ import (
 
 // A Task represents a meaninglessness of our life
 type Task struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	id           int
+	creationTime string // время создания
+	finishTime   string // время выполнения
+	taskResult   []byte
 }
 
 func main() {
@@ -30,7 +30,7 @@ func main() {
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 					ft = "Some error occured"
 				}
-				a <- Task{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- Task{creationTime: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 			}
 		}()
 	}
@@ -40,13 +40,13 @@ func main() {
 	go taskCreator(superChan)
 
 	taskWorker := func(a Task) Task {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
+		tt, _ := time.Parse(time.RFC3339, a.creationTime)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+			a.taskResult = []byte("task has been successed")
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			a.taskResult = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+		a.finishTime = time.Now().Format(time.RFC3339Nano)
 
 		time.Sleep(time.Millisecond * 150)
 
@@ -57,10 +57,10 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Task) {
-		if string(t.taskRESULT[14:]) == "successed" {
+		if string(t.taskResult[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.taskResult)
 		}
 	}
 
