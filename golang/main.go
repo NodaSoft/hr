@@ -16,7 +16,7 @@ import (
 
 // A Task represents a single task
 type Task struct {
-	id           int
+	id           int32
 	creationTime time.Time // время создания
 	finishTime   time.Time // время выполнения
 	taskResult   []byte
