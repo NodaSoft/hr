@@ -39,7 +39,7 @@ func main() {
 
 	go taskCreator(superChan)
 
-	task_worker := func(a Task) Task {
+	taskWorker := func(a Task) Task {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
 			a.taskRESULT = []byte("task has been successed")
@@ -67,7 +67,7 @@ func main() {
 	go func() {
 		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
+			t = taskWorker(t)
 			go tasksorter(t)
 		}
 		close(superChan)
