@@ -20,7 +20,7 @@ type Task struct {
 	id           int32
 	creationTime time.Time // время создания
 	finishTime   time.Time // время выполнения
-	taskResult   []byte
+	result       []byte
 }
 
 func main() {
@@ -49,9 +49,9 @@ func main() {
 	taskWorker := func(task Task) Task {
 		tt, _ := time.Parse(time.RFC3339, task.creationTime)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			task.taskResult = []byte("task has been successed")
+			task.result = []byte("task has been successed")
 		} else {
-			task.taskResult = []byte("something went wrong")
+			task.result = []byte("something went wrong")
 		}
 		task.finishTime = time.Now().Format(time.RFC3339Nano)
 
@@ -64,10 +64,10 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Task) {
-		if string(t.taskResult[14:]) == "successed" {
+		if string(t.result[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.taskResult)
+			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.result)
 		}
 	}
 
