@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -79,11 +80,11 @@ func main() {
 	}
 
 	doneTasks := make(chan Task)
-	undoneTasks := make(chan error)
+	taskErrors := make(chan error)
 
 	tasksSorter := func(t Task) {
 		if errors.As(t.err, &TaskError{}) {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
+			taskErrors <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
 		} else {
 			doneTasks <- t
 		}
@@ -100,19 +101,22 @@ func main() {
 
 	result := map[int32]Task{}
 	err := []error{}
+
+	ctx := context.Background()
+
 	go func() {
 		for r := range doneTasks {
 			go func() {
 				result[r.id] = r
 			}()
 		}
-		for r := range undoneTasks {
+		for r := range taskErrors {
 			go func() {
 				err = append(err, r)
 			}()
 		}
 		close(doneTasks)
-		close(undoneTasks)
+		close(taskErrors)
 	}()
 
 	time.Sleep(time.Second * 3)
