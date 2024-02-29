@@ -23,7 +23,7 @@ type Task struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Task) {
+	taskCreator := func(a chan Task) {
 		go func() {
 			for {
 				ft := time.Now().Format(time.RFC3339)
@@ -37,7 +37,7 @@ func main() {
 
 	superChan := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskCreator(superChan)
 
 	task_worker := func(a Task) Task {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
