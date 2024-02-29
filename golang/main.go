@@ -38,7 +38,7 @@ type Task struct {
 	id           int32
 	creationTime time.Time // время создания
 	finishTime   time.Time // время выполнения
-	result       TaskError
+	err          TaskError
 }
 
 func main() {
@@ -54,7 +54,7 @@ func main() {
 				}
 
 				if task.creationTime.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					task.result = taskCreationError
+					task.err = taskCreationError
 				}
 				tasksChan <- task // передаем таск на выполнение
 			}
@@ -68,9 +68,9 @@ func main() {
 	taskWorker := func(task Task) Task {
 		tt, _ := time.Parse(time.RFC3339, task.creationTime)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			task.result = []byte("task has been successed")
+			task.err = []byte("task has been successed")
 		} else {
-			task.result = []byte("something went wrong")
+			task.err = []byte("something went wrong")
 		}
 		task.finishTime = time.Now().Format(time.RFC3339Nano)
 
@@ -83,10 +83,10 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Task) {
-		if string(t.result[14:]) == "successed" {
+		if string(t.err[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.result)
+			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
 		}
 	}
 
