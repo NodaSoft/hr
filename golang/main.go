@@ -26,7 +26,7 @@ func NewTaskError(reason string) TaskError {
 }
 
 func (e TaskError) Error() string {
-	return fmt.Sprintf("", e.reason)
+	return fmt.Sprintf("%s", e.reason)
 }
 
 var (
@@ -81,7 +81,7 @@ func main() {
 	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Task) {
+	tasksSorter := func(t Task) {
 		if errors.As(t.err, &TaskError{}) {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
 		} else {
@@ -93,7 +93,7 @@ func main() {
 		// получение тасков
 		for t := range tasksChan {
 			t = taskWorker(t)
-			go tasksorter(t)
+			go tasksSorter(t)
 		}
 		close(tasksChan)
 	}()
