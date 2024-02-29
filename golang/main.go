@@ -14,11 +14,11 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
-// A Task represents a meaninglessness of our life
+// A Task represents a single task
 type Task struct {
 	id           int
-	creationTime string // время создания
-	finishTime   string // время выполнения
+	creationTime time.Time // время создания
+	finishTime   time.Time // время выполнения
 	taskResult   []byte
 }
 
