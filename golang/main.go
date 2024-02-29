@@ -98,7 +98,7 @@ func main() {
 		close(tasksChan)
 	}()
 
-	result := map[int]Task{}
+	result := map[int32]Task{}
 	err := []error{}
 	go func() {
 		for r := range doneTasks {
