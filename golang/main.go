@@ -15,12 +15,30 @@ import (
 // приложение эмулирует получение и обработку тасков, пытается и получать и обрабатывать в многопоточном режиме
 // В конце должно выводить успешные таски и ошибки выполнены остальных тасков
 
+// Custom TaskError for clarifying type of errors in Task
+type TaskError struct {
+	reason string
+}
+
+func NewTaskError(reason string) TaskError {
+	return TaskError{reason: reason}
+}
+
+func (e TaskError) Error() string {
+	return fmt.Sprintf("", e.reason)
+}
+
+var (
+	taskCreationError   = NewTaskError("Failed to create task")
+	taskProcessingError = NewTaskError("Failed to proccess task")
+)
+
 // A Task represents a single task
 type Task struct {
 	id           int32
 	creationTime time.Time // время создания
 	finishTime   time.Time // время выполнения
-	result       []byte
+	result       TaskError
 }
 
 func main() {
