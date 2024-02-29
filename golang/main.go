@@ -42,9 +42,9 @@ func main() {
 		}()
 	}
 
-	superChan := make(chan Task, 10)
+	tasksChan := make(chan Task, 10)
 
-	go taskCreator(superChan)
+	go taskCreator(tasksChan)
 
 	taskWorker := func(a Task) Task {
 		tt, _ := time.Parse(time.RFC3339, a.creationTime)
@@ -73,11 +73,11 @@ func main() {
 
 	go func() {
 		// получение тасков
-		for t := range superChan {
+		for t := range tasksChan {
 			t = taskWorker(t)
 			go tasksorter(t)
 		}
-		close(superChan)
+		close(tasksChan)
 	}()
 
 	result := map[int]Task{}
