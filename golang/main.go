@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -81,10 +82,10 @@ func main() {
 	undoneTasks := make(chan error)
 
 	tasksorter := func(t Task) {
-		if string(t.err[14:]) == "successed" {
-			doneTasks <- t
-		} else {
+		if errors.As(t.err, &TaskError{}) {
 			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
+		} else {
+			doneTasks <- t
 		}
 	}
 
