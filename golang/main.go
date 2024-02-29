@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,14 +24,20 @@ type Task struct {
 }
 
 func main() {
+	// Atomic value for holding amount of successfully created tasks, from which id's is generated
+	var successfulCounter atomic.Int32
+
 	taskCreator := func(a chan Task) {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+				// Set id to -1
+				var id int32 = -1
+				creationTime := time.Now()
+				if !(creationTime.Nanosecond()%2 > 0) { // вот такое условие появления ошибочных тасков
+					successfulCounter.Add(1)
+					id = successfulCounter.Load()
 				}
-				a <- Task{creationTime: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- Task{creationTime: creationTime, id: id} // передаем таск на выполнение
 			}
 		}()
 	}
