@@ -43,6 +43,7 @@ type Task struct {
 	err          TaskError
 }
 
+// Atomic value for holding amount of successfully created tasks, from which id's is generated
 var taskCounter atomic.Int32
 
 // Producer function for creating tasks
@@ -108,7 +109,6 @@ func tasksSorter(in chan Task, taskErrors chan error, doneTasks chan Task) {
 }
 
 func main() {
-	// Atomic value for holding amount of successfully created tasks, from which id's is generated
 
 	const numberOfTasks = 200
 	const lenOfBuf = 2
