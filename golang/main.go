@@ -125,25 +125,42 @@ func main() {
 	taskErrors := make(chan error, lenOfBuf)
 	go tasksSorter(processedTasks, taskErrors, doneTasks)
 
+	resultMutex := sync.Mutex{}
 	result := map[int32]Task{}
+
+	errMutex := sync.Mutex{}
 	err := []error{}
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for r := range doneTasks {
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
+				resultMutex.Lock()
 				result[r.id] = r
+				resultMutex.Unlock()
 			}()
 		}
-		for r := range taskErrors {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(taskErrors)
 	}()
 
-	time.Sleep(time.Second * 3)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for r := range taskErrors {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				errMutex.Lock()
+				err = append(err, r)
+				errMutex.Unlock()
+			}()
+		}
+	}()
+
+	wg.Wait()
 
 	println("Errors:")
 	for r := range err {
