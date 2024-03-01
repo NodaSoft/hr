@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -43,66 +43,90 @@ type Task struct {
 	err          TaskError
 }
 
+var taskCounter atomic.Int32
+
+// Producer function for creating tasks
+func taskCreator(tasksChan chan Task, numberOfTasks int32) {
+
+	for {
+		if taskCounter.Load() == numberOfTasks {
+			break
+		}
+		task := Task{
+			id:           taskCounter.Add(1),
+			creationTime: time.Now(),
+		}
+		if task.creationTime.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			println("taskProcessingError")
+
+			task.err = taskCreationError
+		}
+		tasksChan <- task // передаем таск на выполнение
+	}
+	close(tasksChan)
+}
+
+// Consumer function for processing tasks
+func tasksWorker(in chan Task, out chan Task) {
+	wg := sync.WaitGroup{}
+
+	for task := range in {
+		wg.Add(1)
+		go func(task Task) {
+			defer wg.Done()
+			tt := task.creationTime
+			if !tt.After(time.Now().Add(-20 * time.Second)) {
+				task.err = taskProcessingError
+			}
+			task.finishTime = time.Now()
+
+			time.Sleep(time.Millisecond * 150)
+			out <- task
+		}(task)
+	}
+	wg.Wait()
+	close(out)
+}
+
+// Tasks result sorter
+func tasksSorter(in chan Task, taskErrors chan error, doneTasks chan Task) {
+	wg := sync.WaitGroup{}
+	for t := range in {
+		wg.Add(1)
+		go func(t Task) {
+			defer wg.Done()
+			if errors.Is(t.err, &TaskError{}) {
+				taskErrors <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
+			} else {
+				doneTasks <- t
+			}
+		}(t)
+	}
+	wg.Wait()
+	close(doneTasks)
+	close(taskErrors)
+}
+
 func main() {
 	// Atomic value for holding amount of successfully created tasks, from which id's is generated
-	var taskCounter atomic.Int32
 
-	taskCreator := func(tasksChan chan Task) {
-		go func() {
-			for {
-				task := Task{
-					id:           taskCounter.Add(1),
-					creationTime: time.Now(),
-				}
+	const numberOfTasks = 200
+	const lenOfBuf = 2
 
-				if task.creationTime.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					task.err = taskCreationError
-				}
-				tasksChan <- task // передаем таск на выполнение
-			}
-		}()
-	}
+	tasksChan := make(chan Task, lenOfBuf)
 
-	tasksChan := make(chan Task, 10)
+	go taskCreator(tasksChan, numberOfTasks)
 
-	go taskCreator(tasksChan)
+	processedTasks := make(chan Task, lenOfBuf)
 
-	taskWorker := func(task Task) Task {
-		tt := task.creationTime
-		if !tt.After(time.Now().Add(-20 * time.Second)) {
-			task.err = taskProcessingError
-		}
-		task.finishTime = time.Now()
+	go tasksWorker(tasksChan, processedTasks)
 
-		time.Sleep(time.Millisecond * 150)
-
-		return task
-	}
-
-	doneTasks := make(chan Task)
-	taskErrors := make(chan error)
-
-	tasksSorter := func(t Task) {
-		if errors.As(t.err, &TaskError{}) {
-			taskErrors <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.creationTime, t.err)
-		} else {
-			doneTasks <- t
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range tasksChan {
-			t = taskWorker(t)
-			go tasksSorter(t)
-		}
-		close(tasksChan)
-	}()
+	doneTasks := make(chan Task, lenOfBuf)
+	taskErrors := make(chan error, lenOfBuf)
+	go tasksSorter(processedTasks, taskErrors, doneTasks)
 
 	result := map[int32]Task{}
 	err := []error{}
-
-	ctx := context.Background()
 
 	go func() {
 		for r := range doneTasks {
