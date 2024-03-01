@@ -110,8 +110,8 @@ func tasksSorter(in chan Task, taskErrors chan error, doneTasks chan Task) {
 
 func main() {
 
-	const numberOfTasks = 200
-	const lenOfBuf = 2
+	const numberOfTasks = 4000
+	const lenOfBuf = 20
 
 	tasksChan := make(chan Task, lenOfBuf)
 
@@ -129,46 +129,46 @@ func main() {
 	result := map[int32]Task{}
 
 	errMutex := sync.Mutex{}
-	err := []error{}
+	errors := []error{}
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for r := range doneTasks {
+		for task := range doneTasks {
 			wg.Add(1)
-			go func() {
+			go func(t Task) {
 				defer wg.Done()
 				resultMutex.Lock()
-				result[r.id] = r
+				result[t.id] = t
 				resultMutex.Unlock()
-			}()
+			}(task)
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for r := range taskErrors {
+		for err := range taskErrors {
 			wg.Add(1)
-			go func() {
+			go func(e error) {
 				defer wg.Done()
 				errMutex.Lock()
-				err = append(err, r)
+				errors = append(errors, e)
 				errMutex.Unlock()
-			}()
+			}(err)
 		}
 	}()
 
 	wg.Wait()
 
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for err := range errors {
+		println(err)
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for res := range result {
+		println(res)
 	}
 }
