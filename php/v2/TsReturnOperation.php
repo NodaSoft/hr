@@ -2,38 +2,39 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+include_once('func.php');
 class TsReturnOperation extends ReferencesOperation
 {
-    public const TYPE_NEW    = 1;
+    public const TYPE_NEW = 1;
     public const TYPE_CHANGE = 2;
 
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): array
     {
         $data = (array)$this->getRequest('data');
-        $resellerId = $data['resellerId'];
+        $resellerId = (int)$data['resellerId'];
         $notificationType = (int)$data['notificationType'];
         $result = [
             'notificationEmployeeByEmail' => false,
             'notificationClientByEmail'   => false,
             'notificationClientBySms'     => [
                 'isSent'  => false,
-                'message' => '',
-            ],
+                'message' => ''
+            ]
         ];
 
-        if (empty((int)$resellerId)) {
+        if (empty($resellerId)) {
             $result['notificationClientBySms']['message'] = 'Empty resellerId';
             return $result;
         }
 
-        if (empty((int)$notificationType)) {
+        if (empty($notificationType)) {
             throw new \Exception('Empty notificationType', 400);
         }
 
-        $reseller = Seller::getById((int)$resellerId);
+        $reseller = Seller::getById($resellerId);
         if ($reseller === null) {
             throw new \Exception('Seller not found!', 400);
         }
@@ -64,7 +65,7 @@ class TsReturnOperation extends ReferencesOperation
         } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
             $differences = __('PositionStatusHasChanged', [
                     'FROM' => Status::getName((int)$data['differences']['from']),
-                    'TO'   => Status::getName((int)$data['differences']['to']),
+                    'TO'   => Status::getName((int)$data['differences']['to'])
                 ], $resellerId);
         }
 
@@ -81,7 +82,7 @@ class TsReturnOperation extends ReferencesOperation
             'CONSUMPTION_NUMBER' => (string)$data['consumptionNumber'],
             'AGREEMENT_NUMBER'   => (string)$data['agreementNumber'],
             'DATE'               => (string)$data['date'],
-            'DIFFERENCES'        => $differences,
+            'DIFFERENCES'        => $differences
         ];
 
         // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
@@ -96,6 +97,7 @@ class TsReturnOperation extends ReferencesOperation
         $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
+                //Стоит вынести в одельную функцию
                 MessagesClient::sendMessage([
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
@@ -112,6 +114,7 @@ class TsReturnOperation extends ReferencesOperation
         // Шлём клиентское уведомление, только если произошла смена статуса
         if ($notificationType === self::TYPE_CHANGE && !empty($data['differences']['to'])) {
             if (!empty($emailFrom) && !empty($client->email)) {
+                //Стоит вынести в одельную функцию
                 MessagesClient::sendMessage([
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
@@ -124,6 +127,7 @@ class TsReturnOperation extends ReferencesOperation
             }
 
             if (!empty($client->mobile)) {
+                //Не определен $error
                 $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
                 if ($res) {
                     $result['notificationClientBySms']['isSent'] = true;
