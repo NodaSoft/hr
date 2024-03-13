@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -22,83 +24,162 @@ type Ttype struct {
 	taskRESULT []byte
 }
 
+func (t Ttype) String() string {
+	return fmt.Sprintf(
+		"ID: %d, start: %s, finish: %s, message: %s",
+		t.id, t.cT, t.fT, string(t.taskRESULT),
+	)
+}
+
+func isOccurredTask(task Ttype) bool {
+	_, err := time.Parse(time.RFC3339, task.cT)
+
+	return err != nil
+}
+
+func isWrongTask(task Ttype) bool {
+	return string(task.taskRESULT[14:]) != "successed"
+}
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+	producer := NewProducer()
+	ch := producer.Run()
+
+	aggregated := NewTaskAggregated()
+	worker := NewTaskWorker(2, aggregated)
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		producer.Stop()
+	}()
+
+	worker.Run(ch)
+
+	for _, task := range aggregated.Success() {
+		fmt.Println(task)
 	}
 
-	superChan := make(chan Ttype, 10)
+	for _, err := range aggregated.Errors() {
+		fmt.Println(err)
+	}
+}
 
-	go taskCreturer(superChan)
+type Producer struct {
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+}
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+func NewProducer() *Producer {
+	return &Producer{}
+}
+
+func (p *Producer) Run() <-chan Ttype {
+	p.ctx, p.cancelFunc = context.WithCancel(context.Background())
+	ch := make(chan Ttype, 10)
+
+	go func() {
+		i := 0
+		for {
+			select {
+			case <-p.ctx.Done():
+				close(ch)
+
+				return
+			default:
+				i++
+				ft := time.Now().Format(time.RFC3339)
+				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					ft = "Some error occurred"
+				}
+
+				ch <- Ttype{cT: ft, id: i} // передаем таск на выполнение
+			}
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	}()
+
+	return ch
+}
+
+func (p *Producer) Stop() {
+	p.cancelFunc()
+}
+
+type TaskWorker struct {
+	countThreads   int
+	taskAggregated *TaskAggregated
+	wg             sync.WaitGroup
+}
+
+func NewTaskWorker(countThreads int, taskAggregated *TaskAggregated) *TaskWorker {
+	return &TaskWorker{
+		countThreads:   countThreads,
+		taskAggregated: taskAggregated,
+		wg:             sync.WaitGroup{},
+	}
+}
+
+func (t *TaskWorker) Run(ch <-chan Ttype) {
+	t.wg.Add(t.countThreads)
+
+	for i := 0; i < t.countThreads; i++ {
+		go t.runThread(ch)
+	}
+
+	t.wg.Wait()
+}
+
+func (t *TaskWorker) runThread(ch <-chan Ttype) {
+	for task := range ch {
+		if isOccurredTask(task) {
+			task.taskRESULT = []byte("something went wrong")
+		} else {
+			task.taskRESULT = []byte("task has been successed")
+		}
+
+		task.fT = time.Now().Format(time.RFC3339Nano)
 
 		time.Sleep(time.Millisecond * 150)
 
-		return a
+		t.taskAggregated.AddTask(task)
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	t.wg.Done()
+}
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+type TaskAggregated struct {
+	successTask []Ttype
+	errors      []error
+	mutex       sync.Mutex
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+func NewTaskAggregated() *TaskAggregated {
+	return &TaskAggregated{
+		successTask: make([]Ttype, 0),
+		errors:      make([]error, 0),
 	}
 }
+
+func (t *TaskAggregated) AddTask(task Ttype) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	if isWrongTask(task) {
+		t.errors = append(
+			t.errors,
+			fmt.Errorf("task id: %d time: %s, error: %s", task.id, task.cT, task.taskRESULT),
+		)
+
+		return
+	}
+
+	t.successTask = append(t.successTask, task)
+}
+
+func (t *TaskAggregated) Success() []Ttype {
+	return t.successTask
+}
+
+func (t *TaskAggregated) Errors() []error {
+	return t.errors
+}
+
