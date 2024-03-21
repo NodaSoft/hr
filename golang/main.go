@@ -17,7 +17,7 @@ import (
 // В конце должно выводить успешные таски и ошибки выполнения остальных тасков
 
 const (
-	TasksCount   = 1100
+	TasksCount   = 10
 	WorkersCount = 5
 	TimeFormat   = "02.01.2006 15:04:05"
 )
