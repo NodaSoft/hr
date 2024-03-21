@@ -4,6 +4,7 @@ namespace NW\WebService\References\Operations\Notification;
 
 /**
  * @property Seller $Seller
+ * @property $email
  */
 class Contractor
 {
@@ -42,18 +43,9 @@ class Status
             1 => 'Pending',
             2 => 'Rejected',
         ];
+        if(!isset($a[$id]))throw new \Exception('Different not found!', 400);
 
         return $a[$id];
-    }
-}
-
-abstract class ReferencesOperation
-{
-    abstract public function doOperation(): array;
-
-    public function getRequest($pName)
-    {
-        return $_REQUEST[$pName];
     }
 }
 
@@ -66,10 +58,4 @@ function getEmailsByPermit($resellerId, $event)
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
-}
-
-class NotificationEvents
-{
-    const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
 }
