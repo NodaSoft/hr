@@ -59,6 +59,7 @@ func main() {
 	doneResults := []string{}
 	failedErrors := []error{}
 	wg := sync.WaitGroup{}
+	mutex := sync.Mutex{}
 
 	for i := 1; i <= WorkersCount; i++ {
 		wg.Add(1)
@@ -67,11 +68,13 @@ func main() {
 			// получение тасков
 			for t := range tasksChan {
 				t = taskWorker(t)
+				mutex.Lock()
 				if t.errorOccured == nil {
 					doneResults = append(doneResults, fmt.Sprintf("Task ID: %d Time: %s Result: \"%s\" CompletionTime: %d milliseconds", t.id, t.createTime.Format(TimeFormat), t.taskResult, t.completionTime.Milliseconds()))
 				} else {
 					failedErrors = append(failedErrors, fmt.Errorf("Task ID: %d Time: %s Error: \"%s\" Result: \"%s\"", t.id, t.createTime.Format(TimeFormat), t.errorOccured.Error(), t.taskResult))
 				}
+				mutex.Unlock()
 			}
 		}()
 	}
@@ -87,4 +90,6 @@ func main() {
 	for _, e := range failedErrors {
 		println(e.Error())
 	}
+
+	println(len(doneResults) + len(failedErrors))
 }
