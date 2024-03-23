@@ -2,6 +2,26 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+
+//Напишем функцию для получения экземпляров классов по id
+//с проверкой на данных в запрос + проверка на валидность id
+function getMemberById($ClassName, $id)  
+{
+    if(!class_exists($ClassName)) {
+        throw new \Exception('Unknown class ' . $ClassName, 400);
+    }
+
+    if (empty((int)$id)) {
+            throw new \Exception('Empty Id for' . $ClassName , 401); 
+        }
+    $member = $ClassName::getById((int)$id);
+    if ($member === null ) {
+        throw new \Exception('member of ' . $ClassName .  "not found!", 402);
+    }
+    return $member;
+
+}
+
 class TsReturnOperation extends ReferencesOperation
 {
     public const TYPE_NEW    = 1;
@@ -13,7 +33,6 @@ class TsReturnOperation extends ReferencesOperation
     public function doOperation(): void
     {
         $data = (array)$this->getRequest('data');
-        $resellerId = $data['resellerId'];
         $notificationType = (int)$data['notificationType'];
         $result = [
             'notificationEmployeeByEmail' => false,
@@ -24,44 +43,21 @@ class TsReturnOperation extends ReferencesOperation
             ],
         ];
 
-        if (empty((int)$resellerId)) {
-            $result['notificationClientBySms']['message'] = 'Empty resellerId';
-            return $result;
-        }
 
         if (empty((int)$notificationType)) {
-            throw new \Exception('Empty notificationType', 400);
+            throw new \Exception('Empty notificationType', 403);// Делаем для каждой ошибки уникальный код
         }
+        $reseller = getMemberById("Seller", $data['resellerId']);
+        $client = getMemberById("Contractor", $data['clientId']);
+        $creator = getMemberById("Employee", $data['creatorId']);
+        $expert = getMemberById("Employee", $data['expertId']);
 
-        $reseller = Seller::getById((int)$resellerId);
-        if ($reseller === null) {
-            throw new \Exception('Seller not found!', 400);
-        }
-
-        $client = Contractor::getById((int)$data['clientId']);
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
-            throw new \Exception('сlient not found!', 400);
-        }
-
-        $cFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $cFullName = $client->name;
-        }
-
-        $cr = Employee::getById((int)$data['creatorId']);
-        if ($cr === null) {
-            throw new \Exception('Creator not found!', 400);
-        }
-
-        $et = Employee::getById((int)$data['expertId']);
-        if ($et === null) {
-            throw new \Exception('Expert not found!', 400);
-        }
-
+        
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
+            $differences = __('NewPositionAdded', null, $reseller->id);
         } elseif ($notificationType === self::TYPE_CHANGE && !empty($data['differences'])) {
+
             $differences = __('PositionStatusHasChanged', [
                     'FROM' => Status::getName((int)$data['differences']['from']),
                     'TO'   => Status::getName((int)$data['differences']['to']),
@@ -72,11 +68,11 @@ class TsReturnOperation extends ReferencesOperation
             'COMPLAINT_ID'       => (int)$data['complaintId'],
             'COMPLAINT_NUMBER'   => (string)$data['complaintNumber'],
             'CREATOR_ID'         => (int)$data['creatorId'],
-            'CREATOR_NAME'       => $cr->getFullName(),
+            'CREATOR_NAME'       => $creator->getFullName(),
             'EXPERT_ID'          => (int)$data['expertId'],
-            'EXPERT_NAME'        => $et->getFullName(),
+            'EXPERT_NAME'        => $expert->getFullName(),
             'CLIENT_ID'          => (int)$data['clientId'],
-            'CLIENT_NAME'        => $cFullName,
+            'CLIENT_NAME'        => $client->getFullName(),
             'CONSUMPTION_ID'     => (int)$data['consumptionId'],
             'CONSUMPTION_NUMBER' => (string)$data['consumptionNumber'],
             'AGREEMENT_NUMBER'   => (string)$data['agreementNumber'],
@@ -91,19 +87,19 @@ class TsReturnOperation extends ReferencesOperation
             }
         }
 
-        $emailFrom = getResellerEmailFrom($resellerId);
+        $emailFrom = getResellerEmailFrom($reseller->id);
         // Получаем email сотрудников из настроек
-        $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
+        $emails = getEmailsByPermit($reseller->id, 'tsGoodsReturn');
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
                 MessagesClient::sendMessage([
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $email,
-                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
+                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $reseller->id),
+                           'message'   => __('complaintEmployeeEmailBody', $templateData, $reseller->id),
                     ],
-                ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
+                ], $reseller->id, NotificationEvents::CHANGE_RETURN_STATUS);
                 $result['notificationEmployeeByEmail'] = true;
 
             }
@@ -116,15 +112,15 @@ class TsReturnOperation extends ReferencesOperation
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $client->email,
-                           'subject'   => __('complaintClientEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
+                           'subject'   => __('complaintClientEmailSubject', $templateData, $reseller->id),
+                           'message'   => __('complaintClientEmailBody', $templateData, $reseller->id),
                     ],
                 ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to']);
                 $result['notificationClientByEmail'] = true;
             }
 
             if (!empty($client->mobile)) {
-                $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
+                $res = NotificationManager::send($reseller->id, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$data['differences']['to'], $templateData, $error);
                 if ($res) {
                     $result['notificationClientBySms']['isSent'] = true;
                 }
