@@ -10,10 +10,10 @@ use src\Operation\Application\Exceptions\ClientNotFoundException;
 use src\Operation\Application\Exceptions\ContractorNotFoundException;
 use src\Operation\Application\Exceptions\EmployeeNotFoundException;
 use src\Operation\Application\Exceptions\SellerNotFoundException;
+use src\Operation\Domain\Enum\NotificationType;
 use src\Operation\Infrastructure\Adapters\ContractorAdapter;
 use src\Operation\Infrastructure\Adapters\EmployeeAdapter;
 use src\Operation\Infrastructure\Adapters\SellerAdapter;
-use src\Operation\Infrastructure\Domain\Enum\NotificationType;
 
 final class OperationService
 {

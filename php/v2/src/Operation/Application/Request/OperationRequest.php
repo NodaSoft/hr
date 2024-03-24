@@ -3,7 +3,7 @@
 namespace src\Operation\Application\Request;
 
 use src\Operation\Application\Exceptions\ValidationException;
-use src\Operation\Infrastructure\Domain\Enum\NotificationType;
+use src\Operation\Domain\Enum\NotificationType;
 
 class OperationRequest
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace src\Operation\Infrastructure\Domain\Enum;
+namespace src\Operation\Domain\Enum;
 
 enum ContractorType: int
 {

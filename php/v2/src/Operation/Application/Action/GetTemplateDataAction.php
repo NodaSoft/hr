@@ -6,8 +6,8 @@ use Src\Operation\Application\DataTransferObject\ContractorData;
 use Src\Operation\Application\DataTransferObject\EmployeeData;
 use Src\Operation\Application\DataTransferObject\OperationData;
 use Src\Operation\Application\DataTransferObject\SellerData;
-use src\Operation\Infrastructure\Domain\Enum\NotificationType;
-use src\Operation\Infrastructure\Domain\Enum\PositionStatus;
+use src\Operation\Domain\Enum\NotificationType;
+use src\Operation\Domain\Enum\PositionStatus;
 
 class GetTemplateDataAction
 {

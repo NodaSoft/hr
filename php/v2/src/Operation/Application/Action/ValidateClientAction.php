@@ -5,7 +5,7 @@ namespace Src\Operation\Application\Action;
 use Src\Operation\Application\DataTransferObject\ContractorData;
 use Src\Operation\Application\DataTransferObject\SellerData;
 use src\Operation\Application\Exceptions\ClientNotFoundException;
-use src\Operation\Infrastructure\Domain\Enum\ContractorType;
+use src\Operation\Domain\Enum\ContractorType;
 
 class ValidateClientAction
 {
