@@ -1,0 +1,8 @@
+{
+    "name": "israil/v2",
+    "autoload": {
+        "psr-4": {
+            "Israil\\V2\\": "src/"
+        }
+    }
+}
