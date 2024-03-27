@@ -1,0 +1,16 @@
+version: '3.8'
+
+
+services:
+  workspace:
+    container_name: test-workspace
+    build:
+      context: ./docker/workspace
+      args:
+        - PUID=${PUID}
+        - PGID=${PGID}
+        - http_proxy
+        - https_proxy
+        - no_proxy
+    volumes:
+      - ./:/var/www
