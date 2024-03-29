@@ -1,5 +1,5 @@
 <?php
-
+// PHP 8.1
 namespace NW\WebService\References\Operations\Notification;
 
 /**
@@ -11,8 +11,14 @@ class Contractor
     public $id;
     public $type;
     public $name;
-
-    public static function getById(int $resellerId): self
+    private bool $mobile = false;
+    public ?string $email = null;
+    /**
+     * @param int $resellerId
+     *
+     * @return static|null
+     */
+    public static function getById(int $resellerId): ?self
     {
         return new self($resellerId); // fakes the getById method
     }
@@ -20,6 +26,21 @@ class Contractor
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
+    }
+
+    public function hasFullName(): bool
+    {
+        return !empty($this->name);
+    }
+
+    public function isMobile(): bool
+    {
+        return $this->mobile;
+    }
+
+    public function hasEmail():bool
+    {
+        return !empty($this->email);
     }
 }
 
@@ -33,17 +54,30 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
-
+    private static $statusEnum = [
+        0 => 'Completed',
+        1 => 'Pending',
+        2 => 'Rejected',
+    ];
+    /**
+     * @param int $id
+     *
+     * @return string
+     * @throws \Exception
+     */
     public static function getName(int $id): string
     {
-        $a = [
-            0 => 'Completed',
-            1 => 'Pending',
-            2 => 'Rejected',
-        ];
+        if(!isset(self::$statusEnum[$id]))
+        {
+            throw new \Exception("Неверный статус");
+        }
 
-        return $a[$id];
+        return self::$statusEnum[$id];
+    }
+
+    public static function isValid(int $id): bool
+    {
+        return isset(self::$statusEnum[$id]);
     }
 }
 
@@ -53,16 +87,16 @@ abstract class ReferencesOperation
 
     public function getRequest($pName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$pName] ?? null;
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(int $resellerId): ?string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit($resellerId, $event): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
