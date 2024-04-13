@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,91 +17,109 @@ import (
 // Должно выводить успешные таски и ошибки по мере выполнения.
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type result string
+
+const (
+	unknown            result = ""
+	succeeded          result = "succeeded"
+	errorOccurred      result = "some error occurred"
+	somethingWentWrong result = "something went wrong"
+)
+
+// Task represents a meaninglessness of our life
+type Task struct {
+	id            int
+	creationTime  time.Time // время создания
+	executionTime time.Time // время выполнения
+	result
+}
+
+func taskCreaturer(ctx context.Context, ch chan Task) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(ch)
+			return
+		default:
+			t := Task{
+				id:           int(time.Now().Unix()),
+				creationTime: time.Now().UTC(),
+			}
+
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				t.result = errorOccurred
+			}
+			ch <- t // передаем таск на выполнение
+			time.Sleep(time.Millisecond * 150)
+		}
+	}
+}
+
+func taskWorker(t Task) Task {
+	if t.result == unknown && t.creationTime.After(time.Now().UTC().Add(time.Second*-20)) {
+		t.result = succeeded
+	} else if t.result == unknown {
+		t.result = somethingWentWrong
+	}
+	t.executionTime = time.Now().UTC()
+	return t
+}
+
+func taskSorter(t Task, doneTasks chan Task, undoneTasks chan error) {
+	if t.result == succeeded {
+		doneTasks <- t
+	} else {
+		undoneTasks <- fmt.Errorf("task id %d time %s, error %s", t.id, t.creationTime.Format(time.RFC3339), t.result)
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
 
-	superChan := make(chan Ttype, 10)
+	superChan := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskCreaturer(ctx, superChan)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
+	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
 
 	go func() {
 		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+			t = taskWorker(t)
+			taskSorter(t, doneTasks, undoneTasks)
 		}
 		close(doneTasks)
 		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	resultDoneTasks := map[int]Task{}
+	var errs []error
+
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for t := range doneTasks {
+			resultDoneTasks[t.id] = t
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for err := range undoneTasks {
+			errs = append(errs, err)
+		}
+	}()
+	wg.Wait()
 
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, err := range errs {
+		println(err.Error())
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for id := range resultDoneTasks {
+		println(id)
 	}
 }
