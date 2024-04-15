@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -16,90 +18,168 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
-}
+type (
+	Ttype struct {
+		id         int
+		cT         string // время создания
+		taskRESULT string
+	}
+
+	taskMap struct {
+		mu    sync.RWMutex
+		tasks map[int]Ttype
+	}
+
+	errs struct {
+		mu     sync.RWMutex
+		errors []error
+	}
+)
+
+const (
+	taskSuccess = "success"
+	taskFailed  = "failed"
+)
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	tasksCh := make(chan Ttype, 10)
+
+	go createWorker(ctx, tasksCh)
+
+	doneTasksCh := make(chan Ttype)
+	undoneTasksCh := make(chan error)
+
+	go taskSorter(ctx, tasksCh, doneTasksCh, undoneTasksCh)
+
+	result := &taskMap{
+		tasks: make(map[int]Ttype),
+	}
+	e := errs{
+		errors: make([]error, 0),
+	}
+
+	go doneReader(doneTasksCh, result)
+	go undoneReader(undoneTasksCh, &e)
+
+	<-ctx.Done()
+
+	fmt.Println("Errors:")
+	for _, err := range e.read() {
+		fmt.Println(err)
+	}
+
+	fmt.Println("Tasks:")
+	for _, task := range result.readAll() {
+		fmt.Println(task)
+	}
+}
+
+func (t *taskMap) write(key int, value Ttype) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.tasks[key] = value
+}
+
+func (t *taskMap) read(key int) Ttype {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	return t.tasks[key]
+}
+
+func (t *taskMap) readAll() []Ttype {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	tasks := make([]Ttype, 0, len(t.tasks))
+
+	for _, task := range t.tasks {
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
+func (e *errs) write(err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.errors = append(e.errors, err)
+}
+
+func (e *errs) read() []error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.errors
+}
+
+func createWorker(ctx context.Context, ch chan Ttype) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(ch)
+
+			return
+		default:
+			ft := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				ft = "Some error occured"
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			ch <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+func taskSorter(ctx context.Context, tasksChan, doneCh chan Ttype, undoneCh chan error) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(doneCh)
+			close(undoneCh)
+
+			return
+		case t, ok := <-tasksChan:
+			if !ok {
+				return
+			}
+
+			t = taskResult(t)
+
+			if t.taskRESULT == taskSuccess {
+				doneCh <- t
+			} else {
+				undoneCh <- fmt.Errorf("task id %d time %s, result %s", t.id, t.cT, t.taskRESULT)
+			}
 		}
-		close(superChan)
-	}()
+	}
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskResult(task Ttype) Ttype {
+	tt, _ := time.Parse(time.RFC3339, task.cT)
+	if tt.After(time.Now().Add(-20 * time.Second)) {
+		task.taskRESULT = taskSuccess
+	} else {
+		task.taskRESULT = taskFailed
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	time.Sleep(time.Millisecond * 150)
+
+	return task
+}
+
+func doneReader(doneTasksCh chan Ttype, taskMap *taskMap) {
+	for r := range doneTasksCh {
+		taskMap.write(r.id, r)
+	}
+}
+
+func undoneReader(undoneTasksCh chan error, e *errs) {
+	for err := range undoneTasksCh {
+		e.write(err)
 	}
 }
