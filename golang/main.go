@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,91 +18,196 @@ import (
 // Должно выводить успешные таски и ошибки по мере выполнения.
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+const (
+	taskProducerCount = 8
+	taskWorkerCount   = 4
+	simulationSeconds = 3
+)
+
+// A task represents a meaninglessness of our life
+type task struct {
+	id          int
+	createTime  time.Time
+	processTime time.Duration
+	err         error
+}
+
+// Abstract sequence of task identifiers
+type taskIdSequence interface {
+	NextId() int
+}
+
+// In-memory implementation of a sequence of task identifiers
+type taskIdSequenceInMemory struct {
+	id atomic.Int32
+}
+
+func newTaskIdSequence() taskIdSequence {
+	// TODO: implement a persistent version or switch to uuid
+	return &taskIdSequenceInMemory{}
+}
+
+func (s *taskIdSequenceInMemory) NextId() int {
+	return int(s.id.Add(1))
+}
+
+// Task producer generates tasks and writes them to a channel
+type taskProducer struct {
+	tasks  chan<- task
+	tidseq taskIdSequence
+}
+
+func newTaskProducer(tidseq taskIdSequence, tasks chan<- task) taskProducer {
+	return taskProducer{
+		tasks:  tasks,
+		tidseq: tidseq,
+	}
+}
+
+func (p *taskProducer) run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			curtime := time.Now()
+			if curtime.Nanosecond()%2 > 0 {
+				// simulation of incorrect task
+				curtime = time.Time{}
+			}
+			p.tasks <- task{
+				id:         p.tidseq.NextId(),
+				createTime: curtime,
+			}
+		}
+	}
+}
+
+// Task worker processes tasks from a channel and writes them to another
+type taskWorker struct {
+	pendingTasks   <-chan task
+	processedTasks chan<- task
+}
+
+func newTaskWorker(pendingTasks <-chan task, completedTasks chan<- task) taskWorker {
+	return taskWorker{
+		pendingTasks:   pendingTasks,
+		processedTasks: completedTasks,
+	}
+}
+
+func (c *taskWorker) run() {
+	for task := range c.pendingTasks {
+		if task.createTime.IsZero() {
+			task.err = fmt.Errorf("task creation time is zero")
+		} else {
+			curtime := time.Now()
+			if task.createTime.After(curtime.Add(-20 * time.Second)) {
+				task.processTime = curtime.Sub(task.createTime)
+			} else {
+				task.err = fmt.Errorf("something went wrong")
+			}
+		}
+		time.Sleep(time.Millisecond * 150)
+		c.processedTasks <- task
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	tidseq := newTaskIdSequence()
+	tasks := make(chan task)
+	producerWaitGroup := sync.WaitGroup{}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*simulationSeconds))
+	defer cancel()
+	for i := 0; i < taskProducerCount; i++ {
+		producerWaitGroup.Add(1)
 		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
+			defer producerWaitGroup.Done()
+			producer := newTaskProducer(tidseq, tasks)
+			producer.run(ctx)
 		}()
 	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
+		producerWaitGroup.Wait()
+		close(tasks)
 	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
+	workerWaitGroup := sync.WaitGroup{}
+	processedTasks := make(chan task)
+	for i := 0; i < taskWorkerCount; i++ {
+		workerWaitGroup.Add(1)
+		go func() {
+			defer workerWaitGroup.Done()
+			worker := newTaskWorker(tasks, processedTasks)
+			worker.run()
+		}()
+	}
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+		workerWaitGroup.Wait()
+		close(processedTasks)
 	}()
-
-	time.Sleep(time.Second * 3)
-
+	successedTasks := make(chan task)
+	failedTasks := make(chan task)
+	taskSorterWaitGroup := sync.WaitGroup{}
+	taskSorterWaitGroup.Add(1)
+	go func() {
+		defer taskSorterWaitGroup.Done()
+		for t := range processedTasks {
+			taskSorterWaitGroup.Add(1)
+			go func(t task) {
+				defer taskSorterWaitGroup.Done()
+				if t.err == nil {
+					successedTasks <- t
+				} else {
+					failedTasks <- t
+				}
+			}(t)
+		}
+	}()
+	go func() {
+		taskSorterWaitGroup.Wait()
+		close(successedTasks)
+		close(failedTasks)
+	}()
+	successedTasksMap := make(map[int]task)
+	successedTasksMutex := sync.Mutex{}
+	failedTasksArr := []task{}
+	failedTasksMutex := sync.Mutex{}
+	taskConsumerWaitGroup := sync.WaitGroup{}
+outer:
+	for {
+		select {
+		case t, ok := <-successedTasks:
+			if !ok {
+				break outer
+			}
+			taskConsumerWaitGroup.Add(1)
+			go func(t task) {
+				defer taskConsumerWaitGroup.Done()
+				successedTasksMutex.Lock()
+				successedTasksMap[t.id] = t
+				successedTasksMutex.Unlock()
+			}(t)
+		case t, ok := <-failedTasks:
+			if !ok {
+				break outer
+			}
+			taskConsumerWaitGroup.Add(1)
+			go func(t task) {
+				defer taskConsumerWaitGroup.Done()
+				failedTasksMutex.Lock()
+				failedTasksArr = append(failedTasksArr, t)
+				failedTasksMutex.Unlock()
+			}(t)
+		}
+	}
+	taskConsumerWaitGroup.Wait()
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, t := range failedTasksArr {
+		fmt.Printf("\tTask id %d time %s, error: %s\n", t.id, t.createTime.Format(time.RFC3339Nano), t.err)
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for t := range successedTasksMap {
+		fmt.Printf("\t%v\n", t)
 	}
 }
