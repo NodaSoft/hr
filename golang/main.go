@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -20,57 +22,72 @@ import (
 type Task struct {
 	Id           int
 	CreationTime string // время создания
-	StartTime    string // время выполнения
+	FullfullTime string // время выполнения
 	Error        error
 	Result       []byte
 }
 
 func main() {
-	taskCreator := func(out chan<- Task) {
+	taskCreator := func(out chan<- Task, stop context.Context, wg *sync.WaitGroup) {
+		defer wg.Done()
+
 		var id int = 0
 
 		for {
-			var err error = nil
-			ft := time.Now().Format(time.RFC3339)
+			select {
+			case <-stop.Done():
+				return
+			default:
+				var err error = nil
+				ft := time.Now().Format(time.RFC3339)
 
-			// time.Now().Nanosecond()%2 > 0, у меня всегда возвращал false
-			if (time.Now().Nanosecond()/1000)%2 > 0 {
-				err = errors.New("Some error occured")
-			}
+				// time.Now().Nanosecond()%2 > 0, у меня всегда возвращал false
+				if (time.Now().Nanosecond()/1000)%2 > 0 {
+					err = errors.New("Some error occured")
+				}
 
-			id += 1
-			out <- Task{
-				CreationTime: ft,
-				Error:        err,
-				Id:           id,
+				id += 1
+				out <- Task{
+					CreationTime: ft,
+					Error:        err,
+					Id:           id,
+				}
 			}
 		}
 	}
 
-	taskWorker := func(input <-chan Task, done chan<- Task, errChan chan<- error) {
+	taskWorker := func(input <-chan Task, done chan<- Task, errChan chan<- error, stop context.Context, wg *sync.WaitGroup) {
+		defer wg.Done()
+
 		for {
-			task := <-input
+			select {
+			case <-stop.Done():
+				return
+			default:
+				task := <-input
 
-			if task.Error != nil {
-				errChan <- fmt.Errorf("Task id [%d] time [%s], error [%s]", task.Id, task.CreationTime, task.Error.Error())
-				continue
+				time.Sleep(time.Millisecond * 150)
+
+				if task.Error != nil {
+					errChan <- fmt.Errorf("Task id [%d] time [%s], error [%s]", task.Id, task.CreationTime, task.Error.Error())
+					continue
+				}
+
+				creationTime, err := time.Parse(time.RFC3339, task.CreationTime)
+				if err != nil { // Немного бессмысленно, но пусть будет
+					errChan <- fmt.Errorf("Task id [%d] time [%s], error [%s]", task.Id, task.CreationTime, task.Error.Error())
+					continue
+				}
+
+				if creationTime.After(time.Now().Add(-20 * time.Second)) {
+					task.Result = []byte("task has been successed")
+				} else {
+					task.Result = []byte("something went wrong")
+				}
+				task.FullfullTime = time.Now().Format(time.RFC3339Nano)
+
+				done <- task
 			}
-
-			creationTime, err := time.Parse(time.RFC3339, task.CreationTime)
-			if err != nil { // Немного бессмысленно, но пусть будет
-				errChan <- fmt.Errorf("Task id [%d] time [%s], error [%s]", task.Id, task.CreationTime, task.Error.Error())
-				continue
-			}
-
-			if creationTime.After(time.Now().Add(-20 * time.Second)) {
-				task.Result = []byte("task has been successed")
-			} else {
-				task.Result = []byte("something went wrong")
-			}
-			task.StartTime = time.Now().Format(time.RFC3339Nano)
-			time.Sleep(time.Millisecond * 150)
-
-			done <- task
 		}
 	}
 
@@ -78,16 +95,53 @@ func main() {
 	doneTasks := make(chan Task, 10)
 	undoneTasks := make(chan error, 10)
 
-	go taskCreator(taskChan)
-	go taskWorker(taskChan, doneTasks, undoneTasks)
+	var wg *sync.WaitGroup = &sync.WaitGroup{}
 
-	fmt.Println("Here")
-	for {
-		select {
-		case done := <-doneTasks:
-			fmt.Printf("Task id [%d] time [%s], result: [%s]\n", done.Id, done.CreationTime, done.Result)
-		case err := <-undoneTasks:
-			fmt.Println(err)
+	workersContext, cancelWorkers := context.WithCancel(context.Background())
+
+	wg.Add(2)
+
+	go taskWorker(taskChan, doneTasks, undoneTasks, workersContext, wg)
+	go taskCreator(taskChan, workersContext, wg)
+
+	ticker := time.NewTicker(3 * time.Second)
+
+	results := make(map[int]Task)
+	errorList := make([]error, 0)
+
+	func() { // Чтобы удобнее выходить из цикла
+		for {
+			select {
+			case <-ticker.C:
+				cancelWorkers()
+
+				// TaskCraetor создает задачи без задержки, из-за чего большую часть времени будет в блокировке
+				if cap(taskChan) == len(taskChan) {
+					<-taskChan
+				}
+				wg.Wait()
+				return
+			case doneTask := <-doneTasks:
+				fmt.Printf("Task id [%d] time [%s], result: [%s]\n", doneTask.Id, doneTask.CreationTime, doneTask.Result)
+				results[doneTask.Id] = doneTask
+			case err := <-undoneTasks:
+				fmt.Println(err)
+				errorList = append(errorList, err)
+			}
 		}
+	}()
+
+	close(doneTasks)
+	close(undoneTasks)
+	close(taskChan)
+
+	println("Errors:")
+	for _, v := range errorList {
+		fmt.Println(v)
+	}
+
+	println("Done tasks:")
+	for _, v := range results {
+		fmt.Printf("%+v\n", v)
 	}
 }
