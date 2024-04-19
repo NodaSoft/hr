@@ -19,7 +19,6 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 const (
-	taskProducerCount = 8
 	taskWorkerCount   = 4
 	simulationSeconds = 3
 )
@@ -116,19 +115,11 @@ func (c *taskWorker) run() {
 func main() {
 	tidseq := newTaskIdSequence()
 	tasks := make(chan task)
-	producerWaitGroup := sync.WaitGroup{}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*simulationSeconds))
 	defer cancel()
-	for i := 0; i < taskProducerCount; i++ {
-		producerWaitGroup.Add(1)
-		go func() {
-			defer producerWaitGroup.Done()
-			producer := newTaskProducer(tidseq, tasks)
-			producer.run(ctx)
-		}()
-	}
 	go func() {
-		producerWaitGroup.Wait()
+		producer := newTaskProducer(tidseq, tasks)
+		producer.run(ctx)
 		close(tasks)
 	}()
 	workerWaitGroup := sync.WaitGroup{}
