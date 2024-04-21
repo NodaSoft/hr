@@ -112,7 +112,7 @@ func (Worker) Process(task Task) Task {
 
 const (
 	// Время работы генератора и обработчика
-	processingTime = time.Second * 10
+	processingTime = time.Second
 
 	// Использование буферизованных каналов значительно повышает скорость работы
 	taskChanSize = 10
