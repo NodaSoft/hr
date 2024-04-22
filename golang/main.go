@@ -5,99 +5,91 @@ import (
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Должно выводить успешные таски и ошибки обработки тасков по мере выполнения.
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+const (
+	DateTimeFormat   = time.RFC3339
+	DateTimeNano     = time.RFC3339Nano
+	TaskResultErrMsg = "Some error occurred"
+	TaskResultOK     = "Task has been created"
+)
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// Task represents a task
+type Task struct {
+	ID          int
+	CreatedTime string // creation time
+	FinishTime  string // finish time
+	Result      string // execution result
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	taskCreator := func(tasks chan<- Task) {
+		for {
+			createdTime := time.Now().Format(DateTimeFormat)
+			result := TaskResultOK
+			if time.Now().Nanosecond()%2 > 0 {
+				result = TaskResultErrMsg
 			}
-		}()
+			task := Task{
+				CreatedTime: createdTime,
+				ID:          int(time.Now().Unix()),
+				Result:      result,
+			}
+			tasks <- task
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
+	taskChannel := make(chan Task, 10)
 
-	go taskCreturer(superChan)
+	go taskCreator(taskChannel)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
+	taskWorker := func(task Task) Task {
+		task.FinishTime = time.Now().Format(DateTimeNano)
 		time.Sleep(time.Millisecond * 150)
 
-		return a
+		switch task.Result {
+		case TaskResultOK:
+			task.Result = "Task has been succeeded"
+		default:
+			task.Result = "Something went wrong"
+		}
+
+		return task
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	doneTasks := make(chan Task)
+	undoneTasks := make(chan Task)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
+	taskSorter := func(task Task) {
+		if task.Result == "Task has been succeeded" {
+			doneTasks <- task
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- task
 		}
 	}
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		for task := range taskChannel {
+			task := taskWorker(task)
+			go taskSorter(task)
 		}
-		close(superChan)
+		close(taskChannel)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	done := make(chan struct{})
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		for {
+			select {
+			case task := <-doneTasks:
+				fmt.Printf("Task ID: %d, Finish Time: %s, Result: %s\n", task.ID, task.FinishTime, task.Result)
+			case task := <-undoneTasks:
+				fmt.Printf("Task ID: %d, Finish Time: %s, Result: %s\n", task.ID, task.FinishTime, task.Result)
+			case <-time.After(time.Second * 3):
+				close(doneTasks)
+				close(undoneTasks)
+				close(done)
+				return
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	<-done
 }
