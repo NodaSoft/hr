@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -15,91 +16,86 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A Task represents a meaninglessness of our life
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createTime         string // время создания
+	finishTime         string // время выполнения
+	taskResult []byte
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, finish := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer finish()
+
+	var(
+		doneTasks, createdTasks = make(chan Task), make(chan Task)
+		undoneTasks = make(chan error)
+		result []Task
+		err []error
+	)
+
+	go taskCreator(ctx, createdTasks)
+
+WORKERS:
+	for {
+		select {
+		case <-ctx.Done():
+			break WORKERS
+		case task := <-createdTasks:
+			go taskWorker(task, doneTasks, undoneTasks)
+		}
+	}
+
+RESULT:
+	for  {
+		select {
+		case dTask := <-doneTasks:
+			result = append(result, dTask)
+		case erTask := <-undoneTasks:
+			err = append(err, erTask)
+		default:
+			break RESULT
+		}
+	}
+
+	fmt.Println("Errors:")
+	for e := range err {
+		fmt.Println(e)
+	}
+
+	fmt.Println("Done tasks:")
+	for _, r := range result {
+		fmt.Printf("Task %d created at %s\n", r.id, r.createTime)
+	}
+}
+
+func taskCreator(ctx context.Context, out chan<- Task)  {
+	for {
+		select {
+		case <-ctx.Done():
+			close(out)
+			return
+		default:
+			formatTime := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond() % 2 > 0 { // вот такое условие появления ошибочных тасков
+				formatTime = "Some error occured"
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			out <- Task{createTime: formatTime, id: int(time.Now().Unix())}
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskWorker(t Task, d chan<- Task, u chan<- error) {
+	t.finishTime = time.Now().Format(time.RFC3339Nano)
+	_, err := time.Parse(time.RFC3339, t.createTime)
+	if err == nil {
+		t.taskResult = []byte("task has been successed")
+		d <- t
+	} else {
+		t.taskResult = []byte("something went wrong")
+		u <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.createTime, t.taskResult)
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	time.Sleep(time.Millisecond * 150)
 }
