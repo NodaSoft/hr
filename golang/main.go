@@ -7,62 +7,38 @@ import (
 )
 
 // Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Должно выводить успешные таски и ошибки обработки тасков по мере выполнения.
+// После обработки тасков в течении 3 секунд приложение должно выводить накопленные к этому моменту успешные таски и отдельно ошибки обработки тасков.
+
 // ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
 // Важно сохранить логику появления ошибочных тасков.
+// Важно оставить асинхронные генерацию и обработку тасков.
 // Сделать правильную мультипоточность обработки заданий.
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A Task represents a meaninglessness of our life
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
-}
-
-func taskCreator(ctx context.Context, out chan<- Ttype)  {
-	for {
-		select {
-		case <-ctx.Done():
-			close(out)
-			return
-		default:
-			ft := time.Now().Format(time.RFC3339)
-			if time.Now().Nanosecond() % 2 > 0 { // вот такое условие появления ошибочных тасков
-				ft = "Some error occured"
-			}
-			out <- Ttype{cT: ft, id: int(time.Now().Unix())}
-		}
-	}
-}
-
-func taskWorker(t Ttype, d chan<- Ttype, u chan<- error) {
-	tt, _ := time.Parse(time.RFC3339, t.cT)
-	t.fT = time.Now().Format(time.RFC3339Nano)
-	if tt.After(time.Now().Add(-20 * time.Second)) {
-		t.taskRESULT = []byte("task has been successed")
-		d <- t
-	} else {
-		t.taskRESULT = []byte("something went wrong")
-		u <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-	}
+	createTime         string // время создания
+	finishTime         string // время выполнения
+	taskResult []byte
 }
 
 func main() {
-	workTime := time.Millisecond * 1
-	ctx, _ := context.WithTimeout(context.Background(), workTime)
-	createdTasks := make(chan Ttype, 10)
+	ctx, finish := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer finish()
+
+	var(
+		doneTasks, createdTasks = make(chan Task), make(chan Task)
+		undoneTasks = make(chan error)
+		result []Task
+		err []error
+	)
 
 	go taskCreator(ctx, createdTasks)
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-	result := []Ttype{}
-	err := []error{}
 WORKERS:
-	for  {
+	for {
 		select {
 		case <-ctx.Done():
 			break WORKERS
@@ -81,16 +57,45 @@ RESULT:
 		default:
 			break RESULT
 		}
-
 	}
 
-	println("Errors:")
+	fmt.Println("Errors:")
 	for e := range err {
-		println(e)
+		fmt.Println(e)
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Println("Done tasks:")
+	for _, r := range result {
+		fmt.Printf("Task %d created at %s\n", r.id, r.createTime)
 	}
+}
+
+func taskCreator(ctx context.Context, out chan<- Task)  {
+	for {
+		select {
+		case <-ctx.Done():
+			close(out)
+			return
+		default:
+			formatTime := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond() % 2 > 0 { // вот такое условие появления ошибочных тасков
+				formatTime = "Some error occured"
+			}
+			out <- Task{createTime: formatTime, id: int(time.Now().Unix())}
+		}
+	}
+}
+
+func taskWorker(t Task, d chan<- Task, u chan<- error) {
+	t.finishTime = time.Now().Format(time.RFC3339Nano)
+	_, err := time.Parse(time.RFC3339, t.createTime)
+	if err == nil {
+		t.taskResult = []byte("task has been successed")
+		d <- t
+	} else {
+		t.taskResult = []byte("something went wrong")
+		u <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.createTime, t.taskResult)
+	}
+
+	time.Sleep(time.Millisecond * 150)
 }
