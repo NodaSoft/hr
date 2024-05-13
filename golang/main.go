@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -23,83 +25,148 @@ type Ttype struct {
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+type TaskManager struct {
+	superChan   chan Ttype
+	doneTasks   chan Ttype
+	undoneTasks chan Ttype
+	result      map[int]Ttype
+	err         map[int]Ttype
+	semaphore   chan struct{}
+	mu          sync.Mutex
+}
+
+func NewTaskManager(seconds int) *TaskManager {
+	taskManager := &TaskManager{
+		superChan:   make(chan Ttype),
+		doneTasks:   make(chan Ttype),
+		undoneTasks: make(chan Ttype),
+		result:      map[int]Ttype{},
+		err:         map[int]Ttype{},
+		semaphore:   make(chan struct{}, 5),
 	}
 
-	superChan := make(chan Ttype, 10)
+	go taskManager.taskCreturer()
+	go taskManager.taskStarter()
+	taskManager.resultReader()
 
-	go taskCreturer(superChan)
+	time.Sleep(time.Second * time.Duration(seconds))
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
+	return taskManager
+}
+
+func (t *TaskManager) taskCreturer() {
+	for {
+		t.semaphore <- struct{}{}
+
+		var err []byte
+		ft := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			err = []byte("some error occured")
+		}
+		t.superChan <- Ttype{id: int(time.Now().Unix()), cT: ft, taskRESULT: err} // передаем таск на выполнение
+
+		<-t.semaphore
+	}
+}
+
+func (t *TaskManager) taskStarter() {
+	// получение тасков
+	for task := range t.superChan {
+		t.semaphore <- struct{}{}
+		go func(a Ttype) {
+			defer func() { <-t.semaphore }()
+			t.taskSorter(taskWorker(a))
+		}(task)
+	}
+
+	close(t.superChan)
+}
+
+func (t *TaskManager) resultReader() {
+	//  собираем таски
+	go func() {
+		for r := range t.doneTasks {
+			t.mu.Lock()
+			t.result[r.id] = r
+			t.mu.Unlock()
+		}
+		close(t.doneTasks)
+	}()
+
+	go func() {
+		for r := range t.undoneTasks {
+			t.mu.Lock()
+			t.err[r.id] = r
+			t.mu.Unlock()
+		}
+		close(t.undoneTasks)
+	}()
+}
+
+func (t *TaskManager) taskSorter(a Ttype) {
+	if string(a.taskRESULT[14:]) == "successed" {
+		t.doneTasks <- a
+	} else {
+		t.undoneTasks <- a
+	}
+}
+
+func taskWorker(a Ttype) Ttype {
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(800))) // имитация выполнения каких-то действий
+
+	tt, _ := time.Parse(time.RFC3339, a.cT)
+
+	if tt.Before(time.Now().Add(-10 * time.Millisecond)) {
+		time.Sleep(time.Millisecond * 10)
+	}
+
+	if len(a.taskRESULT) == 0 {
+		if tt.After(time.Now().Add(-2 * time.Second)) {
 			a.taskRESULT = []byte("task has been successed")
 		} else {
 			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
 	}
+	a.fT = time.Now().Format(time.RFC3339Nano)
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	return a
+}
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
+func (t *TaskManager) Print() {
+	// печатаем результаты
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		t.semaphore <- struct{}{}
+		defer func() { <-t.semaphore }()
+
+		if len(t.err) != 0 {
+			println("Errors:")
+			printRes(t.err, &t.mu)
+			fmt.Println()
 		}
-		close(superChan)
+
+		if len(t.result) != 0 {
+			println("Done tasks:")
+			printRes(t.result, &t.mu)
+			fmt.Println()
+		}
 	}()
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+func printRes(res map[int]Ttype, mu *sync.Mutex) {
+	mu.Lock()
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, r := range res {
+		println("Task id:", r.id, "create time:", r.cT,
+			"finish time:", r.fT, string(r.taskRESULT))
 	}
+	mu.Unlock()
+}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+func main() {
+	lifeCycleOnSeconds := 3
+
+	for {
+		t := NewTaskManager(lifeCycleOnSeconds) // передаем время жизненного цикла параметром
+		t.Print()
 	}
 }
