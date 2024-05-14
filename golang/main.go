@@ -2,104 +2,176 @@ package main
 
 import (
 	"fmt"
+	"runtime"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// После обработки тасков в течении 3 секунд приложение должно выводить накопленные к этому моменту успешные таски и отдельно ошибки обработки тасков.
+// Maximum allowed execution time for a task.
+const taskMaxLifeTime = 20 * time.Second
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// Task represents some work to be executed.
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	startedAt  time.Time
+	finishedAt *time.Time
+	mustFail   bool
+}
+
+// NewTask returns a new Task instance.
+func NewTask() Task {
+	now := time.Now()
+
+	task := Task{
+		id:        int(now.Unix()) + now.Nanosecond(),
+		startedAt: now,
+	}
+
+	if now.Nanosecond()%2 > 0 {
+		task.mustFail = true
+	}
+
+	return task
+}
+
+// Execute attempts to run the task and returns error if fail.
+func (t *Task) Execute() error {
+	if t.mustFail {
+		return fmt.Errorf("task %d failed: some error occured", t.id)
+	}
+
+	if t.startedAt.Add(taskMaxLifeTime).Before(time.Now()) {
+		return fmt.Errorf("task %d failed: timeout", t.id)
+	}
+
+	finishedAt := time.Now()
+	t.finishedAt = &finishedAt
+
+	return nil
+}
+
+// Result contains the outcome of a task execution.
+type Result struct {
+	Task  Task
+	Error error
+}
+
+// runCreator continuously generates new tasks and sends them on the channel.
+func runCreator() <-chan Task {
+	tasks := make(chan Task)
+
+	go func() {
+		for {
+			tasks <- NewTask()
+		}
+	}()
+
+	return tasks
+}
+
+// runWorker receives tasks from the channel and executes them, sending results back.
+func runWorker(tasks <-chan Task) <-chan Result {
+	results := make(chan Result)
+
+	go func() {
+		for task := range tasks {
+			var result Result
+			err := task.Execute()
+
+			if err != nil {
+				result = Result{
+					Task:  task,
+					Error: err,
+				}
+			} else {
+				result = Result{Task: task}
+			}
+
+			results <- result
+
+			time.Sleep(time.Millisecond * 150)
+		}
+	}()
+
+	return results
+}
+
+// aggregateResults continuously collects and prints task execution results.
+func aggregateResults(results <-chan Result) {
+	var (
+		failed []error
+		done   []Task
+		mu     sync.Mutex
+	)
+
+	go func() {
+		for {
+			time.Sleep(3 * time.Second)
+
+			fmt.Println("Errors:")
+			for _, f := range failed {
+				fmt.Println(f.Error())
+			}
+
+			fmt.Println("Done tasks:")
+			for _, d := range done {
+				fmt.Println(d.id)
+			}
+
+			mu.Lock()
+			failed, done = []error{}, []Task{}
+			mu.Unlock()
+		}
+	}()
+
+	for result := range results {
+		if result.Error != nil {
+			mu.Lock()
+			failed = append(failed, result.Error)
+			mu.Unlock()
+		} else {
+			mu.Lock()
+			done = append(done, result.Task)
+			mu.Unlock()
+		}
+	}
+}
+
+// joinChanels merges multiple result channels into a single channel.
+func joinChanels(channels ...<-chan Result) <-chan Result {
+	merged := make(chan Result)
+
+	go func() {
+		defer close(merged)
+
+		wg := sync.WaitGroup{}
+
+		wg.Add(len(channels))
+		for _, ch := range channels {
+			go func(ch <-chan Result) {
+				for result := range ch {
+					merged <- result
+				}
+
+				wg.Done()
+			}(ch)
+		}
+
+		wg.Wait()
+	}()
+
+	return merged
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+	tasks := runCreator()
+
+	results := []<-chan Result{}
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		results = append(results, runWorker(tasks))
 	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	muxResults := joinChanels(results...)
+	aggregateResults(muxResults)
 }
