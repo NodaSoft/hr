@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,91 +16,101 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
-}
-
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	taskCreturer := func(a chan Task) {
+		for {
+			now := time.Now()
+			res := Task{id: now.Unix()}
+			if now.Nanosecond()%2 == 0 { // вот такое условие появления рабочей таски
+				res.start = now
 			}
-		}()
+			a <- res // передаем таск на выполнение
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
-
+	superChan := make(chan Task)
 	go taskCreturer(superChan)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
+	doneTasks := make(chan Task)
+	undoneTasks := make(chan Task)
 	go func() {
 		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+			t.Work()
+			go t.Sort(doneTasks, undoneTasks)
 		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	var (
+		result = make(map[int64]Task, 0)
+		resM   = new(sync.Mutex)
+	)
 	go func() {
 		for r := range doneTasks {
-			go func() {
+			go func(r Task) {
+				resM.Lock()
+				defer resM.Unlock()
 				result[r.id] = r
-			}()
+			}(r)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+	}()
+
+	var (
+		errs []error
+		errM = new(sync.Mutex)
+	)
+	go func() {
+		for t := range undoneTasks {
+			go func(t Task) {
+				errM.Lock()
+				defer errM.Unlock()
+				errs = append(errs, fmt.Errorf("task id: %d\tstart: %s\terror: %s", t.id, t.start.Format(time.RFC3339), t.cause))
+			}(t)
 		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
 	time.Sleep(time.Second * 3)
 
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, err := range errs {
+		println(err.Error())
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for _, task := range result {
+		println(task.String())
 	}
+}
+
+// A Task represents a meaninglessness of our life
+type Task struct {
+	start     time.Time // время создания
+	end       time.Time // время выполнения
+	id        int64
+	cause     string
+	isSucceed bool
+}
+
+func (t *Task) Work() {
+	defer func() {
+		t.end = time.Now()
+		time.Sleep(time.Millisecond * 150)
+	}()
+	if t.isSucceed = !t.start.IsZero(); t.isSucceed {
+		t.cause = "task has been successed"
+	} else {
+		t.cause = "something went wrong"
+	}
+}
+
+func (t Task) Sort(done, undone chan Task) {
+	if t.isSucceed {
+		done <- t
+	} else {
+		undone <- t
+	}
+}
+
+func (t Task) String() string {
+	return fmt.Sprintf("task id: %d | start: %s | end: %s | cause: %s", t.id, t.start.Format(time.RFC3339), t.start.Format(time.RFC3339Nano), t.cause)
 }
