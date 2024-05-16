@@ -19,7 +19,7 @@ import (
 // A Ttype represents a meaninglessness of our life
 type Ttype struct {
 	id         int
-	cT         time.Time // время создания
+	cT         time.Time // время создания, для упрощения манипуляций изменен тип
 	fT         time.Time // время выполнения
 	taskRESULT string
 }
@@ -31,23 +31,23 @@ func main() {
 			id := ct.UnixNano()
 			ft := ct
 			var err string
-			nano := ct.Nanosecond() / 1000
-			if nano%2 > 0 { // вот такое условие появления ошибочных тасков
+			nano := ct.Nanosecond() / 1000 // отсекаем 3 нуля с конца для корректной работы условия
+			if nano%2 > 0 {                // вот такое условие появления ошибочных тасков
 				err = "Some error occured"
 			} else {
 				err = "ok"
 			}
 			a <- Ttype{id: int(id), cT: ct, fT: ft, taskRESULT: err} // передаем таск на выполнение
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)                       // задержка для имитации работы
 		}
 	}
 
-	superChan := make(chan Ttype, 10)
+	superChan := make(chan Ttype, 50)
 
 	go taskCreator(superChan)
 	done := make(chan Ttype)
-	undone := make(chan error, 100)
-	var wg sync.WaitGroup
+	undone := make(chan error)
+	var wg sync.WaitGroup // добавлено ожидание завершения всех горутин
 
 	task_worker := func(a Ttype, wg *sync.WaitGroup, done chan<- Ttype, undone chan<- error) {
 		defer wg.Done()
@@ -68,12 +68,12 @@ func main() {
 			wg.Add(1)
 			go task_worker(t, &wg, done, undone)
 		}
-		close(superChan)
+		close(superChan) // закрываем
 	}()
 
 	err := []error{}
 	var result sync.Map
-	var mu sync.Mutex
+	var mu sync.Mutex // для работы со слайсом
 
 	go func() {
 		for {
@@ -96,8 +96,8 @@ func main() {
 		}
 	}()
 
-	time.Sleep(time.Second * 3)
-	wg.Wait()
+	time.Sleep(time.Second * 3) // ожидание
+	wg.Wait()                   // ожидание завершения горутин
 	close(done)
 	close(undone)
 
