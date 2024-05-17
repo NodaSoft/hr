@@ -98,12 +98,12 @@ func main() {
 	time.Sleep(time.Second * 3)
 
 	println("Errors:")
-	for r := range taskErrors {
-		println(r)
+	for _, taskErr := range taskErrors {
+		println(taskErr.Error())
 	}
 
-	println("Done tasks:")
-	for r := range doneTasks {
-		println(r)
+	println("Done tasks IDs:")
+	for taskID := range doneTasks {
+		println(taskID)
 	}
 }
