@@ -41,8 +41,8 @@ func main() {
 	go scheduleTasks(superChan)
 
 	processTask := func(task Task) Task {
-		parsedCreationTime, _ := time.Parse(time.RFC3339, task.creationTime)
-		if parsedCreationTime.After(time.Now().Add(-20 * time.Second)) {
+		parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
+		if err == nil && parsedCreationTime.After(time.Now().Add(-20*time.Second)) {
 			task.result = []byte("task has been successed")
 		} else {
 			task.result = []byte("something went wrong")
