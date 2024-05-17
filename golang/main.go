@@ -24,62 +24,17 @@ type Task struct {
 }
 
 func main() {
-	scheduleTasks := func(ch chan Task) {
-		go func() {
-			for {
-				nowStr := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 {
-					nowStr = "Some error occured"
-				}
-				// Используем наносекунды, чтобы избежать коллизий, но лучше вообще
-				// генерировать случайный ID (например, GUID):
-				taskID := int(time.Now().UnixNano())
-				ch <- Task{creationTime: nowStr, id: taskID}
-			}
-		}()
-	}
-
 	superChan := make(chan Task, 10)
 
 	go scheduleTasks(superChan)
 
-	processTask := func(task Task) Task {
-		parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
-		// Учитываем результат парсинга, помимо изначально заданного условия:
-		if err != nil {
-			// Дифференцируем ошибку, связанную с невалидным форматом:
-			task.result = []byte("invalid creation time")
-		} else {
-			if parsedCreationTime.After(time.Now().Add(-1 * time.Second)) { // Я, также, уменьшил таймаут до 1 сек, чтобы условие срабатывало
-				task.result = []byte("task has been successed")
-			} else {
-				// Дифференцируем ошибку, связанную с таймаутом:
-				task.result = []byte("timeout error ---------") // Для простоты я добавил символы, чтобы не тригерить панику при индексации [14:] ниже
-			}
-		}
-
-		task.completionTime = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return task
-	}
-
 	doneTasksChan := make(chan Task)
 	taskErrorsChan := make(chan error)
-
-	sortTask := func(task Task) {
-		if string(task.result)[14:] == "successed" { // Тут задумана индексация по строке, а не по массиву байтов
-			doneTasksChan <- task
-		} else {
-			taskErrorsChan <- fmt.Errorf("Task id: %d, time: %s, error: %s", task.id, task.creationTime, task.result)
-		}
-	}
 
 	go func() {
 		for task := range superChan {
 			task = processTask(task)
-			go sortTask(task)
+			go sortTask(task, doneTasksChan, taskErrorsChan)
 		}
 		// Тут не нужно закрывать канал, потому что, если процесс и доберется до конца этой горутины, канал уже будет закрыт,
 		// ведь итерация по каналу прекращается, только когда канал закрывается. А закрытие уже закрытого канала — ПАНИКА.
@@ -138,4 +93,49 @@ func main() {
 			println(taskID)
 		}
 	}()
+}
+
+func scheduleTasks(ch chan Task) {
+	go func() {
+		for {
+			nowStr := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond()%2 > 0 {
+				nowStr = "Some error occured"
+			}
+			// Используем наносекунды, чтобы избежать коллизий, но лучше вообще
+			// генерировать случайный ID (например, GUID):
+			taskID := int(time.Now().UnixNano())
+			ch <- Task{creationTime: nowStr, id: taskID}
+		}
+	}()
+}
+
+func processTask(task Task) Task {
+	parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
+	// Учитываем результат парсинга, помимо изначально заданного условия:
+	if err != nil {
+		// Дифференцируем ошибку, связанную с невалидным форматом:
+		task.result = []byte("invalid creation time")
+	} else {
+		if parsedCreationTime.After(time.Now().Add(-1 * time.Second)) { // Я, также, уменьшил таймаут до 1 сек, чтобы условие срабатывало
+			task.result = []byte("task has been successed")
+		} else {
+			// Дифференцируем ошибку, связанную с таймаутом:
+			task.result = []byte("timeout error ---------") // Для простоты я добавил символы, чтобы не тригерить панику при индексации [14:] ниже
+		}
+	}
+
+	task.completionTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return task
+}
+
+func sortTask(task Task, doneTasksChan chan Task, taskErrorsChan chan error) {
+	if string(task.result)[14:] == "successed" { // Тут задумана индексация по строке, а не по массиву байтов
+		doneTasksChan <- task
+	} else {
+		taskErrorsChan <- fmt.Errorf("Task id: %d, time: %s, error: %s", task.id, task.creationTime, task.result)
+	}
 }
