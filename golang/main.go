@@ -47,6 +47,7 @@ func main() {
 		parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
 		// Учитываем результат парсинга, помимо изначально заданного условия:
 		if err != nil {
+			// Дифференцируем ошибку, связанную с невалидным форматом:
 			task.result = []byte("invalid creation time")
 		} else {
 			if parsedCreationTime.After(time.Now().Add(-1 * time.Second)) { // Я, также, уменьшил таймаут до 1 сек, чтобы условие срабатывало
