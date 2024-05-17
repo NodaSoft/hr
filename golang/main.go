@@ -44,14 +44,19 @@ func main() {
 	go scheduleTasks(superChan)
 
 	processTask := func(task Task) Task {
-		// Тут надо удостоверяться, что строка успешно парсится в дату:
 		parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
-		// Здесь учитываем результат парсинга, помимо изначально заданного условия:
-		if err == nil && parsedCreationTime.After(time.Now().Add(-20*time.Second)) {
-			task.result = []byte("task has been successed")
+		// Учитываем результат парсинга, помимо изначально заданного условия:
+		if err != nil {
+			task.result = []byte("invalid creation time")
 		} else {
-			task.result = []byte("something went wrong")
+			if parsedCreationTime.After(time.Now().Add(-1 * time.Second)) { // Я, также, уменьшил таймаут до 1 сек, чтобы условие срабатывало
+				task.result = []byte("task has been successed")
+			} else {
+				// Дифференцируем ошибку, связанную с таймаутом:
+				task.result = []byte("timeout error ---------") // Для простоты я добавил символы, чтобы не тригерить панику при индексации [14:] ниже
+			}
 		}
+
 		task.completionTime = time.Now().Format(time.RFC3339Nano)
 
 		time.Sleep(time.Millisecond * 150)
@@ -79,7 +84,7 @@ func main() {
 		// ведь итерация по каналу прекращается, только когда канал закрывается. А закрытие уже закрытого канала — ПАНИКА.
 		//
 		// Кстати, нет смысла закрывать во всем скрипте какой-либо канал, потому что все они обрабатывают информацию из superChan,
-		// а его никогда не будет смысла закрывать, потому что scheduleTasks работает бесконечно.
+		// а его никогда не будет смысла закрывать, ведь scheduleTasks работает бесконечно.
 		// Но если очень хочется закрыть каналы -- это можно сделать после time.Sleep(time.Second * 3)
 	}()
 
@@ -92,7 +97,7 @@ func main() {
 	// Параллелизируем обработку успешных и ошибочных случаев. Не дожидаемся закрытия каналов:
 	go func() {
 		for doneTask := range doneTasksChan {
-			doneTask := doneTask // Учитываем то, как в Голанге переменные захватываются анонимными функциями
+			doneTask := doneTask // Учитываем то, как в Golang переменные захватываются анонимными функциями
 			go func() {
 				doneTasksMutex.Lock() // Получаем эксклюзивный доступ
 				defer doneTasksMutex.Unlock()
@@ -102,7 +107,7 @@ func main() {
 	}()
 	go func() {
 		for taskErr := range taskErrorsChan {
-			taskErr := taskErr // Учитываем то, как в Голанге переменные захватываются анонимными функциями
+			taskErr := taskErr // Учитываем то, как в Golang переменные захватываются анонимными функциями
 			go func() {
 				taskErrorsMutex.Lock() // Получаем эксклюзивный доступ
 				defer taskErrorsMutex.Unlock()
