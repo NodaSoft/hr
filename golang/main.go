@@ -58,7 +58,7 @@ func main() {
 	taskErrorsChan := make(chan error)
 
 	sortTask := func(task Task) {
-		if string(task.result[14:]) == "successed" {
+		if string(task.result)[14:] == "successed" { // Тут задумана индексация по строке, а не по массиву байтов
 			doneTasksChan <- task
 		} else {
 			taskErrorsChan <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
