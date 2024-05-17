@@ -30,7 +30,8 @@ func main() {
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 					nowStr = "Some error occured"
 				}
-				ch <- Task{creationTime: nowStr, id: int(time.Now().Unix())} // передаем таск на выполнение
+				taskID := int(time.Now().UnixNano())         // NOTE: но лучше вообще генерировать случайный ID (например, GUID)
+				ch <- Task{creationTime: nowStr, id: taskID} // передаем таск на выполнение
 			}
 		}()
 	}
