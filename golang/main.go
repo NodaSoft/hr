@@ -77,11 +77,17 @@ func main() {
 
 	doneTasks := map[int]Task{}
 	taskErrors := []error{}
+	// Защищаем параллельно обновляемые данные мьютексами:
+	doneTasksMutex := sync.Mutex{}
+	taskErrorsMutex := sync.Mutex{}
+
 	// Параллелизируем обработку успешных и ошибочных случаев. Не дожидаемся закрытия каналов:
 	go func() {
 		for doneTask := range doneTasksChan {
 			doneTask := doneTask
 			go func() {
+				doneTasksMutex.Lock() // Получаем эксклюзивный доступ
+				defer doneTasksMutex.Unlock()
 				doneTasks[doneTask.id] = doneTask
 			}()
 		}
@@ -90,6 +96,8 @@ func main() {
 		for taskErr := range taskErrorsChan {
 			taskErr := taskErr
 			go func() {
+				taskErrorsMutex.Lock() // Получаем эксклюзивный доступ
+				defer taskErrorsMutex.Unlock()
 				taskErrors = append(taskErrors, taskErr)
 			}()
 		}
@@ -98,12 +106,20 @@ func main() {
 	time.Sleep(time.Second * 3)
 
 	println("Errors:")
-	for _, taskErr := range taskErrors {
-		println(taskErr.Error())
-	}
+	func() {
+		taskErrorsMutex.Lock() // Получаем эксклюзивный доступ
+		defer taskErrorsMutex.Unlock()
+		for _, taskErr := range taskErrors {
+			println(taskErr.Error())
+		}
+	}()
 
 	println("Done tasks IDs:")
-	for taskID := range doneTasks {
-		println(taskID)
-	}
+	func() {
+		doneTasksMutex.Lock() // Получаем эксклюзивный доступ
+		defer doneTasksMutex.Unlock()
+		for taskID := range doneTasks {
+			println(taskID)
+		}
+	}()
 }
