@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -27,11 +28,13 @@ func main() {
 		go func() {
 			for {
 				nowStr := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				if time.Now().Nanosecond()%2 > 0 {
 					nowStr = "Some error occured"
 				}
-				taskID := int(time.Now().UnixNano())         // NOTE: но лучше вообще генерировать случайный ID (например, GUID)
-				ch <- Task{creationTime: nowStr, id: taskID} // передаем таск на выполнение
+				// Используем наносекунды, чтобы избежать коллизий, но лучше вообще
+				// генерировать случайный ID (например, GUID):
+				taskID := int(time.Now().UnixNano())
+				ch <- Task{creationTime: nowStr, id: taskID}
 			}
 		}()
 	}
@@ -41,7 +44,9 @@ func main() {
 	go scheduleTasks(superChan)
 
 	processTask := func(task Task) Task {
+		// Тут надо удостоверяться, что строка успешно парсится в дату:
 		parsedCreationTime, err := time.Parse(time.RFC3339, task.creationTime)
+		// Здесь учитываем результат парсинга, помимо изначально заданного условия:
 		if err == nil && parsedCreationTime.After(time.Now().Add(-20*time.Second)) {
 			task.result = []byte("task has been successed")
 		} else {
@@ -66,13 +71,16 @@ func main() {
 	}
 
 	go func() {
-		// получение тасков
 		for task := range superChan {
 			task = processTask(task)
 			go sortTask(task)
 		}
 		// Тут не нужно закрывать канал, потому что, если процесс и доберется до конца этой горутины, канал уже будет закрыт,
 		// ведь итерация по каналу прекращается, только когда канал закрывается. А закрытие уже закрытого канала — ПАНИКА.
+		//
+		// Кстати, нет смысла закрывать во всем скрипте какой-либо канал, потому что все они обрабатывают информацию из superChan,
+		// а его никогда не будет смысла закрывать, потому что scheduleTasks работает бесконечно.
+		// Но если очень хочется закрыть каналы -- это можно сделать после time.Sleep(time.Second * 3)
 	}()
 
 	doneTasks := map[int]Task{}
@@ -84,7 +92,7 @@ func main() {
 	// Параллелизируем обработку успешных и ошибочных случаев. Не дожидаемся закрытия каналов:
 	go func() {
 		for doneTask := range doneTasksChan {
-			doneTask := doneTask
+			doneTask := doneTask // Учитываем то, как в Голанге переменные захватываются анонимными функциями
 			go func() {
 				doneTasksMutex.Lock() // Получаем эксклюзивный доступ
 				defer doneTasksMutex.Unlock()
@@ -94,7 +102,7 @@ func main() {
 	}()
 	go func() {
 		for taskErr := range taskErrorsChan {
-			taskErr := taskErr
+			taskErr := taskErr // Учитываем то, как в Голанге переменные захватываются анонимными функциями
 			go func() {
 				taskErrorsMutex.Lock() // Получаем эксклюзивный доступ
 				defer taskErrorsMutex.Unlock()
@@ -104,6 +112,8 @@ func main() {
 	}()
 
 	time.Sleep(time.Second * 3)
+
+	// Ниже оборачиваем код в функции для удобного использования defer:
 
 	println("Errors:")
 	func() {
