@@ -77,6 +77,7 @@ func main() {
 
 	doneTasks := map[int]Task{}
 	taskErrors := []error{}
+	// Параллелизируем обработку успешных и ошибочных случаев. Не дожидаемся закрытия каналов:
 	go func() {
 		for doneTask := range doneTasksChan {
 			doneTask := doneTask
@@ -84,14 +85,14 @@ func main() {
 				doneTasks[doneTask.id] = doneTask
 			}()
 		}
+	}()
+	go func() {
 		for taskErr := range taskErrorsChan {
 			taskErr := taskErr
 			go func() {
 				taskErrors = append(taskErrors, taskErr)
 			}()
 		}
-		close(doneTasksChan)
-		close(taskErrorsChan)
 	}()
 
 	time.Sleep(time.Second * 3)
