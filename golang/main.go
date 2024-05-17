@@ -88,15 +88,14 @@ func main() {
 
 func scheduleTasks(ch chan Task) {
 	go func() {
-		for {
+		// Используем инкрементор, чтобы избежать коллизий ID, но лучше вообще
+		// генерировать случайный ID (например, GUID):
+		for i := 0; ; i++ {
 			nowStr := time.Now().Format(time.RFC3339)
 			if time.Now().Nanosecond()%2 > 0 {
 				nowStr = "Some error occured"
 			}
-			// Используем наносекунды, чтобы избежать коллизий, но лучше вообще
-			// генерировать случайный ID (например, GUID):
-			taskID := int(time.Now().UnixNano())
-			ch <- Task{creationTime: nowStr, id: taskID}
+			ch <- Task{creationTime: nowStr, id: i}
 		}
 	}()
 }
