@@ -78,11 +78,13 @@ func main() {
 	taskErrors := []error{}
 	go func() {
 		for doneTask := range doneTasksChan {
+			doneTask := doneTask
 			go func() {
 				doneTasks[doneTask.id] = doneTask
 			}()
 		}
 		for taskErr := range taskErrorsChan {
+			taskErr := taskErr
 			go func() {
 				taskErrors = append(taskErrors, taskErr)
 			}()
