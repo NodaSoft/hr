@@ -1,105 +1,120 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// После обработки тасков в течении 3 секунд приложение должно выводить накопленные к этому моменту успешные таски и отдельно ошибки обработки тасков.
+type Task struct {
+	ID          int
+	CreatedAt   string
+	ProcessedAt string
+}
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+type CreateTaskRes struct {
+	Task      Task
+	CreateErr error
+}
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type RunTaskRes struct {
+	Task Task
+	Err  error
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	processRunResults(taskRunner(ctx, taskCreator(ctx)))
+}
+
+func taskCreator(ctx context.Context) <-chan CreateTaskRes {
+	out := make(chan CreateTaskRes)
+	create := func() CreateTaskRes {
+		res := CreateTaskRes{}
+		now := time.Now()
+		if now.Nanosecond()%2 > 0 {
+			res.CreateErr = errors.New("some error occured")
+		} else {
+			res.Task = Task{
+				ID:        int(now.Unix()),
+				CreatedAt: now.Format(time.RFC3339),
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+		return res
 	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+			case out <- create():
+			}
 		}
-		close(superChan)
 	}()
+	return out
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
+func taskRunner(ctx context.Context, maybeTasks <-chan CreateTaskRes) <-chan RunTaskRes {
+	out := make(chan RunTaskRes)
+	run := func(maybeTask CreateTaskRes) RunTaskRes {
+		if maybeTask.CreateErr != nil {
+			return RunTaskRes{Err: fmt.Errorf("failed to run task: %w", maybeTask.CreateErr)}
+		}
+		task := maybeTask.Task
+		createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
+		if err != nil {
+			return RunTaskRes{
+				Err: fmt.Errorf(
+					"failed to run task ID=%d, CreatedAt: %s, err: %w",
+					task.ID,
+					task.CreatedAt,
+					err,
+				),
+			}
+		}
+
+		if !createdAt.After(time.Now().Add(-20 * time.Second)) {
+			return RunTaskRes{
+				Err: fmt.Errorf("failed to run task ID=%d, CreatedAt: %s", task.ID, task.CreatedAt),
+			}
+		}
+		task.ProcessedAt = time.Now().Format(time.RFC3339)
+		time.Sleep(150 * time.Millisecond)
+
+		return RunTaskRes{Task: task}
+	}
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		defer close(out)
+		for maybeTask := range maybeTasks {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- run(maybeTask):
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
+	return out
+}
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func processRunResults(runResults <-chan RunTaskRes) {
+	errors := make([]error, 0)
+	executedTasks := make([]Task, 0)
+	for runRes := range runResults {
+		if runRes.Err != nil {
+			errors = append(errors, runRes.Err)
+		} else {
+			executedTasks = append(executedTasks, runRes.Task)
+		}
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Println("Errors:")
+	for _, err := range errors {
+		fmt.Println(err)
+	}
+	fmt.Println("Done tasks:")
+	for _, task := range executedTasks {
+		fmt.Println(task)
 	}
 }
