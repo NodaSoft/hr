@@ -177,7 +177,7 @@ func handleTask(task Task) Task {
 		task.Result = []byte("something went wrong")
 		task.Err = ErrOnHandleTask
 	}
+	time.Sleep(time.Millisecond * 150) // симуляция процесса работы?
 	task.Handled = time.Now()
-	time.Sleep(time.Millisecond * 150)
 	return task
 }
