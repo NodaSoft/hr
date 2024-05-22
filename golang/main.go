@@ -77,7 +77,7 @@ func (r _Result) print() {
 	for _, err := range r.errs {
 		fmt.Printf("%v\n", err)
 	}
-	fmt.Println("Done tasksChan:")
+	fmt.Println("Done tasks:")
 	for _, task := range r.doneTasks {
 		fmt.Printf("%v\n", task)
 	}
