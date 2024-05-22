@@ -110,8 +110,11 @@ func NewTaskCreator() (<-chan Task, func(ctx context.Context)) {
 	tasksChan := make(chan Task)
 	started := atomic.Bool{}
 	return tasksChan, func(ctx context.Context) {
-		if started.Swap(true) || ctx.Err() != nil {
-			log.Printf("[ERROR] attempt to start creator again")
+		if started.Swap(true) {
+			log.Printf("[ERROR] run creator: attempt to start creator again")
+			return
+		} else if ctx.Err() != nil {
+			log.Printf("[ERROR] run creator: ctx already done")
 			return
 		}
 		for {
@@ -137,8 +140,11 @@ func NewTaskHandler(tasksCh <-chan Task) (<-chan Task, <-chan error, func(ctx co
 	errChan := make(chan error)
 	started := atomic.Bool{}
 	return doneTasksChan, errChan, func(ctx context.Context) {
-		if started.Swap(true) || ctx.Err() != nil {
-			log.Printf("[ERROR] attempt to start handler again")
+		if started.Swap(true) {
+			log.Printf("[ERROR] run handler: attempt to start handler again")
+			return
+		} else if ctx.Err() != nil {
+			log.Printf("[ERROR] run handler: ctx already done")
 			return
 		}
 		onCtxDone := func() {
