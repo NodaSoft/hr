@@ -23,29 +23,85 @@ import (
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	tasksChan, runCreator := NewTaskCreator()
-	taskHandler := NewTaskHandler(tasksChan)
 	go runCreator(ctx)
-	time.Sleep(time.Second * 3)
-	cancel()
-	result := taskHandler.Peek()
+	go func() {
+		time.Sleep(time.Second * 3)
+		cancel()
+	}()
+	runHandlersPool(ctx, tasksChan, 100).print()
+}
+
+func runHandlersPool(
+	ctx context.Context,
+	tasksChan <-chan Task,
+	count int,
+) _Result {
+	var r _Result
+	r.doneTasks = make(map[int]Task)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < count; i++ {
+		doneTasksChan, errChan, handler := NewTaskHandler(tasksChan)
+		go handler(ctx)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case t := <-doneTasksChan:
+					mu.Lock()
+					r.doneTasks[t.ID] = t
+					mu.Unlock()
+				case err := <-errChan:
+					mu.Lock()
+					r.errs = append(r.errs, err)
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	return r
+}
+
+type _Result struct {
+	errs      []error
+	doneTasks map[int]Task
+}
+
+func (r _Result) print() {
 	fmt.Println("Errors:")
-	for _, err := range result.Errors {
+	for _, err := range r.errs {
 		fmt.Printf("%v\n", err)
 	}
 	fmt.Println("Done tasksChan:")
-	for id, task := range result.DoneTasks {
-		fmt.Printf("id=%v, created=%v\n", id, task.created.Format(time.RFC3339))
+	for _, task := range r.doneTasks {
+		fmt.Printf("%v\n", task)
 	}
 }
 
 // task_handler.go
 
 type Task struct {
-	id      int
-	created time.Time // время создания
-	handled time.Time // время выполнения
-	result  []byte
-	err     error
+	ID      int
+	Created time.Time // время создания
+	Handled time.Time // время выполнения
+	Err     error
+	Result  []byte
+}
+
+func (t Task) String() string {
+	return fmt.Sprintf(
+		"Task(ID=%v, Created=%v, Handled=%v, Err=%v, _Result=%v)",
+		t.ID,
+		t.Created.Format(time.RFC3339),
+		t.Handled.Format(time.RFC3339),
+		t.Err,
+		string(t.Result),
+	)
 }
 
 var ErrOnCreateTask = errors.New("err on create task")
@@ -53,23 +109,21 @@ var ErrOnCreateTask = errors.New("err on create task")
 func NewTaskCreator() (<-chan Task, func(ctx context.Context)) {
 	tasksChan := make(chan Task)
 	started := atomic.Bool{}
-	started.Store(false)
 	return tasksChan, func(ctx context.Context) {
 		if started.Swap(true) || ctx.Err() != nil {
-			// todo: what to do?
 			log.Printf("[ERROR] attempt to start creator again")
 			return
 		}
 		for {
-			t := Task{
-				id:      int(time.Now().Unix()),
-				created: time.Now(),
-			}
+			t := Task{ID: time.Now().Nanosecond()}
 			if time.Now().Nanosecond()%2 > 0 { // фейлятся таски в нечетные наносекунды
-				t.err = ErrOnCreateTask
+				t.Err = ErrOnCreateTask
 			}
+			t.Created = time.Now()
 			select {
 			case <-ctx.Done():
+				close(tasksChan)
+				return
 			case tasksChan <- t:
 			}
 		}
@@ -78,67 +132,52 @@ func NewTaskCreator() (<-chan Task, func(ctx context.Context)) {
 
 // task_handler.go
 
-type TaskHandler struct {
-	tasksCh   <-chan Task
-	doneTasks map[int]Task
-	errors    []error
-	mu        sync.Mutex
-}
-
-func NewTaskHandler(tasksCh <-chan Task) *TaskHandler {
-	th := &TaskHandler{
-		tasksCh:   tasksCh,
-		doneTasks: make(map[int]Task),
+func NewTaskHandler(tasksCh <-chan Task) (<-chan Task, <-chan error, func(ctx context.Context)) {
+	doneTasksChan := make(chan Task)
+	errChan := make(chan error)
+	started := atomic.Bool{}
+	return doneTasksChan, errChan, func(ctx context.Context) {
+		if started.Swap(true) || ctx.Err() != nil {
+			log.Printf("[ERROR] attempt to start handler again")
+			return
+		}
+		onCtxDone := func() {
+			close(doneTasksChan)
+			close(errChan)
+		}
+		for t := range tasksCh {
+			t = handleTask(t)
+			if t.Err != nil {
+				select {
+				case <-ctx.Done():
+					onCtxDone()
+					return
+				case errChan <- fmt.Errorf("handle task=%v: %w", t, t.Err):
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					onCtxDone()
+					return
+				case doneTasksChan <- t:
+				}
+			}
+		}
 	}
-	go th.handleTasks()
-	return th
 }
 
 var ErrOnHandleTask = errors.New("err on handle task")
 
 func handleTask(task Task) Task {
-	if task.created.After(time.Now().Add(-20 * time.Second)) {
-		task.result = []byte("task has been successes")
+	if task.Err != nil {
+		// return task without changes
+	} else if task.Created.After(time.Now().Add(-20 * time.Second)) {
+		task.Result = []byte("task has been successes")
 	} else {
-		task.result = []byte("something went wrong")
-		task.err = ErrOnHandleTask
+		task.Result = []byte("something went wrong")
+		task.Err = ErrOnHandleTask
 	}
-	task.handled = time.Now()
+	task.Handled = time.Now()
 	time.Sleep(time.Millisecond * 150)
 	return task
-}
-
-func (h *TaskHandler) handleTasks() {
-	for t := range h.tasksCh {
-		t = handleTask(t)
-		func() {
-			h.mu.Lock()
-			defer h.mu.Unlock()
-			if t.err != nil {
-				err := fmt.Errorf("handle task id=%d created=%s: %w", t.id, t.created.Format(time.RFC3339), t.err)
-				h.errors = append(h.errors, err)
-			} else {
-				h.doneTasks[t.id] = t
-			}
-		}()
-	}
-}
-
-type TaskHandleResult struct {
-	DoneTasks map[int]Task
-	Errors    []error
-}
-
-func (h *TaskHandler) Peek() TaskHandleResult {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	r := TaskHandleResult{
-		DoneTasks: make(map[int]Task, len(h.doneTasks)),
-		Errors:    make([]error, len(h.errors)),
-	}
-	copy(r.Errors, h.errors)
-	for k, v := range h.doneTasks {
-		r.DoneTasks[k] = v
-	}
-	return r
 }
