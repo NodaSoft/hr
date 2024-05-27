@@ -30,7 +30,7 @@ type Ttype struct {
 var someError error = errors.New("Some error occurred")
 
 func main() {
-	taskCreator := func(a chan Ttype, ctxCreator context.Context) {
+	taskCreator := func(a chan<- Ttype, ctxCreator context.Context) {
 		var nextIdx uint64 = 0
 		for {
 			ft := time.Now().Format(time.RFC3339)
@@ -74,7 +74,7 @@ func main() {
 		return &a, err
 	}
 
-	taskSorter := func(t *Ttype, err error, doneTasks chan *Ttype, undoneTasks chan error) {
+	taskSorter := func(t *Ttype, err error, doneTasks chan<- *Ttype, undoneTasks chan<- error) {
 		if err == nil {
 			doneTasks <- t
 		} else {
