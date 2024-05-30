@@ -15,91 +15,87 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	Id         int
+	CreateTime time.Time // время создания
+	FinishTime time.Time // время выполнения
+	Error      error
 }
 
+// эмуляция бесконечного получения(создания), обработки и вывода тасков
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	// канал полученных тасок
+	rawTask := make(chan *Task)
+	// канал обработанных тасок
+	completedTask := make(chan *Task)
+
+	// создатель тасок
+	go taskCreator(rawTask)
+	// обработчик тасок
+	go taskHandler(rawTask, completedTask)
+	// вывод обработанных тасок / ошибок
+	go completedTaskPrinter(completedTask)
+
+	for {
+	}
+}
+
+func taskCreator(res chan *Task) {
+	// имитация получения тасок каждые 0.5 секунд
+	for {
+		time.Sleep(500 * time.Millisecond)
+		// для уникальности Id можно использовать пакет "github.com/google/uuid"
+		task := &Task{CreateTime: time.Now(), Id: int(time.Now().Unix())}
+		if time.Now().Nanosecond()%2 > 0 { // условие появления ошибочных тасков
+			task.Error = fmt.Errorf("Some error occurred")
+		}
+		// кладем таску в канал для дальнейшей обработки
+		res <- task
+	}
+}
+
+func taskHandler(rawTask chan *Task, completedTask chan *Task) {
+	for t := range rawTask {
+		// не перезаписываем ошибку, если она была
+		if !t.CreateTime.After(time.Now().Add(-20*time.Second)) && t.Error == nil {
+			t.Error = fmt.Errorf("something went wrong")
+		}
+		t.FinishTime = time.Now()
+		completedTask <- t
+	}
+}
+
+func completedTaskPrinter(resultTask chan *Task) {
+	// сигнальный канал для начала вывода значений
+	signal := time.Tick(3 * time.Second)
+	// слайсы для хранения значений
+	errors := make([]string, 0)
+	result := make([]*Task, 0)
+
+	for {
+		select {
+		case <-signal:
+			// вывод значений в отдельной горутине
+			go printResults(result, errors)
+			// очистка слайсов
+			errors = make([]string, 0)
+			result = make([]*Task, 0)
+		case t := <-resultTask:
+			// у ошибочных тасок записываем только ошибки в отдельный слайс
+			if t.Error != nil {
+				errors = append(errors, t.Error.Error())
+			} else {
+				result = append(result, t)
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func printResults(res []*Task, errors []string) {
+	for _, v := range errors {
+		fmt.Println(v)
 	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for _, v := range res {
+		fmt.Println(v.Id)
 	}
 }
