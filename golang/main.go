@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 )
 
@@ -15,91 +18,115 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// Тип, представляющий таски. В зависимости от назначения тасков может понадобиться добавить поле TaskReturn, 
+// для хранения результата успешного выполнения таска. Если результаты слишком разнообразны, можно сделать структуру дженериком
+type Task struct {
+	Id         int
+	StartTime  string 
+	EndTime    string 
+	TaskFailed bool
+	TaskError  error
+}
+
+// Создаёт таски. Прекращает когда ctx отменён
+func taskCreator(ctx context.Context) (createdTasks <- chan Task) {
+	tc := make(chan Task, 10)
+	done := ctx.Done()
+	go func() {
+		// Можно заместо автоинкремента использовать UUID(есть пакет от гугла)
+		id := 0 
+	loop:
+		for {
+			select {
+			case <- done:
+				log.Println("Creation Ended")
+				break loop
+			default:
+				now := time.Now()
+				ct := now.Format(time.RFC3339)
+				if now.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					ct = "Some error occured"
+				}
+				id++
+				tc <- Task{StartTime: ct, Id: id} // передаем таск на выполнение
+			}
+		}
+		close(tc)
+	}()
+	return tc
+}
+
+// Выполняет один таск
+func runTask(t Task) (completed Task) {
+	tt, err := time.Parse(time.RFC3339, t.StartTime)
+	if err != nil {
+		t.TaskFailed = true
+		t.TaskError = err
+		return t
+	}
+	if tt.After(time.Now().Add(-20 * time.Second)) {
+		t.TaskFailed = false
+	} else {
+		t.TaskFailed = true
+		t.TaskError = fmt.Errorf("Timed out")
+	}
+	t.EndTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return t
+}
+
+// Запускает все таски из канала в многопоточном режиме.
+// Автоматически закрывает канал, который возращает
+func taskRunner(tc <-chan Task) (completed chan Task) {
+	completed = make(chan Task, 10)
+	go func() {
+		wg := sync.WaitGroup{}
+		for task := range tc {
+			wg.Add(1)
+			go func(task Task) {
+				completed <- runTask(task)
+				wg.Done()
+			}(task)
+		}
+		wg.Wait()
+		close(completed)
+	}()
+	return
+}
+
+// Функция выводит сперва таски с ошибками исполнения, а потом успешно завершённые. 
+// Может занимать значительное время(на моей машине за 3 секундами исполнения следуют 6 секунд вывода без tmux и 12-13 с ним)
+func taskPrinter(tc chan Task) {
+	result := map[int]Task{}
+	errored := map[int]Task{}
+	for t := range tc {
+		if !t.TaskFailed {
+			result[t.Id] = t
+		} else {
+			errored[t.Id] = t
+		}
+	}
+	log.Println("Errors:")
+	for id, task := range errored {
+		log.Printf("\t%d: %s", id, task.TaskError.Error())
+	}
+	log.Println("Successful:")
+	for id := range result {
+		log.Printf("\t%d", id)
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	log.SetFlags(0)
 
-	superChan := make(chan Ttype, 10)
+	creatorCtx, cancelCreator := context.WithTimeout(context.Background(), time.Second * 3)
+	defer cancelCreator()
 
-	go taskCreturer(superChan)
+	taskChan := taskCreator(creatorCtx)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	doneChan := taskRunner(taskChan)
 
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	taskPrinter(doneChan) // Это не нужно выполнять асинхронно т.к. вывод в консоль в любом случае является синхронной операцией
 }
