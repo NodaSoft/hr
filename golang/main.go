@@ -2,104 +2,156 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+//Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
+//Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+//ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
+//Важно сохранить логику появления ошибочных тасков.
+//Важно оставить асинхронные генерацию и обработку тасков.
+//Сделать правильную мультипоточность обработки заданий.
+//Обновленный код отправить через pull-request в github
+//Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	id         int       // уникальный идентификатор задач
+	broken     bool      // поле обозначающее дефектность
+	createdAt  time.Time // время создания
+	finishedAt time.Time // время выполнения
+	result     string    // результат выполнения задачи
 }
 
+// константы для настройки
+const sheduleDuration = 10 * time.Second // длительность планирования
+const sheduleFrequency = 1 * time.Second // частота планирования
+const minProcessSeconds = 5              // минимальное время выполнения задачи
+const maxProcessSeconds = 20             // максимальное время выполнения задачи
+const displayFrequency = 3 * time.Second // частота вывода результатов
+const dtFormat = time.DateTime           // RFC3339Nano
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	var wg sync.WaitGroup
+	var mu = &sync.Mutex{}
+	var doneTasks, errorTasks []Task
+
+	// инициализируем канал задач и канал стоп-сигнал
+	sheduleChan, sheduleStop := make(chan Task, 10), make(chan struct{})
+
+	// запускам планирование задач
+	go sheduleTasks(sheduleChan, sheduleStop, sheduleDuration, sheduleFrequency)
+
+	// запускаем вывод результатов каждые 3 секунды
+	go func() {
+		ticker := time.NewTicker(displayFrequency)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				displayProgress(&doneTasks, &errorTasks)
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	// читаем запланированные задачи пока не придет сигнал, далее ждем пока все задачи закончатся (с помощью wg)
+	// используем wg созданный для отслеживания задач в том числе для избегания случаев где у нас обработка опережает создание задач
+	// например когда первой генеируется задача с ошибкой (ее обработка моментальная)
+	wg.Add(1)
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		defer wg.Done()
+		for {
+			select {
+			case sheduledTask := <-sheduleChan:
+				wg.Add(1)
+				go processTask(sheduledTask, &doneTasks, &errorTasks, &wg, mu)
+			case <-sheduleStop:
+				fmt.Println("No more tasks to schedule.")
+				return
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
+	wg.Wait()
+	displayProgress(&doneTasks, &errorTasks) // финальный вывод резульатов
+}
 
-	time.Sleep(time.Second * 3)
+func (t *Task) toString() string {
+	return fmt.Sprintf("id - %v, broken - %v, createdAt - %v, finishedAt - %v, result - %v", t.id, t.broken, t.createdAt.Format(dtFormat), t.finishedAt.Format(time.RFC3339), t.result)
+}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+// Функция создания задач
+func createTask(lastId *int) Task {
+	creationTime := time.Now()
+	*lastId++
+	newTask := Task{id: *lastId, createdAt: creationTime}
+	if rand.Float64() < 0.44 {
+		newTask.broken = true // Некий дефект в задаче который приведет к ошибке
+	}
+	return newTask
+}
+
+// Функция для заполнения канала shedule структурами Task в течении duration и с частотой frequency
+func sheduleTasks(shedule chan<- Task, stop chan<- struct{}, duration, frequency time.Duration) {
+	timeout := time.After(duration)
+	id := -1
+	for {
+		select {
+		case <-timeout:
+			close(stop)
+			fmt.Printf("Sheduled %v tasks.\n", id) // закрываем стоп канал вызывая срабатывание выхода из for select loop
+			return
+		default:
+			newTask := createTask(&id)
+			shedule <- newTask
+			time.Sleep(frequency)
+		}
+	}
+}
+
+func processTask(task Task, doneTasks, errorTasks *[]Task, wg *sync.WaitGroup, mu *sync.Mutex) {
+	defer wg.Done()
+
+	// если сломано
+	if task.broken {
+		// записываем результат и время окончания обработки
+		task.finishedAt = time.Now()
+		task.result = "error"
+
+		// безопасно записываем в слайс законченных с ошибкой задач
+		mu.Lock()
+		*errorTasks = append(*errorTasks, task)
+		mu.Unlock()
+		return
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	// имитируем процессинг задачи
+	processDuration := time.Duration(randInt(minProcessSeconds, maxProcessSeconds)) * time.Second
+	time.Sleep(processDuration)
+
+	// записываем результат и время окончания обработки
+	task.finishedAt = time.Now()
+	task.result = "success"
+
+	// безопасно записываем в слайс законченных задач
+	mu.Lock()
+	*doneTasks = append(*doneTasks, task)
+	mu.Unlock()
+}
+
+func displayProgress(done, doneWithError *[]Task) {
+	fmt.Println("DONE TASKS:")
+	for _, task := range *done {
+		fmt.Printf("%s\n", task.toString())
 	}
+	fmt.Println("DONE WITH ERROR TASKS:")
+	for _, task := range *doneWithError {
+		fmt.Printf("%s\n", task.toString())
+	}
+}
+
+// Функция для генерация int в нужных диапазонах
+func randInt(min, max int) int {
+	return rand.Intn(max-min) + min
 }
