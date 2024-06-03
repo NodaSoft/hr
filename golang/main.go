@@ -29,14 +29,14 @@ type Task struct {
 
 var tmpTime time.Duration = 4
 
-func taskGenerate(a chan Task, wg *sync.WaitGroup) { // !!!функция только на отдавания в канал// !!! а переименновать
+func taskGenerate(superChan chan Task, wg *sync.WaitGroup) { // !!!функция только на отдавания в канал// !!! а переименновать
 	//сделать тайминг работы 10
 	start := time.Now()
 	for {
 
 		if time.Since(start) >= tmpTime*time.Second {
 
-			close(a) // Закрываем канал после 10 секунд
+			close(superChan) // Закрываем канал после 10 секунд
 			fmt.Println("Generate - stop")
 			return // Выходим из функции
 		} // !!!
@@ -47,14 +47,14 @@ func taskGenerate(a chan Task, wg *sync.WaitGroup) { // !!!функция тол
 			generateTime = "Some error occured"
 		}
 		wg.Add(1)
-		a <- Task{createTime: generateTime, id: int(time.Now().Unix())} // передаем таск на выполнение
-		time.Sleep(1 * time.Second)                                     // Ограничение на 1 секунду
+		superChan <- Task{createTime: generateTime, id: int(time.Now().Unix())} // передаем таск на выполнение
+		time.Sleep(1 * time.Second)                                             // Ограничение на 1 секунду
 
 	}
 	// !!! возможно здесь надо сделать слип 10 секунд, и счетчик горутин
 }
 
-func taskWorker(a Task, doneTasks chan Task) Task {
+func taskWorker(a Task, doneTasks chan Task) Task { /// naming
 	tt, _ := time.Parse(time.RFC3339, a.createTime)
 	if tt.After(time.Now().Add(-2 * time.Second)) {
 		a.taskResult = "task has been successed"

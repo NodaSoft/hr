@@ -20,32 +20,28 @@ type ResultTasks struct {
 }
 
 var (
-	generateTime        time.Duration = 10
-	outputTime          time.Duration = 4
+	generateTime        time.Duration = 3
+	outputTime          time.Duration = 1
 	generationfrequency time.Duration = 1000
 )
 
 func taskGenerate(superChan chan Task, wg *sync.WaitGroup) { // !!!функция только на отдавания в канал// !!! а переименновать
-	//сделать тайминг работы 10
+	defer wg.Done()
 	start := time.Now()
-	// fmt.Println("taskGenerate")
+	// var i int = 1
 	for {
-
 		if time.Since(start) >= generateTime*time.Second {
-
 			close(superChan) // Закрываем канал после 10 секунд
-			// fmt.Println("Generate - stop")
-
-			return // Выходим из функции
+			return           // Выходим из функции
 		} // !!!
-
 		createTime := time.Now().Format(time.RFC3339)
 		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков !!!
 			createTime = "Some error occured"
 			// fmt.Println("_____1")
 		}
-		fmt.Println("_____1.1")
 		wg.Add(1)
+		// fmt.Println("1_1 open ", i)
+		// i++
 		superChan <- Task{createTime: createTime, id: int(time.Now().Unix())} // передаем таск на выполнение
 		time.Sleep(generationfrequency * time.Millisecond)                    // Ограничение на 1 секунду
 
@@ -53,30 +49,55 @@ func taskGenerate(superChan chan Task, wg *sync.WaitGroup) { // !!!функци�
 	// !!! возможно здесь надо сделать слип 10 секунд, и счетчик горутин
 }
 
-func tickerResult(mu *sync.Mutex, wg *sync.WaitGroup, resultTasks *ResultTasks, resultChan chan ResultTasks, stop chan bool) {
-	ticker := time.NewTicker(outputTime * time.Second)
+func tickerResult(mu *sync.Mutex, resultTasks *ResultTasks, resultChan chan ResultTasks, stop chan bool) {
 
+	// defer wg.Done()
+	ticker := time.NewTicker(outputTime * time.Second)
+	fmt.Println("tickerResult")
+
+	go func() {
+		_, ok := <-stop
+		if ok {
+			fmt.Println("_____TickerResult close")
+			// wg.Done()
+			mu.Lock()
+			resultChan <- *resultTasks
+			close(resultChan)
+			return
+
+		}
+	}()
+
+	i := 1
 	for range ticker.C {
 
 		mu.Lock()
 		resultChan <- *resultTasks
+		fmt.Println("Передаем на печать_ ", i)
+		i++
+		// fmt.Println(resultTasks.DoneTask)
 		mu.Unlock()
+		fmt.Println("new tik___")
 
-		// _, ok := <-stop
+		// fmt.Println("new tik__2_ ", ok)
+
+		// _, ok := <-doneChan
 		// if !ok {
-		// 	fmt.Println("____")
+		// 	fmt.Println("tickerResult close")
 		// 	// wg.Done()
 		// 	close(resultChan)
 		// 	return
 		// }
-
 	}
 
 }
 
 func printResult(resultChan chan ResultTasks, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer fmt.Println("printResult close")
+
 	for result := range resultChan {
+		fmt.Println("____result.DoneTask")
 		println("Done tasks:")
 		for _, task_d := range result.DoneTask {
 			fmt.Println(task_d)
@@ -85,107 +106,106 @@ func printResult(resultChan chan ResultTasks, wg *sync.WaitGroup) {
 		println("Errors:")
 		for _, task_e := range result.ErrorTask {
 			fmt.Printf("Task id %d time %s, error %s\n", task_e.id, task_e.createTime, task_e.taskResult)
-			// fmt.Println(task_r)
+			fmt.Println("task_r")
 		}
 	}
 
 }
 
-func taskWorker(task Task, doneChan chan Task, mu *sync.Mutex, wg *sync.WaitGroup, result *ResultTasks) { // !!! не нужно чтоб возвращал таск
+func taskWorker(task Task, doneChan, errorChan chan Task, wg *sync.WaitGroup) { // !!! не нужно чтоб возвращал таск
 	defer wg.Done()
-	// fmt.Println("k__")
-	// fmt.Println("taskWorker")
-	// undoneTasks := make(chan error)
 	tt, _ := time.Parse(time.RFC3339, task.createTime)
-
+	// time.Sleep(3 * time.Second)
 	if tt.After(time.Now().Add(-20 * time.Second)) {
-		// fmt.Println("k2__1")
+
 		task.taskResult = "task has been successed"
 		task.finishTime = time.Now().Format(time.RFC3339Nano)
-		// doneChan <- task
-		// fmt.Println("t__")
-		mu.Lock()
-		// fmt.Println("t__k")
-		result.DoneTask = append(result.DoneTask, task) // !!! rпереименновать
-		mu.Unlock()
+		doneChan <- task
+		// fmt.Println("k2__1")
 	} else {
 		task.taskResult = "something went wrong"
 		task.finishTime = time.Now().Format(time.RFC3339Nano)
-		// undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.createTime, task.taskResult)
-		// doneChan <- task
-		mu.Lock()
-		result.ErrorTask = append(result.ErrorTask, task) // !!! rпереименновать
-		mu.Unlock()
-		// fmt.Println("t2__")
+		errorChan <- task
+		// fmt.Println("k2__2")
 	}
 
 	// fmt.Println("k2__")
 	time.Sleep(time.Millisecond * 150) //!!! не очень понятно зачем эта задержка, функциональной нагрузке не несет
+
+}
+
+func storage(current chan Task, storage *[]Task, wg *sync.WaitGroup, mu *sync.Mutex, stop chan bool) {
+	defer func() { stop <- true }()
+	defer wg.Done()
+	for task := range current {
+		mu.Lock()
+		*storage = append(*storage, task) // !!! rпереименновать
+		mu.Unlock()
+		wg.Done()
+	}
+
+	// for _, tast := range *storage { //евременно
+	// 	fmt.Println(tast.id)
+	// }
+
+	fmt.Println("storage close" /*, storage*/)
+
 }
 
 func main() {
 	start := time.Now()
 	fmt.Println("Start")
-	var wg sync.WaitGroup
 	// ticker := time.NewTicker(outputTime * time.Second)
 	// _ = ticker
-	superChan := make(chan Task, 10)
+	var wg sync.WaitGroup
+	superChan := make(chan Task, 10) // !!1 переименновать канал
 	doneChan := make(chan Task, 10)
+	errorChan := make(chan Task, 10)
+	_ = errorChan
 	resultChan := make(chan ResultTasks)
 	stop := make(chan bool)
-	// Генерируем таски
-	wg.Add(1)
 	result := ResultTasks{DoneTask: []Task{}, ErrorTask: []Task{}}
 	mu := sync.Mutex{}
+	// Генерируем таскu
 
-	go tickerResult(&mu, &wg, &result, resultChan, stop)
+	func() {
+		// defer func() { stop <- true }()
+		wg.Add(2)
+		go storage(doneChan, &result.DoneTask, &wg, &mu, stop)
+		go storage(errorChan, &result.ErrorTask, &wg, &mu, stop)
+	}()
 
+	go tickerResult(&mu, &result, resultChan, stop)
+	go func() {
+		wg.Add(1)
+		go printResult(resultChan, &wg) // !!! попробовать без  go
+	}()
+
+	wg.Add(1)
 	go taskGenerate(superChan, &wg)
 
 	go func() {
-		wg.Add(1)
-		printResult(resultChan, &wg)
-	}()
-
-	go func() {
+		wg_t := sync.WaitGroup{}
 		for task_c := range superChan {
-			go taskWorker(task_c, doneChan, &mu, &wg, &result) //!!!каналы сделать однонаправленные // go
+			wg_t.Add(1)
+			go taskWorker(task_c, doneChan, errorChan, &wg_t) //!!!каналы сделать однонаправленные // go
 			// fmt.Println(result.DoneTask)
 		}
-		// stop <- true
-		fmt.Println("stop close")
-		close(stop)
+
+		wg_t.Wait()
 		close(doneChan)
+		close(errorChan)
+		// stop <- true
+		// fmt.Println("stop close")
 		fmt.Println("close superchan")
-
+		// fmt.Println(result)
 	}()
-	/*
-		go func() {
-			for r := range doneChan {
-				// go func() {
-				// 	for range ticker.C {
-				// 		mu.Lock()
-				// 		resultChan <- result
-				// 		mu.Unlock()
-				// 	}
-				// }()
-				fmt.Println("____2")
-				// go func(r Task) {
-				// fmt.Println(r)
-				mu.Lock()
-				result = append(result, r) // !!! rпереименновать
-				// fmt.Println(result)
-				mu.Unlock()
-
-				wg.Done()
-			}
-
-			wg.Done()
-			// wg.Done()
-		}()*/
 
 	wg.Wait()
-
+	fmt.Println("wait close")
+	// stop <- true
+	fmt.Println("stop close")
+	// close(doneChan)
 	// time.Sleep(3 * time.Second)
 	// !!! закрыть все не закрытые каналы
 	finish := time.Now()
