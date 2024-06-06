@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -15,91 +18,122 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
+type Status int8
+
+const (
+	Processing Status = iota
+	Success
+	Error
+)
+
 // A Ttype represents a meaninglessness of our life
 type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	Id          int
+	Status      Status    //статус
+	Description string    //описание задачи
+	CreatedAt   time.Time // время создания
+	DoneAt      time.Time // время выполнения
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
 
 	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
+	//в Go стандартный вывод медленный, поэтому принято решение использовать буферизированный
+	out := bufio.NewWriter(os.Stdout)
+	//управление временем жизни программы через контекст
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	go taskProducer(ctx, superChan)
 
 	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	undoneTasks := make(chan Ttype)
+	outChan := make(chan Ttype)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+	go taskWorker(ctx, superChan, outChan)
+	go taskSorter(ctx, outChan, doneTasks, undoneTasks)
+	//можно было сделать обработку и на основе мапы, но на каналах более идиоматично
+
+	go taskConsumer(doneTasks, out, "success-")
+	go taskConsumer(undoneTasks, out, "error-")
+	t := time.NewTicker(time.Second * 3)
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("graceful shutdown")
+			return
+		case <-t.C:
+			//каждые три секунды высвобождается поток вывода
+			out.Flush()
 		}
 	}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+func taskProducer(ctx context.Context, a chan Ttype) {
+	defer close(a)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			createdAt := time.Now()
+			s := Processing
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				s = Error
+			}
+			a <- Ttype{Status: s, CreatedAt: createdAt, Id: int(time.Now().Unix())} // передаем таск на выполнение
+			time.Sleep(time.Millisecond * 50)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+
+	}
+}
+
+func taskWorker(ctx context.Context, in <-chan Ttype, out chan<- Ttype) {
+	defer close(out)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			for a := range in {
+
+				if a.Status == Processing && a.CreatedAt.After(time.Now().Add(-20*time.Second)) {
+					a.Description = "task has been successed"
+					a.Status = Success
+				} else {
+					a.Status = Error
+					a.Description = "something went wrong"
+				}
+				a.DoneAt = time.Now()
+				out <- a
+
+			}
 		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	}
+}
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskSorter(ctx context.Context, allTasks, doneTasks, undoneTasks chan Ttype) {
+	defer close(doneTasks)
+	defer close(undoneTasks)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			for t := range allTasks {
+				if t.Status == Success {
+					doneTasks <- t
+				} else {
+					undoneTasks <- t
+				}
+			}
+		}
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+}
+
+func taskConsumer(tasks chan Ttype, out *bufio.Writer, taskDescription string) {
+	for t := range tasks {
+		fmt.Fprintln(out, taskDescription, t.Id, t.Description)
 	}
+
 }
