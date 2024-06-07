@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -16,90 +17,92 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type taskType struct {
+	id               int
+	taskCreationTime string // время создания
+	taskFailedTime   string // время выполнения
+	taskResult       []byte
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	task := make(chan taskType, 10)
 
-	superChan := make(chan Ttype, 10)
+	go taskCreator(task)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
+	doneTasks := make(chan taskType)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
+	result := make(map[int]taskType)
+	errs := []error{}
+	go func() {
+        for {
+            select {
+            case r, ok := <-doneTasks:
+                if !ok {
+                    return
+                }
+                result[r.id] = r
+            case err, ok := <-undoneTasks:
+                if !ok {
+                    return
+                }
+                errs = append(errs, err)
+            }
+        }
+    }()
+
+	// получение тасков
+	for t := range task {
+		t = taskWorker(t)
+		taskSorter(t, doneTasks, undoneTasks)
+	}
+	
+	close(doneTasks)
+    close(undoneTasks)
+
+	fmt.Println("Done tasks:")
+	for id, result := range result {
+		fmt.Printf("Task ID: %d, Result: %+v\n", id, result)
 	}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+	fmt.Println("Errors:")
+	for _, err := range errs {
+		fmt.Println(err)
+	}
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+func taskCreator(a chan taskType) {
+	for {
+		creationTime := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			creationTime = "Some error occured"
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+		a <- taskType{taskCreationTime: creationTime, id: int(time.Now().Unix())} // передаем таск на выполнение
+	}
+}
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskWorker(a taskType) taskType {
+	tt, err := time.Parse(time.RFC3339, a.taskCreationTime)
+	if err != nil {
+		a.taskResult = []byte("something went wrong")
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	if tt.After(time.Now().Add(-20*time.Second)) && a.taskResult == nil {
+		a.taskResult = []byte("task has been successed")
+	} else {
+		a.taskResult = []byte("something went wrong")
+	}
+	a.taskFailedTime = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return a
+}
+
+func taskSorter(t taskType, doneTasks chan taskType, undoneTasks chan error) {
+	if strings.Contains(string(t.taskResult), "successed") {
+		doneTasks <- t
+	} else {
+		undoneTasks <- fmt.Errorf("Task id: %d, Creation time: %s, Result: %s", t.id, t.taskCreationTime, t.taskResult)
 	}
 }
