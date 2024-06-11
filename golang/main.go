@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -16,90 +18,104 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createdAt  string
+	finishedAt string
+	status     string
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tasks := make(chan Task)
+	handled := make(chan Task)
+
+	results := make(map[int]Task)
+	errs := make([]error, 0)
+
+	duration := time.Duration(150) * time.Millisecond
+	go taskGenerator(ctx, tasks, duration)
+
+	go func() {
+		for t := range handled {
+			if strings.Contains(t.status, "successed") {
+				results[t.id] = t
+			} else {
+				errs = append(errs, fmt.Errorf("task id %d time %s, error %s", t.id, t.createdAt, t.status))
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	ticker := time.NewTicker(3 * time.Second)
 
-	time.Sleep(time.Second * 3)
+	for {
+		select {
+		case <-ctx.Done():
+			close(tasks)
+			close(handled)
+			fmt.Println("Time's up!")
+			return
+		case task := <-tasks:
+			handled <- taskHadler(task)
+		case <-ticker.C:
+			fmt.Println("Errors:")
+			for _, e := range errs {
+				fmt.Println(e)
+			}
+			fmt.Println("Done tasks:")
+			for _, r := range results {
+				fmt.Println(r)
+			}
+		}
+	}
+}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskGenerator(ctx context.Context, superChan chan Task, duration time.Duration) {
+	tick := time.NewTicker(duration)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			now := time.Now()
+
+			if now.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				superChan <- Task{
+					id:        int(time.Now().UnixMilli()),
+					createdAt: now.Format(time.RFC3339),
+					status:    "Some error occured",
+				}
+			} else {
+				superChan <- Task{
+					id:        int(time.Now().Unix()),
+					createdAt: now.Format(time.RFC3339),
+					status:    "Created",
+				}
+			}
+		}
+	}
+}
+
+func taskHadler(task Task) Task {
+	created, err := time.Parse(time.RFC3339, task.createdAt)
+	if err != nil {
+		fmt.Println(err)
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	if created.After(time.Now().Add(-20 * time.Second)) {
+		if strings.Contains(task.status, "error") {
+			task.finishedAt = time.Now().Format(time.RFC3339)
+		} else {
+			task.finishedAt = time.Now().Format(time.RFC3339)
+			task.status = "task has been successed"
+		}
+	} else {
+		task.finishedAt = time.Now().Format(time.RFC3339)
+		task.status = "something went wrong"
 	}
+
+	return task
 }
