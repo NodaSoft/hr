@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,8 +16,8 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A tType represents a meaninglessness of our life
+type tType struct {
 	id         int
 	cT         string // время создания
 	fT         string // время выполнения
@@ -24,26 +25,39 @@ type Ttype struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
+	var wg sync.WaitGroup
+	superChan := make(chan tType, 10)
+	doneTasks := make(chan tType, 10)
+	undoneTasks := make(chan error, 10)
+	stopChan := make(chan struct{})
+
+	taskCreator := func(a chan tType) {
+		defer wg.Done()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopChan:
+				return
+			case <-ticker.C:
+				return
+			default:
 				ft := time.Now().Format(time.RFC3339)
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+					ft = "an error has occurred"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- tType{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 			}
-		}()
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
+	wg.Add(1)
+	go taskCreator(superChan)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
+	taskWorker := func(a tType) tType {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+			a.taskRESULT = []byte("task has been completed successfully")
 		} else {
 			a.taskRESULT = []byte("something went wrong")
 		}
@@ -54,52 +68,83 @@ func main() {
 		return a
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
+	taskSorter := func(t tType) {
+		defer wg.Done()
+		if string(t.taskRESULT) == "task has been completed successfully" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
 
 	go func() {
-		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+			wg.Add(1)
+			go taskSorter(taskWorker(t))
 		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
+	result := map[int]tType{}
 	err := []error{}
+	var mu sync.Mutex
+
 	go func() {
 		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+			mu.Lock()
+			result[r.id] = r
+			mu.Unlock()
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		for e := range undoneTasks {
+			mu.Lock()
+			err = append(err, e)
+			mu.Unlock()
+		}
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				mu.Lock()
+				fmt.Println("Errors:")
+				for _, e := range err {
+					fmt.Println(e)
+				}
+				fmt.Println("Done tasks:")
+				for id, r := range result {
+					fmt.Printf("ID: %d, Result: %s\n", id, r.taskRESULT)
+				}
+				mu.Unlock()
+			case <-stopChan:
+				return
+			}
+		}
+	}()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	time.Sleep(10 * time.Second)
+	close(stopChan)
+	wg.Wait()
+
+	close(doneTasks)
+	close(undoneTasks)
+	close(superChan)
+
+	// Последние принты
+	mu.Lock()
+	fmt.Println("Final Errors:")
+	for _, e := range err {
+		fmt.Println(e)
 	}
+	fmt.Println("Final Done tasks:")
+	for id, r := range result {
+		fmt.Printf("ID: %d, Result: %s\n", id, r.taskRESULT)
+	}
+	mu.Unlock()
 }
