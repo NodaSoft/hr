@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -15,91 +17,108 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id          int
+	time_start  time.Time // время создания
+	time_finish time.Time // время выполнения
+	err         error
+}
+
+func taskCreator(tasks chan Task) {
+
+	// параметры генератора
+	const duration_secs = 10
+	const interval_secs = 0.5
+
+	start := time.Now()
+	id := 0
+	for time.Since(start).Seconds() < duration_secs {
+		var task Task
+
+		t := time.Now()
+		task.id = id
+		task.time_start = t
+		if t.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			task.err = errors.New("Task creator error")
+		}
+
+		tasks <- task
+		id++
+		time.Sleep(time.Duration(float64(time.Second) * interval_secs))
+	}
+	close(tasks)
+}
+
+func taskLogger(successful_tasks *[]Task, failed_tasks *[]Task, stop_logger chan struct{}) {
+
+	var log = func() {
+
+		fmt.Println("Successful tasks: ", len(*successful_tasks))
+		for _, t := range *successful_tasks {
+			fmt.Printf("%-4d start: %s finish: %s\n", t.id, t.time_start.Format(time.RFC3339), t.time_finish.Format(time.RFC3339))
+		}
+		fmt.Println()
+
+		fmt.Println("Failed tasks: ", len(*failed_tasks))
+		for _, t := range *failed_tasks {
+			fmt.Printf("%-4d start: %s error: %s\n", t.id, t.time_start.Format(time.RFC3339), t.err.Error())
+		}
+	}
+
+	t := time.Now()
+	for {
+		select {
+		case <-stop_logger:
+			return
+		default:
+			if time.Since(t) > time.Second*3 {
+				log()
+				t = time.Now()
+			}
+		}
+	}
+}
+
+func taskWorker(tasks chan Task, successful_tasks *[]Task, failed_tasks *[]Task, finished chan struct{}) {
+
+	stop_logger := make(chan struct{})
+	go taskLogger(successful_tasks, failed_tasks, stop_logger)
+
+	for t := range tasks {
+		if t.err != nil {
+			*failed_tasks = append(*failed_tasks, t)
+		} else {
+			if rand.Intn(2) != 0 {
+				t.err = errors.New("Task worker error") // условие ошибки в обработчике
+				*failed_tasks = append(*failed_tasks, t)
+			} else {
+				t.time_finish = time.Now()
+				*successful_tasks = append(*successful_tasks, t)
+			}
+
+			time.Sleep(time.Millisecond * 150)
+		}
+	}
+	stop_logger <- struct{}{}
+	time.Sleep(time.Millisecond * 100)
+
+	finished <- struct{}{}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
 
-	superChan := make(chan Ttype, 10)
+	tasks := make(chan Task, 10)
+	successful_tasks := []Task{}
+	failed_tasks := []Task{}
+	finished := make(chan struct{})
 
-	go taskCreturer(superChan)
+	// генератор задач
+	go taskCreator(tasks)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	// обрабочик задач
+	go taskWorker(tasks, &successful_tasks, &failed_tasks, finished)
 
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	// ожидание завершения обработчика
+	<-finished
 }
