@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,91 +17,110 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A TaskType represents a meaninglessness of our life
+type TaskType struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createdAt  string // время создания
+	executedAt string // время выполнения
+	taskResult string
+	err        error
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	doneTasks := make(chan TaskType, 10)
+	undoneTasks := make(chan TaskType, 10)
+
+	var wg sync.WaitGroup
+
+	createChan := taskCreator(ctx)
+	workerChan := taskWorker(createChan)
+	taskSorter(workerChan, doneTasks, undoneTasks, &wg)
+
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				printResults(doneTasks, undoneTasks)
+			case <-ctx.Done():
+				return
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	wg.Wait()
+}
+
+func taskCreator(ctx context.Context) <-chan TaskType {
+	out := make(chan TaskType)
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		defer close(out)
+		id := 1
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				timeStamp := time.Now().Format(time.RFC3339)
+				if time.Now().Nanosecond()%2 > 0 {
+					timeStamp = "пол шестого"
+				}
+				out <- TaskType{createdAt: timeStamp, id: id}
+				id++
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
+	return out
+}
 
-	time.Sleep(time.Second * 3)
+func taskWorker(in <-chan TaskType) <-chan TaskType {
+	out := make(chan TaskType)
+	go func() {
+		defer close(out)
+		for t := range in {
+			timeStamp, err := time.Parse(t.createdAt, time.RFC3339)
+			if err != nil {
+				t.taskResult = "task failed"
+				t.err = err
+			} else {
+				t.taskResult = fmt.Sprintf("task has been completed at %s", timeStamp)
+			}
+			t.executedAt = time.Now().Format(time.RFC3339Nano)
+			time.Sleep(time.Millisecond * 150)
+			out <- t
+		}
+	}()
+	return out
+}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+func taskSorter(in <-chan TaskType, doneChan, errChan chan TaskType, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for t := range in {
+			if t.err != nil {
+				errChan <- t
+			} else {
+				doneChan <- t
+			}
+		}
+	}()
+}
+
+func printResults(doneTasks, undoneTasks <-chan TaskType) {
+	fmt.Println("Done tasks:")
+	for len(doneTasks) > 0 {
+		t := <-doneTasks
+		fmt.Printf("Task id %d created at %s executed at %s message: %s\n", t.id, t.createdAt, t.executedAt, t.taskResult)
 	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Println("Errors:")
+	for len(undoneTasks) > 0 {
+		t := <-undoneTasks
+		fmt.Printf("Task id %d created at %s executed at %s error: %s\n", t.id, t.createdAt, t.executedAt, t.err.Error())
 	}
 }
