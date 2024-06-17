@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"sync"
 	"taskConcurrency/internal/domain/task"
 	"time"
 )
@@ -9,9 +10,15 @@ type Worker struct{}
 
 func (w *Worker) Work(tasks <-chan task.Task, processed chan<- task.Task) {
 	go func() {
+		wg := &sync.WaitGroup{}
 		for task := range tasks {
-			w.workOneTask(task, processed)
-		}
+            wg.Add(1)
+            go func() {
+                w.workOneTask(task, processed)
+                wg.Done()
+            }()
+        }
+		wg.Wait()
 		close(processed)
 	}()
 }
