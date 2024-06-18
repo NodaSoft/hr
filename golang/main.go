@@ -76,6 +76,7 @@ func taskProducer(ctx context.Context, wg *sync.WaitGroup, taskChan chan<- Task)
 
 	// Позволил себе ограничить количество создаваемых тасок, теперь таски создаются с заданной периодичностью
 	ticker := time.NewTicker(producerTicker)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -129,6 +130,7 @@ func taskWriter(ctx context.Context, wg *sync.WaitGroup, result *TemporaryResult
 	defer wg.Done()
 
 	ticker := time.NewTicker(writerTicker)
+	defer ticker.Stop()
 
 	for {
 		select {
