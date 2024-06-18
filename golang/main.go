@@ -105,11 +105,11 @@ func main() {
 	for {
 		select {
 		case task, ok := <-creatorChan:
-			task = taskWorker(task)
-			go taskSorter(task, doneTask, undoneTask)
 			if !ok {
 				return
 			}
+			task = taskWorker(task)
+			go taskSorter(task, doneTask, undoneTask)			
 		case success := <-doneTask:
 			successResult = append(successResult, success)
 		case err := <-undoneTask:
