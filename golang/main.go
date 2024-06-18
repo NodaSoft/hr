@@ -1,105 +1,166 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+// Вынес "магические числа" в константы
+const (
+	programExecutionTime = time.Second * 10
+	producerTicker       = time.Millisecond * 500
+	writerTicker         = time.Second * 3
+	successfulTaskOffset = time.Second * -20
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+	taskBufferSize = 8
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	writerSeparator = "\n-------------------------------------------------------\n\n"
+	writerFormatStr = "Task %d, time: %s\n"
+)
+
+// Заменил Ttype на более понятное название Task
+// Убрал сложные для понимания строчные переменные
+type Task struct {
+	id             uint64
+	createdAt      time.Time
+	failedToCreate bool
+}
+
+// Структура, в которой мы храним временный результат
+// Воркер taskWriter каждые 3 секунды пишет содержимое в консоль и чистит элементы из слайсов
+// Для избежания состояния гонки и потенциальной потери данных используем мьютекс
+type TemporaryResult struct {
+	mu         sync.Mutex
+	successful []Task
+	failed     []Task
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	// При достижении дедлайна контекст закрывается и рутины, его слушающие, прекращают работу
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(programExecutionTime))
+	defer cancel()
+
+	// Оставляем только один канал, в который будем помещать таски
+	taskChan := make(chan Task)
+
+	// Задаем слайсы с длиной 0 и определенной capacity.
+	// Засчет этого экономим ресурсы, заранее аллоцируя память, при этом работая со слайсом как с пустым
+	result := &TemporaryResult{
+		successful: make([]Task, 0, taskBufferSize),
+		failed:     make([]Task, 0, taskBufferSize),
+	}
+
+	// При помощи WaitGroup мы дожидаемся окончания работы всех воркеров
+	wg := &sync.WaitGroup{}
+
+	wg.Add(3)
+
+	// Вынес функции из main для лучшей читаемости
+	// producer создает таски, processor их проверяет и распределяет, а writer пишет в консоль
+	go taskProducer(ctx, wg, taskChan)
+	go taskProcessor(ctx, wg, taskChan, result)
+	go taskWriter(ctx, wg, result)
+
+	wg.Wait()
+}
+
+// Так как этот воркер в канал только пишет, передаем его в параметрах как write-only
+// Избавился от лишнего вызова горутины, сама функция и так вызывается в рутине
+// Конвертация времени в строку и обратно не служит никакой цели, избавился от нее
+func taskProducer(ctx context.Context, wg *sync.WaitGroup, taskChan chan<- Task) {
+	// defer хранит функции в стеке, поэтому закрытие канала помещаем ниже, чтобы канал наверняка закрылся до завершения программы
+	defer wg.Done()
+	defer close(taskChan)
+
+	// Позволил себе ограничить количество создаваемых тасок, теперь таски создаются с заданной периодичностью
+	ticker := time.NewTicker(producerTicker)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			timeNow := time.Now()
+
+			// Более читаемый вид по сравнению с записью в одну строку
+			task := Task{
+				id:        uint64(timeNow.UnixNano()),
+				createdAt: timeNow,
 			}
-		}()
-	}
 
-	superChan := make(chan Ttype, 10)
+			// Сравнение с нулем - излишняя операция, так как модуло от 2 может вернуть только 0 или 1
+			// Для процессора дешевле сделать проверку на равенство
+			if time.Now().Nanosecond()%2 != 0 {
+				task.failedToCreate = true
+			}
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			taskChan <- task
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+// Обработчик тасков только читает из канала, поэтому канал передаем как read-only
+// Структуру TemporaryResult передаем по указателю, иначе будем работать с копией и при append'ах рискуем потерять данные
+func taskProcessor(ctx context.Context, wg *sync.WaitGroup, taskChan <-chan Task, result *TemporaryResult) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case task := <-taskChan:
+			result.mu.Lock()
+
+			if task.failedToCreate || task.createdAt.After(time.Now().Add(successfulTaskOffset)) {
+				result.successful = append(result.successful, task)
+			} else {
+				result.failed = append(result.failed, task)
+			}
+
+			result.mu.Unlock()
 		}
-		close(superChan)
-	}()
+	}
+}
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+// Каждые 3 секунды пишем в консоль накопленные таски, а потом чистим их, освобождая место под следующую итерацию
+func taskWriter(ctx context.Context, wg *sync.WaitGroup, result *TemporaryResult) {
+	defer wg.Done()
+
+	ticker := time.NewTicker(writerTicker)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result.mu.Lock()
+
+			writeTasksToStdout(result)
+
+			// После вывода чистим слайсы, зануляя их длину, при этом сохраняя capacity
+			result.successful = result.successful[:0]
+			result.failed = result.failed[:0]
+
+			result.mu.Unlock()
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	}
+}
 
-	time.Sleep(time.Second * 3)
+// Форматирование вывода в отдельной функции, форматная строка переиспользуется, поэтому вынесена в константу
+func writeTasksToStdout(result *TemporaryResult) {
+	fmt.Print("Successful tasks:\n\n")
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+	for _, task := range result.successful {
+		fmt.Printf(writerFormatStr, task.id, task.createdAt.Format(time.RFC3339))
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	fmt.Print("\nFailed tasks:\n\n")
+
+	for _, task := range result.failed {
+		fmt.Printf(writerFormatStr, task.id, task.createdAt.Format(time.RFC3339))
 	}
+
+	fmt.Print(writerSeparator)
 }
