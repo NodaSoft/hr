@@ -2,9 +2,6 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-/**
- * @property Seller $Seller
- */
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
@@ -12,9 +9,10 @@ class Contractor
     public $type;
     public $name;
 
-    public static function getById(int $resellerId): self
+    public static function getById(int $resellerId): ?self
     {
-        return new self($resellerId); // fakes the getById method
+        // Предположительно, этот метод должен получать данные из базы данных или другого источника
+        return new self($resellerId); // Заглушка метода getById
     }
 
     public function getFullName(): string
@@ -43,7 +41,7 @@ class Status
             2 => 'Rejected',
         ];
 
-        return $a[$id];
+        return $a[$id] ?? 'Unknown';
     }
 }
 
@@ -53,23 +51,22 @@ abstract class ReferencesOperation
 
     public function getRequest($pName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$pName] ?? null;
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(int $resellerId): string
 {
-    return 'contractor@example.com';
+    return 'contractor@example.com'; // Заглушка метода
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(int $resellerId, string $event): array
 {
-    // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
+    return ['someemail@example.com', 'someemail2@example.com']; // Заглушка метода
 }
 
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
