@@ -1,10 +1,5 @@
 <?php
 
-namespace NW\WebService\References\Operations\Notification;
-
-/**
- * @property Seller $Seller
- */
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
@@ -14,7 +9,11 @@ class Contractor
 
     public static function getById(int $resellerId): self
     {
-        return new self($resellerId); // fakes the getById method
+        $contractor = new self();
+        $contractor->id = $resellerId;
+        $contractor->type = self::TYPE_CUSTOMER;
+        $contractor->name = 'Contractor Name';
+        return $contractor;
     }
 
     public function getFullName(): string
@@ -33,17 +32,14 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
-
     public static function getName(int $id): string
     {
-        $a = [
+        $statuses = [
             0 => 'Completed',
             1 => 'Pending',
             2 => 'Rejected',
         ];
-
-        return $a[$id];
+        return $statuses[$id] ?? 'Unknown';
     }
 }
 
@@ -57,19 +53,18 @@ abstract class ReferencesOperation
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(int $resellerId): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(int $resellerId, string $event): array
 {
-    // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
+    return ['someemail@example.com', 'someemail2@example.com'];
 }
 
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
