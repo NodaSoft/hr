@@ -80,8 +80,6 @@ use Status;
  */
 
 
-
-
 class TsReturnOperation extends ReferencesOperation
 {
     public const TYPE_NEW = 1;
@@ -233,3 +231,4 @@ class TsReturnOperation extends ReferencesOperation
         }
     }
 }
+

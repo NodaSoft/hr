@@ -1,6 +1,7 @@
 <?php
 
 namespace NW\WebService\References\Operations\Notification;
+
 use NW\WebService\References\Operations\Notification\Contracts\MessagesClientInterface;
 
 class MessagesClient implements MessagesClientInterface

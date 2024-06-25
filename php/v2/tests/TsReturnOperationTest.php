@@ -160,3 +160,4 @@ class TsReturnOperationTest extends TestCase
         $operation->doOperation();
     }
 }
+
