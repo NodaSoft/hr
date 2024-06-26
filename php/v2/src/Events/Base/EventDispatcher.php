@@ -15,7 +15,7 @@ class EventDispatcher
     public static function dispatch(EventInterface $event): void
     {
         // use any DI service to init the listener from container
-        // i will use reflection fot testing purpose :)
+        // i will use reflection for testing purpose :)
         foreach ($event->listeners() as $listener) {
             if (class_exists($listener)) {
                 $reflectionClass = new ReflectionClass($listener);
