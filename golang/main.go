@@ -9,6 +9,7 @@ import (
 
 const (
 	tasksChanSize             = 10
+	taskExecutorsLimit        = 10
 	taskGenerationDuration    = time.Second * 10
 	taskResultReportingPeriod = time.Second * 3
 )
@@ -54,14 +55,16 @@ func createTasks(ctx context.Context, tasks chan<- Task) {
 				id:           int(time.Now().Unix()),
 				creationTime: creationTime,
 			}
-			time.Sleep(time.Millisecond * 500) // чтобы не было слишком много значений в выводе во время проверки
+			time.Sleep(time.Millisecond * 500) // only for debugging to avoid a lot of output
 		}
 	}
 }
 
 func executeTasks(tasks <-chan Task, doneTasks chan<- Task, taskErrors chan<- error) {
 	var taskExecutionWG sync.WaitGroup
+	executorsLimiter := make(chan struct{}, taskExecutorsLimit)
 	for task := range tasks {
+		executorsLimiter <- struct{}{}
 		taskExecutionWG.Add(1)
 		go func(task Task) {
 			task = executeTask(task)
@@ -71,6 +74,7 @@ func executeTasks(tasks <-chan Task, doneTasks chan<- Task, taskErrors chan<- er
 				taskErrors <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
 			}
 			taskExecutionWG.Done()
+			<-executorsLimiter
 		}(task)
 	}
 	taskExecutionWG.Wait()
