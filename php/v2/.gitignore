@@ -1,0 +1,12 @@
+/.phpunit.cache
+/vendor
+.env
+.env.testing
+.env.backup
+.env.production
+.phpunit.result.cache
+composer.lock
+auth.json
+/.fleet
+/.idea
+/.vscode

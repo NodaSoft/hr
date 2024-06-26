@@ -1,0 +1,24 @@
+services:
+  php:
+    tty: true
+    container_name: noda_soft_php
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+      args:
+        - WWW_DATA_USER=${APP_UID}
+        - WWW_DATA_GROUP=${APP_GID}
+        - ENVIRONMENT=${APP_ENV}
+    expose:
+      - "9000"
+    volumes:
+      - ./:/var/www/
+      - ./docker/php/php-fpm.conf:/usr/local/etc/php-fpm.conf
+      - ./docker/php/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ./docker/php/log/supervisord/:/var/log/supervisord/
+    networks:
+      - noda_soft_network
+
+networks:
+  noda_soft_network:
+    driver: bridge

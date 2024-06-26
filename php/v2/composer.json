@@ -1,0 +1,31 @@
+{
+  "name": "nodasoft/testapp",
+  "description": "The NodaSoft company test project",
+  "type": "project",
+  "autoload": {
+    "psr-4": {
+      "Nodasoft\\Testapp\\": "src/"
+    },
+    "files": [
+      "helpers/helpers.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Vahagn"
+    }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+    "psr/http-message": "^2.0@dev",
+    "nyholm/psr7": "^1.8@dev"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.3@dev"
+  }
+}
