@@ -118,6 +118,8 @@ func main() {
 		}
 	}()
 	<-allFlushed
+	// Just for everything to clean up
+	time.Sleep(time.Millisecond * 100)
 }
 
 // utilitary functions
