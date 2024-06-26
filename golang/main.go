@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -24,21 +25,33 @@ type Ttype struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	some := make(chan struct{})
+
+	// taskCreturer creates tasks
+	taskCreturer := func(a chan Ttype, ch chan struct{}) {
 		go func() {
 			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+				select {
+				case <-ch:
+					fmt.Println("stop task generator")
+					return
+				default:
+					ft := time.Now().Format(time.RFC3339)
+					if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+						ft = "Some error occured"
+					}
+					a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
 			}
 		}()
 	}
 
 	superChan := make(chan Ttype, 10)
 
-	go taskCreturer(superChan)
+	go taskCreturer(superChan, some)
 
 	task_worker := func(a Ttype) Ttype {
 		tt, _ := time.Parse(time.RFC3339, a.cT)
@@ -61,7 +74,7 @@ func main() {
 		if string(t.taskRESULT[14:]) == "successed" {
 			doneTasks <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
 		}
 	}
 
@@ -76,30 +89,32 @@ func main() {
 
 	result := map[int]Ttype{}
 	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	ticker := time.NewTicker(time.Second * 3)
 
-	time.Sleep(time.Second * 3)
+	// read tasks
+	for {
+		select {
+		case t := <-doneTasks:
+			result[t.id] = t
+		case e := <-undoneTasks:
+			err = append(err, e)
+		case <-ctx.Done():
+			some <- struct{}{}
+			ticker.Stop()
+			fmt.Println("context done")
+			return
+		case <-ticker.C:
+			// вывод всех обработанных к этому моменту тасков (накопительный результат)
+			fmt.Println("Result:")
+			for _, v := range result {
+				println(string(v.taskRESULT))
+			}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+			fmt.Println("Errors:")
+			for _, v := range err {
+				println(v.Error())
+			}
+		}
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
 }
