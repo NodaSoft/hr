@@ -1,0 +1,4 @@
+task_result_reporting_period: 3s
+task_expiration_duration: 20s
+task_generation_duration: 10s
+executors_limit: 10
