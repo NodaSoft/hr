@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"taskhandler/internal/config"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -52,4 +54,16 @@ func mustSetEncoder(name string) zapcore.Encoder {
 	// be very carefully when changing config.logger.cores.encoderLevel
 	log.Fatal("Unknown encoder level: ", name)
 	return nil
+}
+
+// Will die with main, not exactly safe
+func SyncOnTimout() {
+	go func() {
+		ticker := time.NewTicker(time.Microsecond * config.C.Logger.SyncTimeout)
+		for {
+			<-ticker.C
+			globalLogger.Sync()
+		}
+	}()
+
 }

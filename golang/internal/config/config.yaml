@@ -1,4 +1,5 @@
 Logger:
+    SyncTimeout: 75ms
     Cores:
     - Name : stderr
       EncoderLevel: production
@@ -10,3 +11,4 @@ Logger:
       Level : -1
 Service:
   Timeout: 10s
+  FlushRate: 3s

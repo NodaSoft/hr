@@ -33,7 +33,8 @@ import (
 
 type Config struct {
 	Logger struct {
-		Cores []struct {
+		SyncTimeout time.Duration `mapstructure:"SyncTimeout"`
+		Cores       []struct {
 			Name         string `mapstructure:"Name"`         // name of the core, for idientification reasons
 			EncoderLevel string `mapstructure:"EncoderLevel"` // production or development
 			Path         string `mapstructure:"Path"`         // everything that getLogFile can handle
@@ -41,7 +42,8 @@ type Config struct {
 		} `mapstructure:"Cores"`
 	} `mapstructure:"Logger"`
 	Service struct {
-		Timeout time.Duration `mapstructure:"Timeout"`
+		Timeout   time.Duration `mapstructure:"Timeout"`
+		FlushRate time.Duration `mapstructure:"FlushRate"`
 	} `mapstructure:"Service"`
 }
 

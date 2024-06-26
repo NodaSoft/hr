@@ -69,14 +69,13 @@ func InitGlobalLogger() {
 	//Ignoring ability to change level in runtime for global usecase
 	//TODO: it is not hard to add this feature, mb next time
 	globalLogger, _ = InitLogger()
+	SyncOnTimout()
 }
 
 func Debug(args ...any) {
 	globalLogger.Debug(args...)
-	globalLogger.Sync()
 }
 
 func Info(args ...any) {
 	globalLogger.Info(args...)
-	globalLogger.Sync()
 }

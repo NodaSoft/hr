@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"taskhandler/internal/config"
+	"taskhandler/internal/core"
 	log "taskhandler/internal/logger"
 	"time"
+
+	"github.com/alecthomas/units"
 )
 
 // Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
@@ -18,127 +23,119 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Task struct {
-	id       int64
-	created  time.Time // время создания
-	finished time.Time // время выполнения
-	result   []byte
-}
-type brokenFactory struct {
-	serviceStarted time.Time
-}
-
-const BROKEN_FACTORY_SLEEP_MS = 300
-
-func (factory *brokenFactory) MakeTask() Task {
-	time.Sleep(BROKEN_FACTORY_SLEEP_MS * time.Millisecond)
-	now := time.Now()
-	if now.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-		//ft = "Some error occured"
-		log.Debug("Broken factory sended broken task, again, someone fix it already")
-		return Task{created: factory.serviceStarted, id: now.Unix()}
-	}
-	return Task{created: now, id: now.Unix()}
-
-}
-
-type TaskFactory interface {
-	MakeTask() Task
-}
-
-func FillChannel(ctx context.Context, tch chan<- Task, factory TaskFactory) {
-	for {
-		log.Debug(".FillChannel iteration")
-		select {
-		case <-ctx.Done():
-			close(tch)
-			log.Info("FillChannel by context done, channel closed")
-			return
-		case tch <- factory.MakeTask():
-		}
-	}
-}
-
 func main() {
 	// Startup, may panic, which is ok
 	// The app shouldn't work without logger or with wrong config
 	config.InitConfig()
 	log.InitGlobalLogger()
 	log.Info("Service preparations successed")
-	ctx, _ := context.WithTimeout(context.Background(), config.C.Service.Timeout)
+
+	// Starting global timer
+	ctx, cancel := context.WithTimeout(context.Background(), config.C.Service.Timeout)
+	defer cancel()
 
 	// Magic .Time to generate incorrect tasks
 	serviceStarted := time.Now()
 
-	// Create tasks
-	tasks := make(chan Task, 10)
-
-	// Create workers
-	go FillChannel(ctx, tasks, &brokenFactory{serviceStarted: serviceStarted})
-
-	// Snailcase; fills the result field  of task
-	task_worker := func(t Task) Task {
-		if t.created.After(time.Now().Add(-20 * time.Second)) {
-			t.result = []byte("task has been successed")
+	// Return result core.Task with result field
+	resultWorker := func(t core.Task) core.Task {
+		if t.Created == serviceStarted {
+			t.Result = []byte("something went wrong")
 		} else {
-			t.result = []byte("something went wrong")
+			t.Result = []byte("task has been successed")
 		}
+		t.Finished = time.Now()
 
 		// Not sure about this, but i'll leave this sleep untouched
+		// I guess its emulating real work
 		time.Sleep(time.Millisecond * 150)
-
-		t.finished = time.Now()
 
 		return t
 	}
 
-	doneTasks := make(chan Task)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Task) {
-		if t.created == serviceStarted {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.created, t.result)
-			return
+	// Can only handle input specific for resultWorker
+	separator := func(t core.Task) int8 {
+		if (string)(t.Result) == "something went wrong" {
+			return 1
 		}
-		doneTasks <- t
+		if (string)(t.Result) == "task has been successed" {
+			return 0
+		}
+		return -1
 	}
 
+	errors := make(chan error, 10)
+	// Initial channel, will be filled and closed by FillChannel
+	tasks := make(chan core.Task, 10)
+
+	chain := []core.PipilineElement{
+		core.FactoryToPipeElem(core.FillChannel, &core.BrokenFactory{ServiceStarted: serviceStarted}),
+		core.HandlerToPipeElem(core.HandleTasks, resultWorker),
+		core.SeparatorToPipeElem(core.SeparateBrokenTasks, separator, errors),
+	}
+
+	// Preparation for flushing
+	done := core.Pipeline(ctx, tasks, chain...)
+	flusher := time.NewTicker(config.C.Service.FlushRate)
+
+	// It is insane that we need to hold all done tasks in memory for full 3 seconds
+	// Ofc we can flush it to disk every 50 tasks or so and then read it every .FlushRate
+	// After we read it again and write to stdout and stderr
+	errorBuilder := strings.Builder{}
+	errorBuilder.Grow(int(units.Mebibyte) * 8)
+	doneBuilder := strings.Builder{}
+	doneBuilder.Grow(int(units.Mebibyte) * 8)
+
+	// allFlushed is for safe exit
+	// after every last
+	allFlushed := make(chan struct{})
+	// Single Threaded read from both channels
+	// Do not need to synchronize .Reset()
 	go func() {
-		// получение тасков
-		for t := range tasks {
-			t = task_worker(t)
-			go tasksorter(t)
+		for {
+			select {
+			case <-ctx.Done():
+				log.Info("Last flush. Reason: context.Done()")
+				flush(&errorBuilder, &doneBuilder)
+				allFlushed <- struct{}{}
+				return
+
+			case <-flusher.C:
+				flush(&errorBuilder, &doneBuilder)
+				errorBuilder.Reset()
+				doneBuilder.Reset()
+				errorBuilder.Grow(int(units.Mebibyte) * 8)
+				doneBuilder.Grow(int(units.Mebibyte) * 8)
+
+			case t := <-done:
+				// Sprintf is slow and we have A LOT of tasks
+				writeTask(&doneBuilder, t)
+
+			case err := <-errors:
+				errorBuilder.WriteString(err.Error())
+				errorBuilder.WriteByte('\n')
+			}
 		}
-		/* close(tasks) */
 	}()
+	<-allFlushed
+}
 
-	result := map[int64]Task{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+// utilitary functions
+func writeTask(builder *strings.Builder, t core.Task) {
+	builder.WriteString("Done core.Task. Id: ")
+	builder.WriteString(strconv.Itoa((int)(t.Id)))
+	builder.WriteString("Result: ")
+	builder.WriteString((string)(t.Result))
+	builder.WriteByte('\n')
 
-	time.Sleep(time.Second * 3)
+}
+func flush(errorBuilder *strings.Builder, doneBuilder *strings.Builder) {
+	log.Info("Flushing.")
+	log.Info("Used Memory in errorBuilder: ", errorBuilder.Len(), "While cap is:", errorBuilder.Cap())
+	log.Info("Used Memory in doneBuilder: ", doneBuilder.Len(), "While cap is:", doneBuilder.Cap())
+	os.Stderr.WriteString("\n\tError Tasks:\n")
+	os.Stderr.WriteString(errorBuilder.String())
+	os.Stdout.WriteString("\n\tDone Tasks:\n")
+	os.Stdout.WriteString(doneBuilder.String())
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
 }
