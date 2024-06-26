@@ -1,0 +1,14 @@
+Logger:
+    SyncTimeout: 75ms
+    Cores:
+    - Name : stderr
+      EncoderLevel: production
+      Path: /dev/stderr
+      Level : 0
+    - Name : logfile
+      EncoderLevel: production
+      Path: "../tmp/log"
+      Level : -1
+Service:
+  Timeout: 10s
+  FlushRate: 3s
