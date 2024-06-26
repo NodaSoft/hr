@@ -12,6 +12,7 @@ const (
 	taskExecutorsLimit        = 10
 	taskGenerationDuration    = time.Second * 10
 	taskResultReportingPeriod = time.Second * 3
+	taskExpirationDuration    = time.Second * 20
 )
 
 func main() {
@@ -32,6 +33,10 @@ type Task struct {
 	completionTime *time.Time
 	result         []byte
 	error          error
+}
+
+func (task Task) isExpired() bool {
+	return time.Now().After(task.creationTime.Add(taskExpirationDuration))
 }
 
 func (task Task) String() string {
@@ -75,10 +80,10 @@ func executeTasks(tasks <-chan Task, doneTasks chan<- Task) {
 }
 
 func executeTask(task Task) Task {
-	if task.creationTime.Nanosecond()%2 == 1 {
-		task.result = []byte("task has been executed successfuly")
-	} else {
+	if task.creationTime.Nanosecond()%2 == 0 || task.isExpired() {
 		task.error = fmt.Errorf("something went wrong")
+	} else {
+		task.result = []byte("task has been executed successfuly")
 	}
 	task.completionTime = new(time.Time)
 	*task.completionTime = time.Now()
