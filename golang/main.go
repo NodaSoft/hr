@@ -16,28 +16,29 @@ const (
 
 func main() {
 	tasks := make(chan Task, tasksChanSize)
-	ctx, _ := context.WithTimeout(context.Background(), taskGenerationDuration)
+	ctx, cancel := context.WithTimeout(context.Background(), taskGenerationDuration)
+	defer cancel()
 	go createTasks(ctx, tasks)
 
 	doneTasks := make(chan Task)
-	taskErrors := make(chan error)
-	go executeTasks(tasks, doneTasks, taskErrors)
+	go executeTasks(tasks, doneTasks)
 
-	reportTaskResults(doneTasks, taskErrors)
+	reportTaskResults(doneTasks)
 }
 
 type Task struct {
 	id             int
-	creationTime   string
-	completionTime string
+	creationTime   time.Time
+	completionTime *time.Time
 	result         []byte
+	error          error
 }
 
-func (t Task) IsSuccessful() bool {
-	if t.completionTime == "" || string(t.result[14:]) != "successed" {
-		return false
-	}
-	return true
+func (task Task) String() string {
+	return fmt.Sprintf(`Task{id: %d, creationTime: %v, completionTime: %v, result: %s, error: %v}`,
+		task.id, task.creationTime.Format(time.RFC3339),
+		task.completionTime.Format(time.RFC3339Nano), string(task.result),
+		task.error)
 }
 
 func createTasks(ctx context.Context, tasks chan<- Task) {
@@ -47,32 +48,23 @@ func createTasks(ctx context.Context, tasks chan<- Task) {
 			close(tasks)
 			return
 		default:
-			creationTime := time.Now().Format(time.RFC3339)
-			if time.Now().Nanosecond()%2 == 1 {
-				creationTime = "Some error occured"
-			}
 			tasks <- Task{
 				id:           int(time.Now().Unix()),
-				creationTime: creationTime,
+				creationTime: time.Now(),
 			}
 			time.Sleep(time.Millisecond * 500) // only for debugging to avoid a lot of output
 		}
 	}
 }
 
-func executeTasks(tasks <-chan Task, doneTasks chan<- Task, taskErrors chan<- error) {
+func executeTasks(tasks <-chan Task, doneTasks chan<- Task) {
 	var taskExecutionWG sync.WaitGroup
 	executorsLimiter := make(chan struct{}, taskExecutorsLimit)
 	for task := range tasks {
 		executorsLimiter <- struct{}{}
 		taskExecutionWG.Add(1)
 		go func(task Task) {
-			task = executeTask(task)
-			if task.IsSuccessful() {
-				doneTasks <- task
-			} else {
-				taskErrors <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.creationTime, task.result)
-			}
+			doneTasks <- executeTask(task)
 			taskExecutionWG.Done()
 			<-executorsLimiter
 		}(task)
@@ -80,44 +72,41 @@ func executeTasks(tasks <-chan Task, doneTasks chan<- Task, taskErrors chan<- er
 	taskExecutionWG.Wait()
 
 	close(doneTasks)
-	close(taskErrors)
 }
 
 func executeTask(task Task) Task {
-	tt, _ := time.Parse(time.RFC3339, task.creationTime)
-	if tt.After(time.Now().Add(-20 * time.Second)) {
-		task.result = []byte("task has been successed")
+	if task.creationTime.Nanosecond()%2 == 1 {
+		task.result = []byte("task has been executed successfuly")
 	} else {
-		task.result = []byte("something went wrong")
+		task.error = fmt.Errorf("something went wrong")
 	}
-	task.completionTime = time.Now().Format(time.RFC3339Nano)
+	task.completionTime = new(time.Time)
+	*task.completionTime = time.Now()
 
 	time.Sleep(time.Millisecond * 150)
 
 	return task
 }
 
-func reportTaskResults(doneTasksChan <-chan Task, taskErrorsChan <-chan error) {
-	doneTasks := []Task{}
-	taskErrors := []error{}
-	var doneTasksMutex sync.Mutex
-	var taskErrorsMutex sync.Mutex
+func reportTaskResults(doneTasks <-chan Task) {
+	successfulTasks := []Task{}
+	failedTasks := []Task{}
+	var successfulTasksMutex sync.Mutex
+	var failedTasksMutex sync.Mutex
 
 	var readingWG sync.WaitGroup
-	readingWG.Add(2)
+	readingWG.Add(1)
 	go func() {
-		for task := range doneTasksChan {
-			doneTasksMutex.Lock()
-			doneTasks = append(doneTasks, task)
-			doneTasksMutex.Unlock()
-		}
-		readingWG.Done()
-	}()
-	go func() {
-		for err := range taskErrorsChan {
-			taskErrorsMutex.Lock()
-			taskErrors = append(taskErrors, err)
-			taskErrorsMutex.Unlock()
+		for task := range doneTasks {
+			if task.error == nil {
+				successfulTasksMutex.Lock()
+				successfulTasks = append(successfulTasks, task)
+				successfulTasksMutex.Unlock()
+			} else {
+				failedTasksMutex.Lock()
+				failedTasks = append(failedTasks, task)
+				failedTasksMutex.Unlock()
+			}
 		}
 		readingWG.Done()
 	}()
@@ -128,19 +117,19 @@ func reportTaskResults(doneTasksChan <-chan Task, taskErrorsChan <-chan error) {
 	}()
 
 	printReport := func() {
-		fmt.Println("Done tasks:")
-		doneTasksMutex.Lock()
-		for r := range doneTasks {
-			fmt.Println(r)
+		fmt.Println("Successful tasks:")
+		successfulTasksMutex.Lock()
+		for _, task := range successfulTasks {
+			fmt.Println(task)
 		}
-		doneTasksMutex.Unlock()
+		successfulTasksMutex.Unlock()
 
-		println("Errors:")
-		taskErrorsMutex.Lock()
-		for r := range taskErrors {
-			println(r)
+		fmt.Println("Failed tasks:")
+		failedTasksMutex.Lock()
+		for _, err := range failedTasks {
+			fmt.Println(err)
 		}
-		taskErrorsMutex.Unlock()
+		failedTasksMutex.Unlock()
 	}
 
 	timeToReportTicker := time.NewTicker(taskResultReportingPeriod)
