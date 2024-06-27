@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -15,91 +16,96 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createTime string
+	finishTime string
+	result     []byte
+}
+
+func (t Task) String() string {
+	return fmt.Sprintf("task id: %d, create time: %s, finish time: %s", t.id, t.createTime, t.finishTime)
+}
+
+func taskMaker(tasks chan Task) {
+	for {
+		createTime := time.Now().Format(time.RFC3339)
+		if rand.Intn(100)%2 > 0 {
+			createTime = "Some error occured"
+		}
+		tasks <- Task{id: int(time.Now().Unix()), createTime: createTime}
+	}
+}
+
+func taskWorker(tasks chan Task, completedTasks chan Task) {
+	for task := range tasks {
+		taskTime, _ := time.Parse(time.RFC3339, task.createTime)
+		if taskTime.After(time.Now().Add(-20 * time.Second)) {
+			task.result = []byte("task has been successed")
+		} else {
+			task.result = []byte("something went wrong")
+		}
+		task.finishTime = time.Now().Format(time.RFC3339Nano)
+		time.Sleep(150 * time.Millisecond)
+		completedTasks <- task
+	}
+	close(completedTasks)
+}
+
+func taskSorter(tasks chan Task, doneTasks chan Task, undoneTasks chan Task) {
+	for task := range tasks {
+		if string(task.result[14:]) == "successed" {
+			doneTasks <- task
+		} else {
+			undoneTasks <- task
+		}
+	}
+	close(doneTasks)
+	close(undoneTasks)
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	done := map[int]Task{}
+	undone := map[int]Task{}
+
+	go func() {
+		taskChannel := make(chan Task, 10)
+		completedTasks := make(chan Task)
+		doneTasks := make(chan Task)
+		undoneTasks := make(chan Task)
+
+		go taskMaker(taskChannel)
+		go taskWorker(taskChannel, completedTasks)
+		go taskSorter(completedTasks, doneTasks, undoneTasks)
+
 		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+			for t := range doneTasks {
+				done[t.id] = t
 			}
 		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
+		go func() {
+			for t := range undoneTasks {
+				undone[t.id] = t
+			}
+		}()
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		for range ticker.C {
+			fmt.Println("Done tasks:")
+			for _, t := range done {
+				fmt.Println(t)
+			}
+
+			fmt.Println("Undone tasks:")
+			for _, t := range undone {
+				fmt.Println(t)
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	time.Sleep(10 * time.Second)
 }
