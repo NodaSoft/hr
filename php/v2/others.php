@@ -2,15 +2,25 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
+///**
+// * @property Seller $Seller
+// */
 /**
- * @property Seller $Seller
+ * Contractor base class.
+ *
+ * @property $id
+ * @property $type
+ * @property $name
+ * @property $mobile
  */
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
     public $id;
-    public $type;
-    public $name;
+    protected $type;
+    protected $name;
+
+    protected $mobile;  // добавил
 
     public static function getById(int $resellerId): self
     {
@@ -19,21 +29,35 @@ class Contractor
 
     public function getFullName(): string
     {
-        return $this->name . ' ' . $this->id;
+        // обычно сначала ID, потом NAME...
+        return $this->id . ') ' . $this->name;
     }
 }
 
+/**
+ * Seller extendint the Contractor
+ */
 class Seller extends Contractor
 {
 }
 
+/**
+ * Employee extendint the Contractor
+ */
 class Employee extends Contractor
 {
 }
 
-class Status
+/**
+ * Status class for notification description used as a struct
+ *
+ * никогда не истанциируется, можно обозначить как abstract,
+ * имеет только один static метод.
+ */
+abstract class Status
 {
-    public $id, $name;
+    // никогда не используются, можно удалить
+    // public $id, $name;
 
     public static function getName(int $id): string
     {
