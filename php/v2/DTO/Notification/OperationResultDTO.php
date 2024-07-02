@@ -37,61 +37,103 @@ class OperationResultDTO
     ) {
     }
 
+    /**
+     * @return bool
+     */
     public function getIsEmployeeNotifiedByEmail(): bool
     {
         return $this->isEmployeeNotifiedByEmail;
     }
 
+    /**
+     * @param bool $value
+     * @return void
+     */
     public function setIsEmployeeNotifiedByEmail(bool $value): void
     {
         $this->isEmployeeNotifiedByEmail = $value;
     }
 
+    /**
+     * @return string|null
+     */
     public function getEmployeeEmailNotificationMessage(): ?string
     {
         return $this->employeeEmailNotificationMessage;
     }
 
+    /**
+     * @param string $message
+     * @return void
+     */
     public function setEmployeeEmailNotificationMessage(string $message): void
     {
         $this->employeeEmailNotificationMessage = $message;
     }
 
+    /**
+     * @return bool
+     */
     public function getIsClientNotifiedByEmail(): bool
     {
         return $this->isClientNotifiedByEmail;
     }
 
+    /**
+     * @param bool $value
+     * @return void
+     */
     public function setIsClientNotifiedByEmail(bool $value): void
     {
         $this->isClientNotifiedByEmail = $value;
     }
 
+    /**
+     * @return string|null
+     */
     public function getClientEmailNotificationMessage(): ?string
     {
         return $this->clientEmailNotificationMessage;
     }
 
+    /**
+     * @param string $message
+     * @return void
+     */
     public function setClientEmailNotificationMessage(string $message): void
     {
         $this->clientEmailNotificationMessage = $message;
     }
 
+    /**
+     * @return bool
+     */
     public function getIsClientNotifiedBySms(): bool
     {
         return $this->isClientNotifiedBySms;
     }
 
+    /**
+     * @param bool $value
+     * @return void
+     */
     public function setIsClientNotifiedBySms(bool $value): void
     {
         $this->isClientNotifiedBySms = $value;
     }
 
+    /**
+     * @return string|null
+     */
     public function getClientSmsNotificationMessage(): ?string
     {
         return $this->clientSmsNotificationMessage;
     }
 
+    /**
+     * @param string $message
+     * @return void
+     */
     public function setClientSmsNotificationMessage(string $message): void
     {
         $this->clientSmsNotificationMessage = $message;
