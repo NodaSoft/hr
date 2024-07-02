@@ -1,105 +1,164 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"os"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+const (
+	SERVICE_GENERATE_TASKS_FOR_X_SECONDS        = 10
+	SERVICE_PRINT_HANDLED_TASKS_EVERY_X_SECONDS = 3
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+	TASKS_CHANNEL_BUFFER                    = 10
+	TASK_HANDLING_TIMEOUT_THRESHOLD_SECONDS = 20
+)
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+var (
+	ai AutoIncrement
+)
+
+type AutoIncrement struct {
+	sync.Mutex
+	id int
+}
+
+func (ai *AutoIncrement) ID() int {
+	ai.Lock()
+	defer ai.Unlock()
+
+	id := ai.id
+	ai.id++
+	return id
+}
+
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createdAt  time.Time
+	finishedAt time.Time
+
+	failed  bool
+	message string
+}
+
+type Service struct {
+	output sync.Mutex
+	wg     sync.WaitGroup
+
+	context   context.Context
+	tasks     chan *Task
+	succesful []*Task
+	failed    []*Task
+}
+
+func (s *Service) taskCreator() {
+	for {
+		select {
+		case <-s.context.Done():
+			return
+		default:
+			task := &Task{
+				id:        ai.ID(),
+				createdAt: time.Now(),
+			}
+
+			if time.Now().Nanosecond()%2 > 0 {
+				task.failed = true
+				task.message = "Some error occured"
+			}
+
+			s.tasks <- task
+		}
+	}
+}
+
+func (s *Service) tasksHandler() {
+	for t := range s.tasks {
+		go s.handleTask(t)
+	}
+}
+
+func (s *Service) tasksOutput() {
+	ticker := time.NewTicker(time.Second * SERVICE_PRINT_HANDLED_TASKS_EVERY_X_SECONDS)
+
+	for {
+		select {
+		case <-s.context.Done():
+			return
+		case <-ticker.C:
+			go func() {
+				s.wg.Add(1)
+				defer s.wg.Done()
+
+				f := bufio.NewWriterSize(os.Stdout, 1<<16)
+				defer f.Flush()
+
+				s.output.Lock()
+				failed := s.failed
+				succesful := s.succesful
+				s.failed = make([]*Task, 0)
+				s.succesful = make([]*Task, 0)
+				s.output.Unlock()
+
+				for _, t := range failed {
+					f.WriteString(fmt.Sprintf("Task id %d, time %s, error: %s\n", t.id, t.createdAt.Format(time.RFC3339), t.message))
+				}
+
+				for _, t := range succesful {
+					f.WriteString(fmt.Sprintf("Task id %d, time %s, message: %s\n", t.id, t.createdAt.Format(time.RFC3339), t.message))
+				}
+			}()
+		}
+	}
+}
+
+func (s *Service) handleTask(t *Task) {
+	if !t.failed {
+		if t.createdAt.After(time.Now().Add(time.Second * -TASK_HANDLING_TIMEOUT_THRESHOLD_SECONDS)) {
+			t.message = "Task has been successful"
+		} else {
+			t.failed = true
+			t.message = "Something went wrong, timeout"
+		}
+	}
+
+	t.finishedAt = time.Now()
+
+	time.Sleep(time.Millisecond * 150)
+	s.sortTask(t)
+}
+
+func (s *Service) sortTask(t *Task) {
+	s.output.Lock()
+	if t.failed {
+		s.failed = append(s.failed, t)
+	} else {
+		s.succesful = append(s.succesful, t)
+	}
+	s.output.Unlock()
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	service := &Service{
+		context:   ctx,
+		tasks:     make(chan *Task, TASKS_CHANNEL_BUFFER),
+		succesful: make([]*Task, 0),
+		failed:    make([]*Task, 0),
 	}
 
-	superChan := make(chan Ttype, 10)
+	go service.taskCreator()
+	go service.tasksHandler()
+	go service.tasksOutput()
 
-	go taskCreturer(superChan)
+	// Task creation stopped
+	time.Sleep(time.Second * SERVICE_GENERATE_TASKS_FOR_X_SECONDS)
+	cancel()
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	// Waiting for all the remaining prints
+	service.wg.Wait()
 }
