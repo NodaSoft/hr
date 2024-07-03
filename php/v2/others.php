@@ -12,9 +12,18 @@ class Contractor
     public $type;
     public $name;
 
-    public static function getById(int $resellerId): self
+    public function __construct(int $id, int $type = self::TYPE_CUSTOMER, string $name = '')
     {
-        return new self($resellerId); // fakes the getById method
+        $this->id = $id;
+        $this->type = $type;
+        $this->name = $name;
+    }
+
+    public static function getById(int $id): ?self
+    {
+        // Здесь должна быть логика получения объекта из базы данных
+        // Если объект не найден, возвращаем null
+        return new self($id); // Заглушка для метода getById
     }
 
     public function getFullName(): string
@@ -33,17 +42,18 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
+    public $id;
+    public $name;
 
     public static function getName(int $id): string
     {
-        $a = [
+        $statusNames = [
             0 => 'Completed',
             1 => 'Pending',
             2 => 'Rejected',
         ];
 
-        return $a[$id];
+        return $statusNames[$id] ?? 'Unknown';
     }
 }
 
@@ -53,23 +63,24 @@ abstract class ReferencesOperation
 
     public function getRequest($pName)
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$pName] ?? null;
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(int $resellerId): string
 {
-    return 'contractor@example.com';
+    // Здесь должна быть логика получения email по resellerId
+    return 'contractor@example.com'; // Заглушка для метода
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(int $resellerId, string $event): array
 {
-    // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
+    // Здесь должна быть логика получения email'ов по resellerId и событию
+    return ['someemail@example.com', 'someemail2@example.com']; // Заглушка для метода
 }
 
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
