@@ -28,10 +28,12 @@ func main() {
 		go func() {
 			for {
 				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				if time.Now().UnixMicro()%2 > 0 { // вот такое условие появления ошибочных тасков
+					// если в условии использовать Nanosecond(), то условие никогда не выполняется т.к. последние 2 цифры всегда ноль.
 					ft = "Some error occured"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- Ttype{cT: ft, id: int(time.Now().UnixMicro())} // передаем таск на выполнение
+				// если использовать Unix() то за секунду создается несколько тасков с одинаковым id, как будто такого не должно быть
 			}
 		}()
 	}
@@ -78,28 +80,44 @@ func main() {
 	err := []error{}
 	go func() {
 		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+			result[r.id] = r
 		}
 		close(doneTasks)
+	}()
+
+	go func() {
+		for r := range undoneTasks {
+			err = append(err, r)
+		}
 		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	duration := 10 * time.Second
+	messageInterval := 3 * time.Second
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	startTime := time.Now()
+	nextMessageTime := startTime.Add(messageInterval)
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for {
+		currentTime := time.Now()
+
+		if currentTime.Sub(startTime) >= duration {
+			break
+		}
+
+		if currentTime.After(nextMessageTime) {
+
+			println("Errors:")
+			for _, r := range err {
+				println(r.Error())
+			}
+
+			println("Done tasks:")
+			for r := range result {
+				println(r)
+			}
+
+			nextMessageTime = nextMessageTime.Add(messageInterval)
+		}
 	}
 }
