@@ -1,105 +1,189 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+type Task struct {
+	ID         int
+	CreatedAt  time.Time
+	FinishedAt time.Time
+	Result     string
+	Error      error
+}
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+const (
+	taskDuration       = 10 * time.Second
+	taskCount          = 10
+	readDuration       = 3 * time.Second
+	taskProcessingTime = 150 * time.Millisecond
+	programLifetime    = time.Minute
+	workersCount       = 4
+)
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+func createNewTask(tasksStorage chan<- Task) {
+	now := time.Now().UTC()
+
+	task := Task{
+		ID:        int(now.Unix()),
+		CreatedAt: now,
+		Error:     nil,
+	}
+	if time.Now().Second() > 30 {
+		task.Error = errors.New("some error occured")
+	}
+
+	tasksStorage <- task
+}
+
+func createTasks(tasksStorage chan<- Task, shutdown <-chan bool) {
+	ticker := time.NewTicker(taskDuration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-shutdown:
+			return
+		case <-ticker.C:
+			for range taskCount {
+				go createNewTask(tasksStorage)
+			}
+		}
+	}
+}
+
+type WorkerChanels struct {
+	TaskStorage    <-chan Task
+	Shutdown       <-chan bool
+	ComplitedTasks chan<- Task
+}
+
+func worker(chanels WorkerChanels) {
+	for {
+		select {
+		case <-chanels.Shutdown:
+			return
+		case task := <-chanels.TaskStorage:
+			task.FinishedAt = time.Now().UTC()
+			if task.Error != nil {
+				task.Result = "something went wrong"
+			} else {
+				task.Result = "task has been successed"
+			}
+
+			chanels.ComplitedTasks <- task
+
+			time.Sleep(taskProcessingTime)
+		}
+	}
+}
+
+func runWorkers(chanels WorkerChanels) {
+	for range workersCount {
+		go worker(chanels)
+	}
+}
+
+func printTasks(complitedTasks <-chan Task, shutdown <-chan bool) {
+	ticker := time.NewTicker(readDuration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			var errTasks []Task
+			var successTasks []Task
+
+		Loop:
+			for task := range complitedTasks {
+				if task.Error != nil {
+					errTasks = append(errTasks, task)
+				} else {
+					successTasks = append(successTasks, task)
+				}
+
+				if len(complitedTasks) == 0 {
+					break Loop
+				}
+			}
+
+			fmt.Println("Error tasks: ")
+			for _, task := range errTasks {
+				fmt.Printf("%+v\n", task)
+			}
+
+			fmt.Println("Success tasks: ")
+			for _, task := range successTasks {
+				fmt.Printf("%+v\n", task)
+			}
+		case <-shutdown:
+			return
+		}
+	}
+}
+
+func gracefulShutdown(
+	shutdownCreateTasks chan bool,
+	shutdownWorkers chan bool,
+	shutdownPrintTasks chan bool,
+	taskStorage chan Task,
+	complitedTasks chan Task,
+) {
+	shutdownCreateTasks <- true
+	for len(taskStorage) != 0 {
+		time.Sleep(time.Second)
+	}
+
+	for range workersCount {
+		shutdownWorkers <- true
+	}
+
+	for len(complitedTasks) != 0 {
+		time.Sleep(time.Second)
+	}
+	shutdownPrintTasks <- true
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	taskStorage := make(chan Task, 100)
+	complitedTasks := make(chan Task, 100)
+	shutdownCreateTasks := make(chan bool)
+	shutdownPrintTasks := make(chan bool)
+	shutdownWorkers := make(chan bool, workersCount)
+	defer close(shutdownWorkers)
+	defer close(shutdownCreateTasks)
+	defer close(shutdownPrintTasks)
+	defer close(complitedTasks)
+	defer close(taskStorage)
 
-	superChan := make(chan Ttype, 10)
+	go createTasks(taskStorage, shutdownCreateTasks)
+	runWorkers(
+		WorkerChanels{
+			TaskStorage:    taskStorage,
+			Shutdown:       shutdownWorkers,
+			ComplitedTasks: complitedTasks,
+		},
+	)
+	go printTasks(complitedTasks, shutdownPrintTasks)
 
-	go taskCreturer(superChan)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+	for {
+		select {
+		case stopSignal := <-stop:
+			fmt.Printf("Stopping program with signal: %s\n", stopSignal.String())
+			gracefulShutdown(shutdownCreateTasks, shutdownWorkers, shutdownPrintTasks, taskStorage, complitedTasks)
+			return
+		case <-time.After(programLifetime):
+			fmt.Println("Program lifetime exceeded, stopping...")
+			gracefulShutdown(shutdownCreateTasks, shutdownWorkers, shutdownPrintTasks, taskStorage, complitedTasks)
+			return
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
 	}
 }
