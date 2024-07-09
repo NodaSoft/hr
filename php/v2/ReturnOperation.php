@@ -6,7 +6,7 @@ use Exception;
 
 class TsReturnOperation extends ReferencesOperation
 {
-    public const TYPE_NEW = 1;
+    public const TYPE_NEW    = 1;
     public const TYPE_CHANGE = 2;
 
     /**

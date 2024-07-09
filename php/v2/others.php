@@ -17,10 +17,10 @@ class Contractor
 
     public function __construct(int $id = 0)
     {
-        $this->id = $id;
-        $this->type = self::TYPE_CUSTOMER;
-        $this->name = 'ContractorName';
-        $this->email = 'client@example.com';
+        $this->id     = $id;
+        $this->type   = self::TYPE_CUSTOMER;
+        $this->name   = 'ContractorName';
+        $this->email  = 'client@example.com';
         $this->mobile = '1234567890';
         $this->Seller = new Seller($id);
     }
