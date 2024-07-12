@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,7 +16,6 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
 type Ttype struct {
 	id         int
 	cT         string // время создания
@@ -24,82 +24,113 @@ type Ttype struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
-
 	superChan := make(chan Ttype, 10)
+	doneTasks := make(chan Ttype, 10)
+	undoneTasks := make(chan error, 10)
+	done := make(chan struct{})
 
-	go taskCreturer(superChan)
+	var wg sync.WaitGroup
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+	go taskCreator(superChan)
 
 	go func() {
-		// получение тасков
 		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+			wg.Add(1)
+			go func(task Ttype) {
+				defer wg.Done()
+				processedTask := taskWorker(task)
+				taskSorter(processedTask, doneTasks, undoneTasks)
+			}(t)
 		}
-		close(superChan)
-	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
+		wg.Wait()
 		close(doneTasks)
 		close(undoneTasks)
+		close(done)
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Println("Errors:")
+				errorsProcessed := false
+				for !errorsProcessed {
+					select {
+					case undoneTask, ok := <-undoneTasks:
+						if !ok {
+							errorsProcessed = true
+						} else {
+							fmt.Println(undoneTask.Error())
+						}
+					default:
+						errorsProcessed = true
+					}
+				}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+				fmt.Println("Done tasks:")
+				doneTasksProcessed := false
+				for !doneTasksProcessed {
+					select {
+					case doneTask, ok := <-doneTasks:
+						if !ok {
+							doneTasksProcessed = true
+						} else {
+							fmt.Printf("Task id %d creation time %s, finished at %s\n", doneTask.id, doneTask.cT, doneTask.fT)
+						}
+					default:
+						doneTasksProcessed = true
+					}
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	<-done
+}
+
+func taskCreator(a chan Ttype) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	stop := time.After(10 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			ft := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond()%2 > 0 { // условие для генерации ошибок
+				ft = "Some error occurred"
+			}
+			a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+		case <-stop:
+			close(a)
+			return
+		}
 	}
+}
+
+func taskSorter(t Ttype, doneTasks chan Ttype, undoneTasks chan error) {
+	if string(t.taskRESULT) == "task has been succeeded" {
+		doneTasks <- t
+	} else {
+		undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+	}
+}
+
+func taskWorker(a Ttype) Ttype {
+	tt, err := time.Parse(time.RFC3339, a.cT)
+	if err != nil || tt.After(time.Now().Add(-20*time.Second)) {
+		a.taskRESULT = []byte("task has been succeeded")
+	} else {
+		a.taskRESULT = []byte("something went wrong")
+	}
+	a.fT = time.Now().Format(time.RFC3339Nano)
+
+	time.Sleep(time.Millisecond * 150)
+
+	return a
 }
