@@ -1,105 +1,101 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"go.uber.org/zap"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+func main() {
+	cfg := TaskProcessingConfig{
+		GeneratingTasksDuration:     10,
+		MaxProcessingWorkerDuration: 30,
+		MaxHandleProcessedDuration:  30,
 
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+		UnprocessedTasksChannelBufferSize: 20,
+		ProcessedTasksChannelBufferSize:   20,
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+		FillingTasksChannelWorkerCount:    10,
+		ProcessingTasksChannelWorkerCount: 10,
+
+		PrintingTasksPeriod: 3,
+		//IsPrintTasksDetailed: false,
+		IsPrintTasksDetailed: true,
+
+		//LogLevel: int8(zap.DebugLevel),
+		LogLevel: int8(zap.InfoLevel),
+	}
+
+	PanicOnError(ValidateTaskProcessingConfig(cfg))
+
+	logger := NewLogger(cfg.LogLevel)
+
+	ProcessingTasks(cfg, logger)
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
+// ProcessingTasks is a function contains main logic of task processing.
+func ProcessingTasks(cfg TaskProcessingConfig, logger *zap.Logger) {
+	logger = logger.Named("ProcessingTasks")
+
+	// changing parameters for emulation of creation and processing tasks
+	//IncorrectTaskTimeDivision = 500
+	//CreateTaskDuration = time.Millisecond * 500
+	//ProcessTaskDuration = time.Millisecond * 500
+
+	startTime := time.Now()
+	requiredGeneratingEndTime := startTime.Add(time.Second * time.Duration(cfg.GeneratingTasksDuration))
+	requiredProcessingEndTime := startTime.Add(time.Second * time.Duration(cfg.MaxProcessingWorkerDuration))
+	requiredHandleProcessedEndTime := startTime.Add(time.Second * time.Duration(cfg.MaxHandleProcessedDuration))
+
+	unprocessedTasksChannel := make(chan Task, cfg.UnprocessedTasksChannelBufferSize)
+	processedTasksChannel := make(chan Task, cfg.ProcessedTasksChannelBufferSize)
+
+	var fillTaskWg sync.WaitGroup
+	var processingTasksWg sync.WaitGroup
+	var handleProcessedTasksWg sync.WaitGroup
+
+	logger.Info("Start", zap.Time("StartTime", startTime))
+
+	for i := 0; i < cfg.FillingTasksChannelWorkerCount; i++ {
+		ctx, cancel := context.WithDeadline(context.Background(), requiredGeneratingEndTime)
+		defer cancel()
+
+		fillTaskWg.Add(1)
+		go FillTaskChannel(unprocessedTasksChannel, ctx, &fillTaskWg, logger)
 	}
 
-	superChan := make(chan Ttype, 10)
+	for i := 0; i < cfg.ProcessingTasksChannelWorkerCount; i++ {
+		ctx, cancel := context.WithDeadline(context.Background(), requiredProcessingEndTime)
+		defer cancel()
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
+		processingTasksWg.Add(1)
+		go ProcessTaskChannel(unprocessedTasksChannel, processedTasksChannel, ctx, &processingTasksWg, logger)
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	ctx, cancel := context.WithDeadline(context.Background(), requiredHandleProcessedEndTime)
+	defer cancel()
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+	handleProcessedTasksWg.Add(1)
+	go HandleProcessedTasksChannel(
+		processedTasksChannel,
+		ctx,
+		cfg.IsPrintTasksDetailed,
+		time.Second*time.Duration(cfg.PrintingTasksPeriod),
+		&handleProcessedTasksWg,
+		logger,
+	)
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+	fillTaskWg.Wait()
+	close(unprocessedTasksChannel) // close unprocessedTasksChannel after all goroutines for filling are finished
+	logger.Info("Filling tasks finished", zap.Duration("Duration", time.Since(startTime)))
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
+	processingTasksWg.Wait()
+	close(processedTasksChannel) // close processedTasksChannel after all goroutines for processing are finished
+	logger.Info("Processing tasks finished", zap.Duration("Duration", time.Since(startTime)))
 
-	time.Sleep(time.Second * 3)
+	handleProcessedTasksWg.Wait() // wait for all goroutines for processing processed tasks to finish
+	logger.Info("Processing processed tasks finished", zap.Duration("Duration", time.Since(startTime)))
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	logger.Info("Processing finished", zap.Duration("Duration", time.Since(startTime)))
 }
