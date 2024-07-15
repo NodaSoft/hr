@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,91 +16,128 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// A Task represents a meaninglessness of our life
+type Task struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
+	createdAt  string
+	finishedAt string
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
+func createTasks() <-chan Task {
+	ch := make(chan Task)
+
+	go func() {
+		defer close(ch)
+
+		timer := time.After(10 * time.Second)
+		for {
+			select {
+			case <-timer:
+				return
+			default:
 				ft := time.Now().Format(time.RFC3339)
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 					ft = "Some error occured"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				ch <- Task{createdAt: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+
+				time.Sleep(time.Second) // для обеспечения уникальности id и читабельности вывода
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	return ch
+}
+
+func handleTasks(tasks <-chan Task) (<-chan Task, <-chan error) {
+	doneTasks := make(chan Task)
+	undoneTasks := make(chan error)
+
 	go func() {
-		for r := range doneTasks {
+		var wg sync.WaitGroup
+		for t := range tasks {
+			wg.Add(1)
 			go func() {
-				result[r.id] = r
+				defer wg.Done()
+
+				tt, _ := time.Parse(time.RFC3339, t.createdAt)
+				if tt.After(time.Now().Add(-20 * time.Second)) {
+					t.taskRESULT = []byte("task has been successed")
+				} else {
+					t.taskRESULT = []byte("something went wrong")
+				}
+				t.finishedAt = time.Now().Format(time.RFC3339Nano)
+
+				time.Sleep(time.Millisecond * 150)
+
+				if string(t.taskRESULT[14:]) == "successed" {
+					doneTasks <- t
+				} else {
+					undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.createdAt, t.taskRESULT)
+				}
 			}()
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
+		wg.Wait()
+
 		close(doneTasks)
 		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	return doneTasks, undoneTasks
+}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+func handleResults(doneTasks <-chan Task, undoneTasks <-chan error) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	errs := make([]error, 0)
+	done := make([]int, 0)
+
+	flushResult := func() {
+		if len(errs) == 0 && len(done) == 0 {
+			return
+		}
+
+		println("Errors:")
+		for _, err := range errs {
+			println(err.Error())
+		}
+		errs = make([]error, 0)
+
+		println("Done tasks:")
+		for _, d := range done {
+			println(d)
+		}
+		done = make([]int, 0)
+
+		println()
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	doneHandled, undoneHandled := false, false
+	for !doneHandled && !undoneHandled {
+		select {
+		case <-ticker.C:
+			flushResult()
+		case err, ok := <-undoneTasks:
+			if ok {
+				errs = append(errs, err)
+			} else {
+				undoneHandled = true
+			}
+		case task, ok := <-doneTasks:
+			if ok {
+				done = append(done, task.id)
+			} else {
+				doneHandled = true
+			}
+		}
 	}
+	flushResult()
+}
+
+func main() {
+	tasks := createTasks()
+	doneTasks, undoneTasks := handleTasks(tasks)
+	handleResults(doneTasks, undoneTasks)
 }
