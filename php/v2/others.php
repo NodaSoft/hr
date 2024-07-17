@@ -12,7 +12,7 @@ class Contractor
     public $type;
     public $name;
 
-    public static function getById(int $resellerId): self
+    public static function getById(int $resellerId): static
     {
         return new self($resellerId); // fakes the getById method
     }
@@ -51,18 +51,18 @@ abstract class ReferencesOperation
 {
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    protected function getRequest(string $key): mixed
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$key] ?? null;
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit($resellerId, $event): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
@@ -71,5 +71,5 @@ function getEmailsByPermit($resellerId, $event)
 class NotificationEvents
 {
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    const NEW_RETURN_STATUS = 'newReturnStatus';
 }
