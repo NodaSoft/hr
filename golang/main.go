@@ -1,6 +1,6 @@
 // README
 // Приложение эмулирует получение и обработку неких тасков - получает и обрабатывает в многопоточном режиме.
-// При запуске можно указать флаги: 
+// При запуске можно указать флаги:
 // --time для указания продолжительности работы приложения в секундах (default = 10)
 // --frequency для определения частоты создания задач в милисекундах (default 1/150)
 // Приложение генерирует таски и каждые 3 секунды выводит в консоль результат всех обработанных к этому моменту задач (отдельно успешные и отдельно с ошибками).
@@ -49,6 +49,7 @@ func intSeq() func() int {
 		return i
 	}
 }
+
 // The closure is used as a sequence number for identification.
 var nextID = intSeq()
 
@@ -149,28 +150,28 @@ func Result(doneTasks chan Tasker, undoneTasks chan error) {
 	var processed = make(map[int]Tasker)
 	var unprocessed = make([]error, 0)
 
-	completion_done := make(chan struct{})
-	completion_undone := make(chan struct{})
+	completion_doneTasks := make(chan struct{})
+	completion_undoneTasks := make(chan struct{})
 	completion_full := make(chan struct{})
 
 	go func() {
 		for r := range doneTasks {
 			processed[r.id] = r
 		}
-		completion_done <- struct{}{}
-		close(completion_done)
+		completion_doneTasks <- struct{}{}
+		close(completion_doneTasks)
 	}()
 	go func() {
 		for r := range undoneTasks {
 			unprocessed = append(unprocessed, r)
 		}
-		completion_undone <- struct{}{}
-		close(completion_undone)
+		completion_undoneTasks <- struct{}{}
+		close(completion_undoneTasks)
 	}()
 
 	go func() {
-		<-completion_done
-		<-completion_undone
+		<-completion_doneTasks
+		<-completion_undoneTasks
 		completion_full <- struct{}{}
 	}()
 
