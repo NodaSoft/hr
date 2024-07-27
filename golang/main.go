@@ -1,3 +1,10 @@
+// README
+// Приложение эмулирует получение и обработку неких тасков - получает и обрабатывает в многопоточном режиме.
+// При запуске можно указать флаги: 
+// --time для указания продолжительности работы приложения в секундах (default = 10)
+// --frequency для определения частоты создания задач в милисекундах (default 1/150)
+// Приложение генерирует таски и каждые 3 секунды выводит в консоль результат всех обработанных к этому моменту задач (отдельно успешные и отдельно с ошибками).
+
 package main
 
 import (
@@ -65,6 +72,7 @@ func main() {
 	fmt.Println("\nEnd of task processing...")
 }
 
+// TaskCreturer имитирует создание рабочих и ошибочных задач и отправляет результат в канал. Параметр frequency определяет частоту создания тасок.
 func TaskCreturer(ctx context.Context, created_tasks chan Tasker) {
 	for {
 		select {
@@ -84,6 +92,7 @@ func TaskCreturer(ctx context.Context, created_tasks chan Tasker) {
 	}
 }
 
+// TaskProcessing является оберткой над обработкой и сортировкой задач с проверкой на безопасность при многопоточном исполнении.
 func TaskProcessing(created_tasks chan Tasker, doneTasks chan Tasker, undoneTasks chan error) {
 	processed_tasks := make(chan Tasker)
 	wg := sync.WaitGroup{}
@@ -102,6 +111,7 @@ func TaskProcessing(created_tasks chan Tasker, doneTasks chan Tasker, undoneTask
 	}()
 }
 
+// Processing асинхронно имитирует обработку задач (с задержкой) и заполняет описание обработки.
 func Processing(tsk Tasker, processed_tasks chan Tasker) {
 
 	go func() {
@@ -112,10 +122,13 @@ func Processing(tsk Tasker, processed_tasks chan Tasker) {
 		}
 		tsk.completed_in = time.Now().Format(time.RFC3339Nano)
 
+		time.Sleep(time.Second * 2)
+
 		processed_tasks <- tsk
 	}()
 }
 
+// Sorter асинхронно сортирует результаты обработки по каналам.
 func Sorter(processed_tasks chan Tasker, doneTasks chan Tasker, undoneTasks chan error, wg *sync.WaitGroup) {
 
 	go func() {
@@ -130,6 +143,7 @@ func Sorter(processed_tasks chan Tasker, doneTasks chan Tasker, undoneTasks chan
 	}()
 }
 
+// Result забирает результаты после сортировки и отправляет на печать с периодичностью 3 сек.
 func Result(doneTasks chan Tasker, undoneTasks chan error) {
 
 	var processed = make(map[int]Tasker)
