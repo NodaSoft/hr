@@ -3,73 +3,111 @@
 namespace NW\WebService\References\Operations\Notification;
 
 /**
- * @property Seller $Seller
+ * Contractor class
  */
 class Contractor
 {
     const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+    public int $id;
+    public int $type;
+    public string $name;
 
+    /**
+     * Constructor for Contractor.
+     *
+     * @param int $id
+     * @param int $type
+     * @param string $name
+     */
+    public function __construct(int $id, int $type = self::TYPE_CUSTOMER, string $name = '')
+    {
+        $this->id = $id;
+        $this->type = $type;
+        $this->name = $name;
+    }
+
+    /**
+     * Get Contractor by ID.
+     *
+     * @param int $resellerId
+     * @return self
+     */
     public static function getById(int $resellerId): self
     {
         return new self($resellerId); // fakes the getById method
     }
 
+    /**
+     * Get full name of the Contractor.
+     *
+     * @return string
+     */
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
     }
 }
 
+/**
+ * Seller class
+ */
 class Seller extends Contractor
 {
 }
 
+/**
+ * Employee class
+ */
 class Employee extends Contractor
 {
 }
 
+/**
+ * Status class
+ */
 class Status
 {
-    public $id, $name;
+    public int $id;
+    public string $name;
 
+    /**
+     * Get status name by ID.
+     *
+     * @param int $id
+     * @return string
+     */
     public static function getName(int $id): string
     {
-        $a = [
+        $statuses = [
             0 => 'Completed',
             1 => 'Pending',
             2 => 'Rejected',
         ];
 
-        return $a[$id];
+        return $statuses[$id] ?? 'Unknown';
     }
 }
 
+/**
+ * Abstract class for reference operations
+ */
 abstract class ReferencesOperation
 {
+    /**
+     * Execute the operation.
+     *
+     * @return array
+     */
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    /**
+     * Get request parameter by name.
+     *
+     * @param string $pName
+     * @return string|null
+     */
+    public function getRequest(string $pName): ?string
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$pName] ?? null;
     }
-}
-
-function getResellerEmailFrom()
-{
-    return 'contractor@example.com';
-}
-
-function getEmailsByPermit($resellerId, $event)
-{
-    // fakes the method
-    return ['someemeil@example.com', 'someemeil2@example.com'];
-}
-
-class NotificationEvents
-{
-    const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
 }
