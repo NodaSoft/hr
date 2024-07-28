@@ -1,12 +1,21 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
 // Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
+// Приложение должно генерировать таски 10 сек.
+// Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков
+// (отдельно успешные и отдельно с ошибками).
 
 // ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
 // Важно сохранить логику появления ошибочных тасков.
@@ -15,91 +24,187 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+
+const (
+	CreatingDurationSeconds = 10
+	WorkerPoolSize          = 2
+	ReportPeriodSeconds     = 3
+	WorkSimulationMs        = 150
+)
+
+var (
+	ErrTaskWasFailed = errors.New("task was failed")
+)
+
+type StatusType int
+
+const (
+	UndefinedStatus StatusType = iota
+	Success
+	Failure
+)
+
+type FailureReasonType int
+
+const (
+	UndefinedFailureReason FailureReasonType = iota
+	ErrCreating
+	ErrOverdue
+)
+
+type Task struct {
+	id            int
+	status        StatusType
+	failureReason FailureReasonType
+	createdAt     time.Time // время создания
+	finishedAt    time.Time // время выполнения
+}
+
+func (t *Task) GetCreatedAt() time.Time {
+	return t.createdAt
+}
+
+func (t *Task) SetFailure(reason FailureReasonType) {
+	t.finishedAt = time.Now()
+	t.status = Failure
+	t.failureReason = reason
+}
+
+func (t *Task) SetSuccess() error {
+	if t.status == Failure {
+		return ErrTaskWasFailed
+	}
+	t.finishedAt = time.Now()
+	t.status = Success
+
+	return nil
+}
+
+func (t *Task) GetStatus() StatusType {
+	return t.status
+}
+
+func taskCreator(ctx context.Context, a chan Task) {
+	defer close(a)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("creating cancelled: %v\n", ctx.Err())
+			return
+		default:
+			currentTime := time.Now()
+			task := Task{createdAt: currentTime, id: int(currentTime.Unix())}
+
+			if currentTime.Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				task.SetFailure(ErrCreating)
+			}
+			a <- task // передаем таск на выполнение
+		}
+	}
+}
+
+func taskWorker(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	inputChan <-chan Task,
+	outputChan chan<- Task,
+) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("worker: %v\n", ctx.Err())
+			return
+		case task, ok := <-inputChan:
+			if !ok {
+				return
+			}
+
+			if task.GetStatus() != Failure && task.GetCreatedAt().After(time.Now().Add(-20*time.Second)) {
+				err := task.SetSuccess()
+				if err != nil {
+					log.Printf("%v\n", err)
+				}
+			} else {
+				task.SetFailure(ErrOverdue)
+			}
+
+			// work simulation
+			time.Sleep(time.Millisecond * WorkSimulationMs)
+			outputChan <- task
+		}
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	ctx, cancelMain := context.WithCancel(context.Background())
+	defer cancelMain()
+
+	newTasksCh := make(chan Task)
+
+	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(ctx, time.Second*CreatingDurationSeconds)
+	defer cancelWithTimeout()
+
+	go taskCreator(ctxWithTimeout, newTasksCh)
+
+	wg := &sync.WaitGroup{}
+	processedTasksCh := make(chan Task)
+
+	go func() {
+		for i := 0; i < WorkerPoolSize; i++ {
+			wg.Add(1)
+			go taskWorker(ctx, wg, newTasksCh, processedTasksCh)
+		}
+
+		wg.Wait()
+		close(processedTasksCh)
+	}()
+
+	var successTasks []Task
+	var failureTasks []Task
+	var undefinedTasks []Task
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+		<-quit
+		cancelMain()
+	}()
+
+	ticker := time.NewTicker(time.Second * ReportPeriodSeconds)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			PrintReport(successTasks, failureTasks, undefinedTasks)
+		case task, ok := <-processedTasksCh:
+			if !ok {
+				fmt.Println("Final report:")
+				PrintReport(successTasks, failureTasks, undefinedTasks)
+				fmt.Println("All tasks have been processed")
+
+				return
 			}
-		}()
-	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			switch task.GetStatus() {
+			case Success:
+				successTasks = append(successTasks, task)
+			case Failure:
+				failureTasks = append(failureTasks, task)
+			default:
+				undefinedTasks = append(undefinedTasks, task)
+			}
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+func PrintReport(successTasks, failureTasks, undefinedTasks []Task) {
+	fmt.Printf("successTasks: %v\n", len(successTasks))
+	fmt.Printf("failureTasks: %v\n", len(failureTasks))
+	fmt.Printf("undefinedTasks: %v\n", len(undefinedTasks))
+	fmt.Printf("_______\n")
 }
