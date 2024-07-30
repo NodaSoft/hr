@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -23,83 +24,136 @@ type Ttype struct {
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+func taskCreturer() <-chan Ttype {
+	tasksChan := make(chan Ttype, 10)
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+	loop:
+		for timeout := time.After(10 * time.Second); ; {
+			select {
+			case <-timeout:
+				break loop
+			case <-time.Tick(100 * time.Millisecond):
+				ct := time.Now().Format(time.RFC3339)
+
+				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+					ct = "Some error occured"
+				}
+
+				tasksChan <- Ttype{cT: ct, id: int(time.Now().Unix())} // передаем таск на выполнение
+			}
+
 		}
-		close(superChan)
+		close(tasksChan)
 	}()
+
+	return tasksChan
+}
+
+func taskWorker(tasksChan <-chan Ttype) (<-chan Ttype, <-chan error) {
+	doneTasksChan := make(chan Ttype, 10)
+	undoneTasksChan := make(chan error, 10)
+
+	go func() {
+
+		var taskWorkerWG sync.WaitGroup
+		// получение тасков
+		for t := range tasksChan {
+			taskWorkerWG.Add(1)
+			go func(t Ttype) {
+				defer taskWorkerWG.Done()
+				completed := false
+
+				tt, err := time.Parse(time.RFC3339, t.cT)
+
+				if err == nil && tt.After(time.Now().Add(-20*time.Second)) {
+					completed = true
+				}
+
+				t.fT = time.Now().Format(time.RFC3339Nano)
+
+				if completed {
+					t.taskRESULT = []byte("task has been successed")
+					doneTasksChan <- t
+				} else {
+					t.taskRESULT = []byte("something went wrong")
+					undoneTasksChan <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+				}
+
+				time.Sleep(time.Millisecond * 150)
+			}(t)
+		}
+		taskWorkerWG.Wait()
+		close(doneTasksChan)
+		close(undoneTasksChan)
+	}()
+
+	return doneTasksChan, undoneTasksChan
+}
+
+func taskPrinter(doneTasksChan <-chan Ttype, undoneTasksChan <-chan error, workDoneChan chan bool) {
 
 	result := map[int]Ttype{}
-	err := []error{}
+	errTasks := []error{}
+
+	var taskSorterWG sync.WaitGroup
+	sortDoneChan := make(chan bool)
+
 	go func() {
-		for r := range doneTasks {
-			go func() {
+		taskSorterWG.Add(1)
+		go func() {
+			defer taskSorterWG.Done()
+			for r := range doneTasksChan {
 				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+			}
+		}()
+
+		taskSorterWG.Add(1)
+		go func() {
+			defer taskSorterWG.Done()
+			for e := range undoneTasksChan {
+				errTasks = append(errTasks, e)
+			}
+		}()
+
+		taskSorterWG.Wait()
+		sortDoneChan <- true
 	}()
 
-	time.Sleep(time.Second * 3)
+	var taskPrinterWG sync.WaitGroup
+	taskPrinterWG.Add(1)
+	go func() {
+		defer taskPrinterWG.Done()
+	loop:
+		for {
+			select {
+			case <-sortDoneChan:
+				break loop
+			case <-time.Tick(3 * time.Second):
+				println("Errors:")
+				for _, r := range errTasks {
+					println(r.Error())
+				}
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+				println("Done tasks:")
+				for r := range result {
+					println(r)
+				}
+				println()
+			}
+		}
+	}()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	taskPrinterWG.Wait()
+	workDoneChan <- true
+}
+
+func main() {
+	tasksChan := taskCreturer()
+	doneTasksChan, undoneTasksChan := taskWorker(tasksChan)
+
+	workDoneChan := make(chan bool)
+	go taskPrinter(doneTasksChan, undoneTasksChan, workDoneChan)
+
+	<-workDoneChan
 }
