@@ -203,8 +203,8 @@ class ReturnOperation extends ReferencesOperation
     {
         $error = '';
 
-        $res = NotificationManager::send($resellerId, $this->client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$this->data['differences']['to'], $this->templateData, $error);
-        if ($res) {
+        $sendResult = NotificationManager::send($resellerId, $this->client->id, NotificationEvents::CHANGE_RETURN_STATUS, (int)$this->data['differences']['to'], $this->templateData, $error);
+        if ($sendResult) {
             $result['notificationClientBySms']['isSent'] = true;
         }
 
