@@ -84,16 +84,6 @@ class ReturnOperation extends ReferencesOperation
             throw new NotFoundEntityException('Expert not found!', 400);
         }
 
-        $differences = '';
-        if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $requestDataDTO->getResellerId());
-        } elseif ($notificationType === self::TYPE_CHANGE && $requestDataDTO->getDifferencesFrom() !== $requestDataDTO->getDifferencesTo()) {
-            $differences = __('PositionStatusHasChanged', [
-                    'FROM' => Status::getName($requestDataDTO->getDifferencesFrom()),
-                    'TO'   => Status::getName($requestDataDTO->getDifferencesTo()),
-                ], $requestDataDTO->getResellerId());
-        }
-
         $templateData = [
             'COMPLAINT_ID'       => $requestDataDTO->getComplaintId(),
             'COMPLAINT_NUMBER'   => $requestDataDTO->getComplaintNumber(),
@@ -107,7 +97,7 @@ class ReturnOperation extends ReferencesOperation
             'CONSUMPTION_NUMBER' => $requestDataDTO->consumptionNumber,
             'AGREEMENT_NUMBER'   => $requestDataDTO->getAgreementNumber(),
             'DATE'               => $requestDataDTO->getDate(),
-            'DIFFERENCES'        => $differences,
+            'DIFFERENCES'        => $this->getDifferencesText($requestDataDTO),
         ];
 
         // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
@@ -191,5 +181,28 @@ class ReturnOperation extends ReferencesOperation
         if ($operationDTO->getNotificationType() !== self::TYPE_NEW && $operationDTO->getNotificationType() !== self::TYPE_CHANGE) {
             throw new ValidateRequestDataException('Incorrect or empty notificationType', 400);
         }
+    }
+
+    /**
+     * Возвращает текст об изменении статуса
+     *
+     * @param ReturnOperationDTO $operationDTO
+     * @return string
+     */
+    private function getDifferencesText(ReturnOperationDTO $operationDTO): string
+    {
+        $differences = __('NewPositionAdded', null, $operationDTO->getResellerId());
+
+        if (
+            $operationDTO->getNotificationType() === self::TYPE_CHANGE
+            && $operationDTO->getDifferencesFrom() !== $operationDTO->getDifferencesTo()
+        ) {
+            $differences = __('PositionStatusHasChanged', [
+                'FROM' => Status::getName($operationDTO->getDifferencesFrom()),
+                'TO'   => Status::getName($operationDTO->getDifferencesTo()),
+            ], $operationDTO->getResellerId());
+        }
+
+        return $differences;
     }
 }
