@@ -2,74 +2,121 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-/**
- * @property Seller $Seller
- */
-class Contractor
+abstract class Contractor
 {
-    const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+    const TYPE_CLIENT = 1;
+    const TYPE_SELLER = 2;
+    const TYPE_EMPLOYEE = 3;
 
-    public static function getById(int $resellerId): self
+    private int $id;
+    private string $name;
+    private string $email;
+    private string $mobile;
+
+    public static function getById(int $resellerId): ?self
     {
-        return new self($resellerId); // fakes the getById method
+        return new static($resellerId); // fakes the getById method
     }
 
     public function getFullName(): string
     {
-        return $this->name . ' ' . $this->id;
+        return $this->getName() . ' ' . $this->getId();
     }
+
+    public function getId(): int
+    {
+        return $this->id;
+    }
+
+    public abstract function getType(): int;
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function getEmail(): string
+    {
+        return $this->email;
+    }
+
+    public function getMobile(): string
+    {
+        return $this->mobile;
+    }
+}
+
+class Client extends Contractor
+{
+    private Seller $seller;
+    public function getType(): int
+    {
+        return static::TYPE_CLIENT;
+    }
+
+    public function getSeller(): Seller
+    {
+        return $this->seller;
+    }
+
 }
 
 class Seller extends Contractor
 {
+    public function getType(): int
+    {
+        return static::TYPE_SELLER;
+    }
 }
 
 class Employee extends Contractor
 {
+    public function getType(): int
+    {
+        return static::TYPE_EMPLOYEE;
+    }
 }
 
 class Status
 {
-    public $id, $name;
 
     public static function getName(int $id): string
     {
-        $a = [
-            0 => 'Completed',
-            1 => 'Pending',
-            2 => 'Rejected',
+        $statuses = [
+          0 => 'Completed',
+          1 => 'Pending',
+          2 => 'Rejected',
         ];
 
-        return $a[$id];
+        return $statuses[$id] ?? $statuses[2];
     }
 }
 
 abstract class ReferencesOperation
 {
+
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    public function getRequest(string $paramName): array
     {
-        return $_REQUEST[$pName];
+        return $_REQUEST[$paramName] ?? [];
     }
+
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(int $resellerId, string $event): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
 }
 
-class NotificationEvents
+Enum NotificationEvents: int
 {
-    const CHANGE_RETURN_STATUS = 'changeReturnStatus';
-    const NEW_RETURN_STATUS    = 'newReturnStatus';
+    case CHANGE_RETURN_STATUS = 1000;
+    case NEW_RETURN_STATUS    = 1001;
 }
