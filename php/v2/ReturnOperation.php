@@ -23,20 +23,22 @@ class ReturnOperation extends ReferencesOperation
          *
          * @todo Входящие и выходящие данные сделать DTO
          */
-        $data = (array)$this->getRequest('data');
-        $resellerId = (int)$data['resellerId'];
-        $clientId = (int)$data['clientId'];
-        $creatorId = (int)$data['creatorId'];
-        $expertId = (int)$data['expertId'];
-        $differencesFrom = (int)$data['differences']['from'];
-        $differencesTo = (int)$data['differences']['to'];
-        $notificationType = (int)$data['notificationType'];
-        $complaintId = (int)$data['complaintId'];
-        $consumptionId = (int)$data['consumptionId'];
-        $complaintNumber = (string)$data['complaintNumber'];
-        $consumptionNumber = (string)$data['consumptionNumber'];
-        $agreementNumber = (string)$data['agreementNumber'];
-        $date = (string)$data['date'];
+        $requestData = (array)$this->getRequest('data');
+        $requestDataDTO = new ReturnOperationDTO(
+            resellerId: (int)$requestData['resellerId'],
+            clientId: (int)$requestData['clientId'],
+            creatorId: (int)$requestData['creatorId'],
+            expertId: (int)$requestData['expertId'],
+            differencesFrom: (int)$requestData['differences']['from'],
+            differencesTo: (int)$requestData['differences']['to'],
+            notificationType: (int)$requestData['notificationType'],
+            complaintId: (int)$requestData['complaintId'],
+            consumptionId: (int)$requestData['consumptionId'],
+            complaintNumber: (string)$requestData['complaintNumber'],
+            consumptionNumber: (string)$requestData['consumptionNumber'],
+            agreementNumber: (string)$requestData['agreementNumber'],
+            date: (string)$requestData['date']
+        );
 
         /**
          * Выглядит нелогичным, что notificationClientBySms - это массив,
@@ -56,37 +58,37 @@ class ReturnOperation extends ReferencesOperation
             ],
         ];
 
-        if ($resellerId === 0) {
+        if ($requestDataDTO->getResellerId() === 0) {
             $result['notificationClientBySms']['message'] = 'Empty resellerId';
             return $result;
         }
 
-        if ($clientId === 0) {
+        if ($requestDataDTO->getClientId() === 0) {
             $result['notificationClientBySms']['message'] = 'Empty clientId';
             return $result;
         }
 
-        if ($creatorId === 0) {
+        if ($requestDataDTO->getCreatorId() === 0) {
             $result['notificationClientBySms']['message'] = 'Empty creatorId';
             return $result;
         }
 
-        if ($expertId === 0) {
+        if ($requestDataDTO->getExpertId() === 0) {
             $result['notificationClientBySms']['message'] = 'Empty expertId';
             return $result;
         }
 
-        if ($notificationType !== self::TYPE_NEW && $notificationType !== self::TYPE_CHANGE) {
+        if ($requestDataDTO->getNotificationType() !== self::TYPE_NEW && $requestDataDTO->getNotificationType() !== self::TYPE_CHANGE) {
             throw new \Exception('Empty notificationType', 400);
         }
 
-        $reseller = Seller::getById($resellerId);
+        $reseller = Seller::getById($requestDataDTO->getResellerId());
         if ($reseller === null) {
             throw new \Exception('Seller not found!', 400);
         }
 
-        $client = Contractor::getById($clientId);
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
+        $client = Contractor::getById($requestDataDTO->getClientId());
+        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $requestDataDTO->getResellerId()) {
             throw new \Exception('сlient not found!', 400);
         }
 
@@ -95,39 +97,39 @@ class ReturnOperation extends ReferencesOperation
             $cFullName = $client->name;
         }
 
-        $cr = Employee::getById($creatorId);
+        $cr = Employee::getById($requestDataDTO->getCreatorId());
         if ($cr === null) {
             throw new \Exception('Creator not found!', 400);
         }
 
-        $et = Employee::getById($expertId);
+        $et = Employee::getById($requestDataDTO->getExpertId());
         if ($et === null) {
             throw new \Exception('Expert not found!', 400);
         }
 
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
-            $differences = __('NewPositionAdded', null, $resellerId);
-        } elseif ($notificationType === self::TYPE_CHANGE && $differencesFrom !== $differencesTo) {
+            $differences = __('NewPositionAdded', null, $requestDataDTO->getResellerId());
+        } elseif ($notificationType === self::TYPE_CHANGE && $requestDataDTO->getDifferencesFrom() !== $requestDataDTO->getDifferencesTo()) {
             $differences = __('PositionStatusHasChanged', [
-                    'FROM' => Status::getName($differencesFrom),
-                    'TO'   => Status::getName($differencesTo),
-                ], $resellerId);
+                    'FROM' => Status::getName($requestDataDTO->getDifferencesFrom()),
+                    'TO'   => Status::getName($requestDataDTO->getDifferencesTo()),
+                ], $requestDataDTO->getResellerId());
         }
 
         $templateData = [
-            'COMPLAINT_ID'       => $complaintId,
-            'COMPLAINT_NUMBER'   => $complaintNumber,
-            'CREATOR_ID'         => $creatorId,
+            'COMPLAINT_ID'       => $requestDataDTO->getComplaintId(),
+            'COMPLAINT_NUMBER'   => $requestDataDTO->getComplaintNumber(),
+            'CREATOR_ID'         => $requestDataDTO->getCreatorId(),
             'CREATOR_NAME'       => $cr->getFullName(),
-            'EXPERT_ID'          => $expertId,
+            'EXPERT_ID'          => $requestDataDTO->getExpertId(),
             'EXPERT_NAME'        => $et->getFullName(),
-            'CLIENT_ID'          => $clientId,
+            'CLIENT_ID'          => $requestDataDTO->getClientId(),
             'CLIENT_NAME'        => $cFullName,
-            'CONSUMPTION_ID'     => $consumptionId,
-            'CONSUMPTION_NUMBER' => $consumptionNumber,
-            'AGREEMENT_NUMBER'   => $agreementNumber,
-            'DATE'               => $date,
+            'CONSUMPTION_ID'     => $requestDataDTO->getConsumptionId(),
+            'CONSUMPTION_NUMBER' => $requestDataDTO->consumptionNumber,
+            'AGREEMENT_NUMBER'   => $requestDataDTO->getAgreementNumber(),
+            'DATE'               => $requestDataDTO->getDate(),
             'DIFFERENCES'        => $differences,
         ];
 
@@ -138,19 +140,19 @@ class ReturnOperation extends ReferencesOperation
             }
         }
 
-        $emailFrom = getResellerEmailFrom($resellerId);
+        $emailFrom = getResellerEmailFrom($requestDataDTO->getResellerId());
         // Получаем email сотрудников из настроек
-        $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
+        $emails = getEmailsByPermit($requestDataDTO->getResellerId(), 'tsGoodsReturn');
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
                 MessagesClient::sendMessage([
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $email,
-                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintEmployeeEmailBody', $templateData, $resellerId),
+                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $requestDataDTO->getResellerId()),
+                           'message'   => __('complaintEmployeeEmailBody', $templateData, $requestDataDTO->getResellerId()),
                     ],
-                ], $resellerId, NotificationEvents::CHANGE_RETURN_STATUS);
+                ], $requestDataDTO->getResellerId(), NotificationEvents::CHANGE_RETURN_STATUS);
                 $result['notificationEmployeeByEmail'] = true;
 
             }
@@ -163,15 +165,15 @@ class ReturnOperation extends ReferencesOperation
                     0 => [ // MessageTypes::EMAIL
                            'emailFrom' => $emailFrom,
                            'emailTo'   => $client->email,
-                           'subject'   => __('complaintClientEmailSubject', $templateData, $resellerId),
-                           'message'   => __('complaintClientEmailBody', $templateData, $resellerId),
+                           'subject'   => __('complaintClientEmailSubject', $templateData, $requestDataDTO->getResellerId()),
+                           'message'   => __('complaintClientEmailBody', $templateData, $requestDataDTO->getResellerId()),
                     ],
-                ], $resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo);
+                ], $requestDataDTO->getResellerId(), $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo);
                 $result['notificationClientByEmail'] = true;
             }
 
             if (!empty($client->mobile)) {
-                $res = NotificationManager::send($resellerId, $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo, $templateData, $error);
+                $res = NotificationManager::send($requestDataDTO->getResellerId(), $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo, $templateData, $error);
                 if ($res) {
                     $result['notificationClientBySms']['isSent'] = true;
                 }

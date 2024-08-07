@@ -130,6 +130,11 @@ final class ReturnOperationDTO
         return $this->clientId;
     }
 
+    public function getCreatorId(): int
+    {
+        return $this->creatorId;
+    }
+
     public function getExpertId(): int
     {
         return $this->expertId;
