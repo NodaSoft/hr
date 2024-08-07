@@ -66,7 +66,11 @@ class ReturnOperation extends ReferencesOperation
         }
 
         $client = Contractor::getById($requestDataDTO->getClientId());
-        if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $requestDataDTO->getResellerId()) {
+        if (
+            $client === null
+            || $client->type !== Contractor::TYPE_CUSTOMER
+            || $client->Seller->id !== $requestDataDTO->getResellerId()
+        ) {
             throw new NotFoundEntityException('сlient not found!', 400);
         }
 
