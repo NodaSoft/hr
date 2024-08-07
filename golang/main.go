@@ -18,101 +18,125 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 const (
-	tasksAmount          = 10
-	timeFormat           = time.RFC3339
-	executionTimeFormat  = time.RFC3339Nano
-	taskHandlingDelay    = 150 * time.Millisecond
-	maxTaskCreatingDelay = 20 * time.Second
+	creationTimeFormat    = time.RFC3339
+	executionTimeFormat   = time.RFC3339Nano
+	tasksCreatingDuration = 10 * time.Second
+	taskCreatingDelay     = 150 * time.Millisecond
+	maxTaskCreatingDelay  = 20 * time.Second
+	tasksPrintingDelay    = 3 * time.Second
+)
+
+var (
+	idCounter = 0
+	mu1       sync.Mutex
+	mu2       sync.Mutex
+	mu3       sync.Mutex
 )
 
 // A Task represents a meaninglessness of our life
 type Task struct {
 	id            int
-	createTime    string // время создания
-	executionTime string // время выполнения
+	creationTime  time.Time // время создания
+	executionTime time.Time // время выполнения
 	isSuccess     bool
 	isCompleted   bool
 	logs          []string
 }
 
 func createTask() *Task {
-	createTime := time.Now().Format(timeFormat)
-	taskId := int(time.Now().Unix())
-	if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+	creationTime := time.Now()
+
+	mu1.Lock()
+	taskId := idCounter
+	idCounter++
+	failCondition := time.Now().Nanosecond()%2 > 0 // вот такое условие появления ошибочных тасков
+	time.Sleep(taskCreatingDelay)
+	mu1.Unlock()
+
+	if failCondition {
 		return &Task{
-			id:        taskId,
-			isSuccess: false,
-			logs:      []string{"Some error occurred"},
+			id:           taskId,
+			creationTime: creationTime,
+			isSuccess:    false,
+			logs:         []string{"Some error occurred"},
 		}
 	}
 	return &Task{
-		id:         taskId,
-		createTime: createTime,
-		isSuccess:  true,
-	} // передаем таск на выполнение
+		id:           taskId,
+		creationTime: creationTime,
+		isSuccess:    true,
+	}
 }
 
-func handleTask(a *Task) {
-	createTime, _ := time.Parse(timeFormat, a.createTime)
-	duration := createTime.Sub(time.Now())
+func handleTask(t *Task) {
+	duration := t.creationTime.Sub(time.Now())
 
 	if duration <= maxTaskCreatingDelay {
-		a.isCompleted = true
-		a.logs = append(a.logs, "Task was completed successfully")
+		t.isCompleted = true
+		t.logs = append(t.logs, "Task was completed successfully")
 	} else {
-		a.isCompleted = false
-		a.logs = append(a.logs, "Task is working too long, something went wrong")
+		t.isCompleted = false
+		t.logs = append(t.logs, "Task is working too long, something went wrong")
 	}
 
-	a.executionTime = time.Now().Format(executionTimeFormat)
-
-	time.Sleep(taskHandlingDelay)
+	t.executionTime = time.Now()
 }
 
-func getTasksChannel() <-chan *Task {
-	tasksChan := make(chan *Task, tasksAmount)
-
-	var wg sync.WaitGroup
-	wg.Add(tasksAmount)
-
-	for i := 0; i < tasksAmount; i++ {
-		go func() {
-			defer wg.Done()
-			t := createTask()
-			handleTask(t)
-			tasksChan <- t
-		}()
+func printTasks(tasks []*Task) {
+	fmt.Println("Handled tasks:")
+	for _, t := range tasks {
+		fmt.Printf(
+			"taskId: %d\t"+
+				"creationTime: %s\t"+
+				"executionTime: %s\t"+
+				"logs: %s\n",
+			t.id, t.creationTime.Format(creationTimeFormat), t.executionTime.Format(executionTimeFormat),
+			strings.Join(t.logs, ", "))
 	}
-	wg.Wait()
-	close(tasksChan)
-	return tasksChan
 }
 
 func main() {
-	tasksChan := getTasksChannel()
+	stopChan := make(chan struct{})
+	handledTasks := make([]*Task, 0)
 
-	result := map[int]*Task{}
-	errors := make([]error, 0, tasksAmount)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	for r := range tasksChan {
-		if !r.isCompleted {
-			err := fmt.Errorf(
-				"taskId: %d\t "+
-					"createTime: %s\t "+
-					"errors %s", r.id, r.createTime, strings.Join(r.logs, ", "))
-			errors = append(errors, err)
-		} else {
-			result[r.id] = r
+	go func() {
+		defer wg.Done()
+		startTime := time.Now()
+		for {
+			if time.Since(startTime) >= tasksCreatingDuration {
+				close(stopChan)
+				return
+			}
+			go func() {
+				task := createTask()
+				handleTask(task)
+				mu2.Lock()
+				handledTasks = append(handledTasks, task)
+				mu2.Unlock()
+			}()
 		}
-	}
+	}()
 
-	println("Errors:")
-	for r := range errors {
-		println(r)
-	}
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(tasksPrintingDelay)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				mu3.Lock()
+				printTasks(handledTasks)
+				mu3.Unlock()
+			case <-stopChan:
+				return
+			}
+		}
+	}()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	wg.Wait()
+
+	printTasks(handledTasks)
 }
