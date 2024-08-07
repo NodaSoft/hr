@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NW\WebService\References\Operations\Notification;
 
+/**
+ * Уведомления персонала и клиентов о смене статуса возврата товара
+ */
 class ReturnOperation extends ReferencesOperation
 {
     public const TYPE_NEW    = 1;
@@ -108,46 +111,28 @@ class ReturnOperation extends ReferencesOperation
         }
 
         $emailFrom = getResellerEmailFrom($requestDataDTO->getResellerId());
-        // Получаем email сотрудников из настроек
-        $emails = getEmailsByPermit($requestDataDTO->getResellerId(), 'tsGoodsReturn');
-        if (!empty($emailFrom) && count($emails) > 0) {
-            foreach ($emails as $email) {
-                MessagesClient::sendMessage([
-                    0 => [ // MessageTypes::EMAIL
-                           'emailFrom' => $emailFrom,
-                           'emailTo'   => $email,
-                           'subject'   => __('complaintEmployeeEmailSubject', $templateData, $requestDataDTO->getResellerId()),
-                           'message'   => __('complaintEmployeeEmailBody', $templateData, $requestDataDTO->getResellerId()),
-                    ],
-                ], $requestDataDTO->getResellerId(), NotificationEvents::CHANGE_RETURN_STATUS);
-                $result['notificationEmployeeByEmail'] = true;
 
-            }
-        }
+        // Отправляем уведомления персоналу
+        $result['notificationEmployeeByEmail'] = $this->sendNotificationEmailToStaff(
+            $emailFrom,
+            $templateData,
+            $requestDataDTO
+        );
 
-        // Шлём клиентское уведомление, только если произошла смена статуса
-        if ($notificationType === self::TYPE_CHANGE && !empty($differencesTo)) {
-            if (!empty($emailFrom) && !empty($client->email)) {
-                MessagesClient::sendMessage([
-                    0 => [ // MessageTypes::EMAIL
-                           'emailFrom' => $emailFrom,
-                           'emailTo'   => $client->email,
-                           'subject'   => __('complaintClientEmailSubject', $templateData, $requestDataDTO->getResellerId()),
-                           'message'   => __('complaintClientEmailBody', $templateData, $requestDataDTO->getResellerId()),
-                    ],
-                ], $requestDataDTO->getResellerId(), $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo);
-                $result['notificationClientByEmail'] = true;
-            }
+        // Отправляем клиентское уведомление, только если произошла смена статуса
+        if ($requestDataDTO->getNotificationType() === self::TYPE_CHANGE && $requestDataDTO->getDifferencesTo() !== 0) {
+            $result['notificationClientByEmail'] = $this->sendNotificationEmailToUser(
+                $client,
+                $emailFrom,
+                $templateData,
+                $requestDataDTO
+            );
 
-            if (!empty($client->mobile)) {
-                $res = NotificationManager::send($requestDataDTO->getResellerId(), $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $differencesTo, $templateData, $error);
-                if ($res) {
-                    $result['notificationClientBySms']['isSent'] = true;
-                }
-                if (!empty($error)) {
-                    $result['notificationClientBySms']['message'] = $error;
-                }
-            }
+            $result['notificationClientBySms'] = $this->sendNotificationSmsToUser(
+                $client,
+                $templateData,
+                $requestDataDTO
+            );
         }
 
         return $result;
@@ -204,5 +189,87 @@ class ReturnOperation extends ReferencesOperation
         }
 
         return $differences;
+    }
+
+    /**
+     * Отправка уведомлений персоналу
+     *
+     * @param string $emailFrom
+     * @param array $templateData
+     * @param ReturnOperationDTO $requestDataDTO
+     * @return bool
+     */
+    private function sendNotificationEmailToStaff(string $emailFrom, array $templateData, ReturnOperationDTO $requestDataDTO): bool
+    {
+        $isSent = false;
+        // Получаем email сотрудников из настроек
+        $emails = getEmailsByPermit($requestDataDTO->getResellerId(), 'tsGoodsReturn');
+        foreach ($emails as $email) {
+            MessagesClient::sendMessage([
+                [ // MessageTypes::EMAIL
+                    'emailFrom' => $emailFrom,
+                    'emailTo'   => $email,
+                    'subject'   => __('complaintEmployeeEmailSubject', $templateData, $requestDataDTO->getResellerId()),
+                    'message'   => __('complaintEmployeeEmailBody', $templateData, $requestDataDTO->getResellerId()),
+                ],
+            ], $requestDataDTO->getResellerId(), NotificationEvents::CHANGE_RETURN_STATUS);
+
+            $isSent = true;
+        }
+
+        return $isSent;
+    }
+
+    /**
+     * Отправка уведомлений пользователю на электронную почту
+     *
+     * @param Contractor $client
+     * @param string $emailFrom
+     * @param array $templateData
+     * @param ReturnOperationDTO $requestDataDTO
+     * @return bool
+     */
+    private function sendNotificationEmailToUser(Contractor $client, string $emailFrom, array $templateData, ReturnOperationDTO $requestDataDTO): bool
+    {
+        $isSent = false;
+
+        if (!empty($client->email)) {
+            MessagesClient::sendMessage([
+                [ // MessageTypes::EMAIL
+                    'emailFrom' => $emailFrom,
+                    'emailTo'   => $client->email,
+                    'subject'   => __('complaintClientEmailSubject', $templateData, $requestDataDTO->getResellerId()),
+                    'message'   => __('complaintClientEmailBody', $templateData, $requestDataDTO->getResellerId()),
+                ],
+            ], $requestDataDTO->getResellerId(), $client->id, NotificationEvents::CHANGE_RETURN_STATUS, $requestDataDTO->getDifferencesTo());
+            $isSent = true;
+        }
+
+        return $isSent;
+    }
+
+    /**
+     * Отправка уведомлений пользователю по СМС
+     *
+     * @param Contractor $client
+     * @param array $templateData
+     * @param ReturnOperationDTO $requestDataDTO
+     * @return bool
+     */
+    private function sendNotificationSmsToUser(Contractor $client, array $templateData, ReturnOperationDTO $requestDataDTO): bool
+    {
+        $isSent = false;
+
+        if (!empty($client->mobile)) {
+            $isSent = (bool) NotificationManager::send(
+                $requestDataDTO->getResellerId(),
+                $client->id,
+                NotificationEvents::CHANGE_RETURN_STATUS,
+                $requestDataDTO->getDifferencesTo(),
+                $templateData
+            );
+        }
+
+        return $isSent;
     }
 }
