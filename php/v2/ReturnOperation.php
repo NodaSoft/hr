@@ -71,7 +71,7 @@ class ReturnOperation extends ReferencesOperation
             || $client->type !== Contractor::TYPE_CUSTOMER
             || $client->Seller->id !== $requestDataDTO->getResellerId()
         ) {
-            throw new NotFoundEntityException('сlient not found!', 400);
+            throw new NotFoundEntityException('Client not found!', 400);
         }
 
         $creator = Employee::getById($requestDataDTO->getCreatorId());
