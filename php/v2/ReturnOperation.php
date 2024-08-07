@@ -14,7 +14,6 @@ class TsReturnOperation extends ReferencesOperation
     public function doOperation(): array
     {
         $data = $this->getRequest('data');
-        $notificationType = filter_var($data['notificationType'], FILTER_VALIDATE_INT);
         $result = [
           'notificationEmployeeByEmail' => false,
           'notificationClientByEmail'   => false,
@@ -24,13 +23,18 @@ class TsReturnOperation extends ReferencesOperation
           ],
         ];
 
-        $reseller = $this->createContractor(Contractor::TYPE_SELLER, $data['resellerId']);
-
-        if (! $reseller) {
-            $result['notificationClientBySms']['message'] = 'Empty resellerId';
+        if (empty($data)) {
             return $result;
         }
 
+        $reseller = $this->createContractor(Contractor::TYPE_SELLER, $data['resellerId']);
+
+        if (! $reseller) {
+            $result['notificationClientBySms']['error'] = 'Empty resellerId';
+            return $result;
+        }
+
+        $notificationType = filter_var($data['notificationType'], FILTER_VALIDATE_INT);
         if (! $notificationType) {
             throw new \Exception('Empty notificationType', 400);
         }
