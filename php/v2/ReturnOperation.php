@@ -13,6 +13,10 @@ class ReturnOperation extends ReferencesOperation
     public const TYPE_CHANGE = 2;
 
     /**
+     * Запускает отправку уведомлений о смене статуса возврата товара
+     *
+     * @return array
+     * @throws ValidateRequestDataException
      * @throws NotFoundEntityException
      * @throws TemplateException
      */
