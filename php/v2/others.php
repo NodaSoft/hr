@@ -180,3 +180,5 @@ final class ReturnOperationDTO
         return $this->date;
     }
 }
+
+class ValidateRequestDataException extends \InvalidArgumentException { }

@@ -163,26 +163,33 @@ class ReturnOperation extends ReferencesOperation
         return $result;
     }
 
+    /**
+     * Валидация входящего запроса
+     *
+     * @param ReturnOperationDTO $operationDTO
+     *
+     * @throws ValidateRequestDataException
+     */
     private function validateRequestData(ReturnOperationDTO $operationDTO): void
     {
         if ($operationDTO->getResellerId() === 0) {
-            throw new \Exception('Empty resellerId', 400);
+            throw new ValidateRequestDataException('Empty resellerId', 400);
         }
 
         if ($operationDTO->getClientId() === 0) {
-            throw new \Exception('Empty clientId', 400);
+            throw new ValidateRequestDataException('Empty clientId', 400);
         }
 
         if ($operationDTO->getCreatorId() === 0) {
-            throw new \Exception('Empty creatorId', 400);
+            throw new ValidateRequestDataException('Empty creatorId', 400);
         }
 
         if ($operationDTO->getExpertId() === 0) {
-            throw new \Exception('Empty expertId', 400);
+            throw new ValidateRequestDataException('Empty expertId', 400);
         }
 
         if ($operationDTO->getNotificationType() !== self::TYPE_NEW && $operationDTO->getNotificationType() !== self::TYPE_CHANGE) {
-            throw new \Exception('Incorrect or empty notificationType', 400);
+            throw new ValidateRequestDataException('Incorrect or empty notificationType', 400);
         }
     }
 }
