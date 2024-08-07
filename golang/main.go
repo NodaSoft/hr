@@ -18,8 +18,6 @@ import (
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
 const (
-	creationTimeFormat    = time.RFC3339
-	executionTimeFormat   = time.RFC3339Nano
 	tasksCreatingDuration = 10 * time.Second
 	taskCreatingDelay     = 150 * time.Millisecond
 	maxTaskCreatingDelay  = 20 * time.Second
@@ -90,7 +88,7 @@ func printTasks(tasks []*Task) {
 				"creationTime: %s\t"+
 				"executionTime: %s\t"+
 				"logs: %s\n",
-			t.id, t.creationTime.Format(creationTimeFormat), t.executionTime.Format(executionTimeFormat),
+			t.id, t.creationTime.Format(time.RFC3339), t.executionTime.Format(time.RFC3339Nano),
 			strings.Join(t.logs, ", "))
 	}
 }
