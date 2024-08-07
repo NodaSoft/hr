@@ -38,6 +38,15 @@ class ReturnOperation extends ReferencesOperation
         $agreementNumber = (string)$data['agreementNumber'];
         $date = (string)$data['date'];
 
+        /**
+         * Выглядит нелогичным, что notificationClientBySms - это массив,
+         * а не булевое значение, как notificationEmployeeByEmail и notificationClientByEmail.
+         *
+         * Сообщение (message) содержит текст ошибки, имеет смысл переименовать в errorMessage и
+         * вынести из notificationClientBySms, т.к. имеет отношение не только к СМС.
+         *
+         * @todo Пересмотреть структуру исходящих данных
+         */
         $result = [
             'notificationEmployeeByEmail' => false,
             'notificationClientByEmail'   => false,
