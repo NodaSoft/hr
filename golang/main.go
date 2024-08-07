@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,86 +17,100 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+const (
+	tasksAmount          = 10
+	timeFormat           = time.RFC3339
+	executionTimeFormat  = time.RFC3339Nano
+	taskHandlingDelay    = 150 * time.Millisecond
+	maxTaskCreatingDelay = 20 * time.Second
+)
+
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id            int
+	createTime    string // время создания
+	executionTime string // время выполнения
+	isSuccess     bool
+	isCompleted   bool
+	logs          []string
+}
+
+func createTask() *Task {
+	createTime := time.Now().Format(timeFormat)
+	taskId := int(time.Now().Unix())
+	if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+		return &Task{
+			id:        taskId,
+			isSuccess: false,
+			logs:      []string{"Some error occurred"},
+		}
+	}
+	return &Task{
+		id:         taskId,
+		createTime: createTime,
+		isSuccess:  true,
+	} // передаем таск на выполнение
+}
+
+func handleTask(a *Task) {
+	createTime, _ := time.Parse(timeFormat, a.createTime)
+	duration := createTime.Sub(time.Now())
+
+	if duration <= maxTaskCreatingDelay {
+		a.isCompleted = true
+		a.logs = append(a.logs, "Task was completed successfully")
+	} else {
+		a.isCompleted = false
+		a.logs = append(a.logs, "Task is working too long, something went wrong")
+	}
+
+	a.executionTime = time.Now().Format(executionTimeFormat)
+
+	time.Sleep(taskHandlingDelay)
+}
+
+func getTasksChannel() <-chan *Task {
+	tasksChan := make(chan *Task, tasksAmount)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wg.Add(tasksAmount)
+
+	for i := 0; i < tasksAmount; i++ {
+		go func() {
+			defer wg.Done()
+			t := createTask()
+			mu.Lock()
+			handleTask(t)
+			mu.Unlock()
+			tasksChan <- t
+		}()
+	}
+	wg.Wait()
+	close(tasksChan)
+	return tasksChan
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	tasksChan := getTasksChannel()
 
-	superChan := make(chan Ttype, 10)
+	result := map[int]*Task{}
+	errors := make([]error, 0, tasksAmount)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+	for r := range tasksChan {
+		if !r.isCompleted {
+			err := fmt.Errorf(
+				"taskId: %d\t "+
+					"createTime: %s\t "+
+					"errors %s", r.id, r.createTime, strings.Join(r.logs, ", "))
+			errors = append(errors, err)
 		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			result[r.id] = r
 		}
 	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
 
 	println("Errors:")
-	for r := range err {
+	for r := range errors {
 		println(r)
 	}
 
