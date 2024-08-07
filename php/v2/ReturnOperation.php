@@ -56,16 +56,31 @@ class ReturnOperation extends ReferencesOperation
             ],
         ];
 
-        if (empty($resellerId)) {
+        if ($resellerId === 0) {
             $result['notificationClientBySms']['message'] = 'Empty resellerId';
             return $result;
         }
 
-        if (empty($notificationType)) {
+        if ($clientId === 0) {
+            $result['notificationClientBySms']['message'] = 'Empty clientId';
+            return $result;
+        }
+
+        if ($creatorId === 0) {
+            $result['notificationClientBySms']['message'] = 'Empty creatorId';
+            return $result;
+        }
+
+        if ($expertId === 0) {
+            $result['notificationClientBySms']['message'] = 'Empty expertId';
+            return $result;
+        }
+
+        if ($notificationType !== self::TYPE_NEW && $notificationType !== self::TYPE_CHANGE) {
             throw new \Exception('Empty notificationType', 400);
         }
 
-        $reseller = Seller::getById(($resellerId);
+        $reseller = Seller::getById($resellerId);
         if ($reseller === null) {
             throw new \Exception('Seller not found!', 400);
         }
