@@ -12,8 +12,17 @@ class ReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): array
     {
+        /**
+         * Т.к. рефакторинг происходит в отрыве от остальной части
+         * программы, менять тип входящих и исходящих данных нельзя.
+         * В дальнейшем следует перейти от использования массивов
+         * к использованию объектов DTO. Это обеспечит безопасную
+         * передачу данных от метода к методу.
+         *
+         * @todo Входящие и выходящие данные сделать DTO
+         */
         $data = (array)$this->getRequest('data');
         $resellerId = $data['resellerId'];
         $notificationType = (int)$data['notificationType'];
