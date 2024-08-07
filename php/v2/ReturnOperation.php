@@ -39,6 +39,7 @@ class ReturnOperation extends ReferencesOperation
             agreementNumber: (string)$requestData['agreementNumber'],
             date: (string)$requestData['date']
         );
+        $this->validateRequestData($requestDataDTO);
 
         /**
          * Выглядит нелогичным, что notificationClientBySms - это массив,
@@ -57,30 +58,6 @@ class ReturnOperation extends ReferencesOperation
                 'message' => '',
             ],
         ];
-
-        if ($requestDataDTO->getResellerId() === 0) {
-            $result['notificationClientBySms']['message'] = 'Empty resellerId';
-            return $result;
-        }
-
-        if ($requestDataDTO->getClientId() === 0) {
-            $result['notificationClientBySms']['message'] = 'Empty clientId';
-            return $result;
-        }
-
-        if ($requestDataDTO->getCreatorId() === 0) {
-            $result['notificationClientBySms']['message'] = 'Empty creatorId';
-            return $result;
-        }
-
-        if ($requestDataDTO->getExpertId() === 0) {
-            $result['notificationClientBySms']['message'] = 'Empty expertId';
-            return $result;
-        }
-
-        if ($requestDataDTO->getNotificationType() !== self::TYPE_NEW && $requestDataDTO->getNotificationType() !== self::TYPE_CHANGE) {
-            throw new \Exception('Empty notificationType', 400);
-        }
 
         $reseller = Seller::getById($requestDataDTO->getResellerId());
         if ($reseller === null) {
@@ -184,5 +161,28 @@ class ReturnOperation extends ReferencesOperation
         }
 
         return $result;
+    }
+
+    private function validateRequestData(ReturnOperationDTO $operationDTO): void
+    {
+        if ($operationDTO->getResellerId() === 0) {
+            throw new \Exception('Empty resellerId', 400);
+        }
+
+        if ($operationDTO->getClientId() === 0) {
+            throw new \Exception('Empty clientId', 400);
+        }
+
+        if ($operationDTO->getCreatorId() === 0) {
+            throw new \Exception('Empty creatorId', 400);
+        }
+
+        if ($operationDTO->getExpertId() === 0) {
+            throw new \Exception('Empty expertId', 400);
+        }
+
+        if ($operationDTO->getNotificationType() !== self::TYPE_NEW && $operationDTO->getNotificationType() !== self::TYPE_CHANGE) {
+            throw new \Exception('Incorrect or empty notificationType', 400);
+        }
     }
 }
