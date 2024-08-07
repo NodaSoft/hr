@@ -182,3 +182,5 @@ final class ReturnOperationDTO
 }
 
 class ValidateRequestDataException extends \InvalidArgumentException { }
+class NotFoundEntityException extends \DomainException { }
+class TemplateException extends \Exception { }

@@ -11,7 +11,7 @@ class ReturnOperation extends ReferencesOperation
 
     /**
      * @throws NotFoundEntityException
-     * @throws \Exception
+     * @throws TemplateException
      */
     public function doOperation(): array
     {
@@ -103,7 +103,7 @@ class ReturnOperation extends ReferencesOperation
         // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
         foreach ($templateData as $key => $tempData) {
             if (empty($tempData)) {
-                throw new \Exception("Template Data ({$key}) is empty!", 500);
+                throw new TemplateException("Template Data ({$key}) is empty!", 500);
             }
         }
 
