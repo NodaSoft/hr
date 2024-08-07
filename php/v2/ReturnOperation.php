@@ -132,11 +132,13 @@ class ReturnOperation extends ReferencesOperation
                 $requestDataDTO
             );
 
-            $result['notificationClientBySms'] = $this->sendNotificationSmsToUser(
+            $result['notificationClientBySms']['isSent'] = $this->sendNotificationSmsToUser(
                 $client,
                 $templateData,
                 $requestDataDTO
             );
+
+            $result['notificationClientBySms']['message'] = $result['notificationClientBySms']['isSent'] ? 'Message sent' : 'Error';
         }
 
         return $result;
