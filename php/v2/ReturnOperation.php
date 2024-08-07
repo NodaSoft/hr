@@ -70,18 +70,18 @@ class ReturnOperation extends ReferencesOperation
             throw new NotFoundEntityException('сlient not found!', 400);
         }
 
-        $cFullName = $client->getFullName();
+        $clientFullName = $client->getFullName();
         if (empty($client->getFullName())) {
-            $cFullName = $client->name;
+            $clientFullName = $client->name;
         }
 
-        $cr = Employee::getById($requestDataDTO->getCreatorId());
-        if ($cr === null) {
+        $creator = Employee::getById($requestDataDTO->getCreatorId());
+        if ($creator === null) {
             throw new NotFoundEntityException('Creator not found!', 400);
         }
 
-        $et = Employee::getById($requestDataDTO->getExpertId());
-        if ($et === null) {
+        $expert = Employee::getById($requestDataDTO->getExpertId());
+        if ($expert === null) {
             throw new NotFoundEntityException('Expert not found!', 400);
         }
 
@@ -99,11 +99,11 @@ class ReturnOperation extends ReferencesOperation
             'COMPLAINT_ID'       => $requestDataDTO->getComplaintId(),
             'COMPLAINT_NUMBER'   => $requestDataDTO->getComplaintNumber(),
             'CREATOR_ID'         => $requestDataDTO->getCreatorId(),
-            'CREATOR_NAME'       => $cr->getFullName(),
+            'CREATOR_NAME'       => $creator->getFullName(),
             'EXPERT_ID'          => $requestDataDTO->getExpertId(),
-            'EXPERT_NAME'        => $et->getFullName(),
+            'EXPERT_NAME'        => $expert->getFullName(),
             'CLIENT_ID'          => $requestDataDTO->getClientId(),
-            'CLIENT_NAME'        => $cFullName,
+            'CLIENT_NAME'        => $clientFullName,
             'CONSUMPTION_ID'     => $requestDataDTO->getConsumptionId(),
             'CONSUMPTION_NUMBER' => $requestDataDTO->consumptionNumber,
             'AGREEMENT_NUMBER'   => $requestDataDTO->getAgreementNumber(),
