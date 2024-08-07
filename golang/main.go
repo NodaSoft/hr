@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -25,16 +26,20 @@ type Ttype struct {
 }
 
 // taskCreturer отправляет созданную задачу Ttype в канал a
-func taskCreturer(a chan Ttype) {
-	go func() {
-		for {
-			ft := time.Now().Format(time.RFC3339)
-			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-				ft = "Some error occured"
-			}
-			a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+func taskCreturer(ctx context.Context, ch chan Ttype) {
+	for {
+		ft := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+			ft = "Some error occured"
 		}
-	}()
+		select {
+		case ch <- Ttype{cT: ft, id: int(time.Now().Unix())}:
+			continue
+		case <-ctx.Done():
+			close(ch)
+			return
+		}
+	}
 }
 
 // taskWorker выставляет значение taskRESULT для экземпляра структуры Ttype, возвращает Ttype
@@ -66,9 +71,12 @@ func main() {
 	var muRes sync.RWMutex
 	var muErr sync.RWMutex
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	superChan := make(chan Ttype, 10)
 
-	go taskCreturer(superChan)
+	go taskCreturer(ctx, superChan)
 
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
@@ -79,7 +87,6 @@ func main() {
 			t = taskWorker(t)
 			go taskSorter(t, doneTasks, undoneTasks)
 		}
-		close(superChan)
 	}()
 
 	result := map[int]Ttype{}
