@@ -66,23 +66,24 @@ func taskSorter(t Ttype, doneTasks chan Ttype, undoneTasks chan error) {
 
 func main() {
 
-	var muRes sync.RWMutex
-	var muErr sync.RWMutex
+	var muRes sync.RWMutex // Mutex для мапы с результатами
+	var muErr sync.RWMutex // Mutex для слайса с ошибками
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Каналы
 	superChan := make(chan Ttype, 10)
-
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
-	done := make(chan struct{})
+	done := make(chan struct{}) // Канал для отправки сигнала о завершение работы горутин
 
 	go taskCreturer(ctx, superChan)
 
 	var wgSort sync.WaitGroup // Ожидание сортировки
 	wgSort.Add(1)
 
+	//
 	go func() {
 		defer wgSort.Done()
 		for t := range superChan {
@@ -91,10 +92,19 @@ func main() {
 		}
 	}()
 
+	go func() {
+		// Ждём пока все таски будут отсортированы
+		wgSort.Wait()
+		close(doneTasks)
+		close(undoneTasks)
+
+	}()
+
 	result := map[int]Ttype{}
 	errRes := []error{}
 
-	go func() {
+	// Распределение задач после их выполнения
+	processTasks := func() {
 		resOk := true
 		errOk := true
 		for {
@@ -125,22 +135,17 @@ func main() {
 				muErr.Unlock()
 			}
 		}
-	}()
-	go func() {
-		// Ждём пока все таски будут отсортированы
-		wgSort.Wait()
-		close(doneTasks)
-		close(undoneTasks)
+	}
+	go processTasks()
 
-	}()
-
+	// Вывод результатов каждые 3 секунды. Если горутины закончили работу, после вывода результата завершаем функцию.
 	for {
 		time.Sleep(time.Second * 3)
 
 		println("Errors:")
 
 		muErr.RLock()
-		for i, _ := range errRes {
+		for i := range errRes {
 			fmt.Println(errRes[i])
 		}
 		muErr.RUnlock()
