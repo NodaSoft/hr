@@ -73,16 +73,13 @@ func getTasksChannel() <-chan *Task {
 	tasksChan := make(chan *Task, tasksAmount)
 
 	var wg sync.WaitGroup
-	var mu sync.Mutex
 	wg.Add(tasksAmount)
 
 	for i := 0; i < tasksAmount; i++ {
 		go func() {
 			defer wg.Done()
 			t := createTask()
-			mu.Lock()
 			handleTask(t)
-			mu.Unlock()
 			tasksChan <- t
 		}()
 	}
