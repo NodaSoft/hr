@@ -10,6 +10,7 @@ class ReturnOperation extends ReferencesOperation
     public const TYPE_CHANGE = 2;
 
     /**
+     * @throws NotFoundEntityException
      * @throws \Exception
      */
     public function doOperation(): array
@@ -61,12 +62,12 @@ class ReturnOperation extends ReferencesOperation
 
         $reseller = Seller::getById($requestDataDTO->getResellerId());
         if ($reseller === null) {
-            throw new \Exception('Seller not found!', 400);
+            throw new NotFoundEntityException('Seller not found!', 400);
         }
 
         $client = Contractor::getById($requestDataDTO->getClientId());
         if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $requestDataDTO->getResellerId()) {
-            throw new \Exception('сlient not found!', 400);
+            throw new NotFoundEntityException('сlient not found!', 400);
         }
 
         $cFullName = $client->getFullName();
@@ -76,12 +77,12 @@ class ReturnOperation extends ReferencesOperation
 
         $cr = Employee::getById($requestDataDTO->getCreatorId());
         if ($cr === null) {
-            throw new \Exception('Creator not found!', 400);
+            throw new NotFoundEntityException('Creator not found!', 400);
         }
 
         $et = Employee::getById($requestDataDTO->getExpertId());
         if ($et === null) {
-            throw new \Exception('Expert not found!', 400);
+            throw new NotFoundEntityException('Expert not found!', 400);
         }
 
         $differences = '';
