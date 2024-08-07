@@ -52,8 +52,6 @@ func taskWorker(a Ttype) Ttype {
 	}
 	a.fT = time.Now().Format(time.RFC3339Nano)
 
-	time.Sleep(time.Millisecond * 150)
-
 	return a
 }
 
@@ -71,58 +69,94 @@ func main() {
 	var muRes sync.RWMutex
 	var muErr sync.RWMutex
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	superChan := make(chan Ttype, 10)
 
-	go taskCreturer(ctx, superChan)
-
 	doneTasks := make(chan Ttype)
 	undoneTasks := make(chan error)
+	done := make(chan struct{})
+
+	go taskCreturer(ctx, superChan)
+
+	var wgSort sync.WaitGroup // Ожидание сортировки
+	wgSort.Add(1)
 
 	go func() {
-		// получение тасков
+		defer wgSort.Done()
 		for t := range superChan {
 			t = taskWorker(t)
-			go taskSorter(t, doneTasks, undoneTasks)
+			taskSorter(t, doneTasks, undoneTasks)
 		}
 	}()
 
 	result := map[int]Ttype{}
-	err := []error{}
+	errRes := []error{}
+
 	go func() {
-		for r := range doneTasks {
-			go func() {
+		resOk := true
+		errOk := true
+		for {
+			select {
+			case res, ok := <-doneTasks:
+				if !resOk && !errOk {
+					done <- struct{}{}
+					return
+				} else if !ok {
+					resOk = ok
+					break
+				}
+
 				muRes.Lock()
-				result[r.id] = r
+				result[res.id] = res
 				muRes.Unlock()
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
+
+			case err, ok := <-undoneTasks:
+				if !resOk && !errOk {
+					done <- struct{}{}
+					return
+				} else if !ok {
+					errOk = ok
+					break
+				}
 				muErr.Lock()
-				err = append(err, r)
+				errRes = append(errRes, err)
 				muErr.Unlock()
-			}()
+			}
 		}
+	}()
+	go func() {
+		// Ждём пока все таски будут отсортированы
+		wgSort.Wait()
 		close(doneTasks)
 		close(undoneTasks)
+
 	}()
 
-	time.Sleep(time.Second * 3)
+	for {
+		time.Sleep(time.Second * 3)
 
-	println("Errors:")
-	muErr.RLock()
-	for r := range err {
-		println(r)
-	}
-	muErr.RUnlock()
+		println("Errors:")
 
-	println("Done tasks:")
-	muRes.RLock()
-	for r := range result {
-		println(r)
+		muErr.RLock()
+		for i, _ := range errRes {
+			fmt.Println(errRes[i])
+		}
+		muErr.RUnlock()
+
+		println("Done tasks:")
+		muRes.RLock()
+		for i := range result {
+			fmt.Println(result[i])
+		}
+		muRes.RUnlock()
+
+		select {
+		case <-done:
+			return
+		default:
+			continue
+		}
 	}
-	muRes.RUnlock()
 }
