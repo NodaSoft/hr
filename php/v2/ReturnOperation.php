@@ -74,11 +74,6 @@ class ReturnOperation extends ReferencesOperation
             throw new NotFoundEntityException('сlient not found!', 400);
         }
 
-        $clientFullName = $client->getFullName();
-        if (empty($client->getFullName())) {
-            $clientFullName = $client->name;
-        }
-
         $creator = Employee::getById($requestDataDTO->getCreatorId());
         if ($creator === null) {
             throw new NotFoundEntityException('Creator not found!', 400);
@@ -107,7 +102,7 @@ class ReturnOperation extends ReferencesOperation
             'EXPERT_ID'          => $requestDataDTO->getExpertId(),
             'EXPERT_NAME'        => $expert->getFullName(),
             'CLIENT_ID'          => $requestDataDTO->getClientId(),
-            'CLIENT_NAME'        => $clientFullName,
+            'CLIENT_NAME'        => $client->getFullName(),
             'CONSUMPTION_ID'     => $requestDataDTO->getConsumptionId(),
             'CONSUMPTION_NUMBER' => $requestDataDTO->consumptionNumber,
             'AGREEMENT_NUMBER'   => $requestDataDTO->getAgreementNumber(),

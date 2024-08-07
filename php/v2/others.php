@@ -12,7 +12,7 @@ class Contractor
     public $type;
     public $name;
 
-    public static function getById(int $resellerId): self
+    public static function getById(int $resellerId): ?self
     {
         return new self($resellerId); // fakes the getById method
     }
