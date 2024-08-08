@@ -43,7 +43,7 @@ class TsReturnOperation extends ReferencesOperation
         if (! $client) {
             throw new \Exception('сlient not found!', 400);
         }
-        $client = Client::getById(1);
+
         if ($client->getSeller()->getId() !== $reseller->getId()) {
             throw new \Exception('Invalid seller for client', 400);
         }
