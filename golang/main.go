@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,91 +17,153 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+const (
+	tasksCreatingDuration = 10 * time.Second
+	taskCreatingDelay     = 150 * time.Millisecond
+	maxTaskCreatingDelay  = 20 * time.Second
+	tasksPrintingDelay    = 3 * time.Second
+)
+
+var (
+	idCounter   = 0
+	creationMtx sync.Mutex
+	handlingMtx sync.Mutex
+	printingMtx sync.Mutex
+)
+
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id            int
+	creationTime  time.Time // время создания
+	executionTime time.Time // время выполнения
+	isSuccess     bool
+	isCompleted   bool
+	logs          []string
+}
+
+func createTask() *Task {
+	creationTime := time.Now()
+
+	creationMtx.Lock()
+	taskId := idCounter
+	idCounter++
+	failCondition := time.Now().Nanosecond()%2 > 0 // Condition for the appearance of failed tasks
+	time.Sleep(taskCreatingDelay)                  // Pretend that the task is working too long
+	creationMtx.Unlock()
+
+	if failCondition {
+		return &Task{
+			id:           taskId,
+			creationTime: creationTime,
+			isSuccess:    false,
+			logs:         []string{"Some error occurred"},
+		}
+	}
+	return &Task{
+		id:           taskId,
+		creationTime: creationTime,
+		isSuccess:    true,
+	}
+}
+
+func handleTask(t *Task) {
+	duration := t.creationTime.Sub(time.Now())
+
+	if duration <= maxTaskCreatingDelay {
+		t.isCompleted = true
+		t.logs = append(t.logs, "Task was completed successfully")
+	} else {
+		t.isCompleted = false
+		t.logs = append(t.logs, "Task is working too long, something went wrong")
+	}
+
+	t.executionTime = time.Now()
+}
+
+func printTasks(tasks []*Task) {
+	success := make([]*Task, 0, len(tasks))
+	failed := make([]*Task, 0, len(tasks))
+
+	for _, t := range tasks {
+		if t.isSuccess && t.isCompleted {
+			success = append(success, t)
+			continue
+		}
+		failed = append(failed, t)
+	}
+
+	fmt.Println("\033[32mSuccess:") // Green color console
+	for _, t := range success {
+		fmt.Printf(
+			"taskId: %d\t"+
+				"creationTime: %s\t"+
+				"executionTime: %s\n",
+			t.id, t.creationTime.Format(time.RFC3339), t.executionTime.Format(time.RFC3339Nano))
+	}
+
+	fmt.Println("\033[31mFailed:") // Red color console
+	for _, t := range failed {
+		fmt.Printf(
+			"taskId: %d\t"+
+				"creationTime: %s\t"+
+				"logs: %s\n",
+			t.id, t.creationTime.Format(time.RFC3339), strings.Join(t.logs, ", "))
+	}
+
+	fmt.Println()
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	stopChan := make(chan struct{})
+	handledTasks := make([]*Task, 0)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		startTime := time.Now()
+		for {
+			// If 10 seconds have passed
+			if time.Since(startTime) >= tasksCreatingDuration {
+				close(stopChan)
+				return
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
+			// Creation and handling tasks in goroutines
 			go func() {
-				result[r.id] = r
+				task := createTask()
+				handleTask(task)
+				// Appending to slice with handled tasks concurrently
+				handlingMtx.Lock()
+				handledTasks = append(handledTasks, task)
+				handlingMtx.Unlock()
 			}()
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(tasksPrintingDelay)
+		defer ticker.Stop()
+		for {
+			select {
+			// Every time 3 seconds have passed
+			case <-ticker.C:
+				// Printing tasks concurrently
+				printingMtx.Lock()
+				printTasks(handledTasks)
+				printingMtx.Unlock()
+				// Clearing slice concurrently
+				handlingMtx.Lock()
+				handledTasks = handledTasks[:0]
+				handlingMtx.Unlock()
+			case <-stopChan:
+				return
+			}
+		}
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	wg.Wait()
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	printTasks(handledTasks)
 }
