@@ -25,10 +25,10 @@ const (
 )
 
 var (
-	idCounter = 0
-	mu1       sync.Mutex
-	mu2       sync.Mutex
-	mu3       sync.Mutex
+	idCounter   = 0
+	creationMtx sync.Mutex
+	handlingMtx sync.Mutex
+	printingMtx sync.Mutex
 )
 
 // A Task represents a meaninglessness of our life
@@ -44,12 +44,12 @@ type Task struct {
 func createTask() *Task {
 	creationTime := time.Now()
 
-	mu1.Lock()
+	creationMtx.Lock()
 	taskId := idCounter
 	idCounter++
 	failCondition := time.Now().Nanosecond()%2 > 0 // вот такое условие появления ошибочных тасков
 	time.Sleep(taskCreatingDelay)
-	mu1.Unlock()
+	creationMtx.Unlock()
 
 	if failCondition {
 		return &Task{
@@ -81,16 +81,36 @@ func handleTask(t *Task) {
 }
 
 func printTasks(tasks []*Task) {
-	fmt.Println("Handled tasks:")
+	success := make([]*Task, 0, len(tasks))
+	failed := make([]*Task, 0, len(tasks))
+
 	for _, t := range tasks {
+		if t.isSuccess && t.isCompleted {
+			success = append(success, t)
+			continue
+		}
+		failed = append(failed, t)
+	}
+
+	fmt.Println("\033[32mSuccess:")
+	for _, t := range success {
 		fmt.Printf(
 			"taskId: %d\t"+
 				"creationTime: %s\t"+
-				"executionTime: %s\t"+
-				"logs: %s\n",
-			t.id, t.creationTime.Format(time.RFC3339), t.executionTime.Format(time.RFC3339Nano),
-			strings.Join(t.logs, ", "))
+				"executionTime: %s\n",
+			t.id, t.creationTime.Format(time.RFC3339), t.executionTime.Format(time.RFC3339Nano))
 	}
+
+	fmt.Println("\033[31mFailed:")
+	for _, t := range failed {
+		fmt.Printf(
+			"taskId: %d\t"+
+				"creationTime: %s\t"+
+				"logs: %s\n",
+			t.id, t.creationTime.Format(time.RFC3339), strings.Join(t.logs, ", "))
+	}
+
+	fmt.Println()
 }
 
 func main() {
@@ -111,9 +131,9 @@ func main() {
 			go func() {
 				task := createTask()
 				handleTask(task)
-				mu2.Lock()
+				handlingMtx.Lock()
 				handledTasks = append(handledTasks, task)
-				mu2.Unlock()
+				handlingMtx.Unlock()
 			}()
 		}
 	}()
@@ -125,9 +145,13 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				mu3.Lock()
+				printingMtx.Lock()
 				printTasks(handledTasks)
-				mu3.Unlock()
+				printingMtx.Unlock()
+
+				handlingMtx.Lock()
+				handledTasks = handledTasks[:0]
+				handlingMtx.Unlock()
 			case <-stopChan:
 				return
 			}
