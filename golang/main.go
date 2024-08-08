@@ -47,8 +47,8 @@ func createTask() *Task {
 	creationMtx.Lock()
 	taskId := idCounter
 	idCounter++
-	failCondition := time.Now().Nanosecond()%2 > 0 // вот такое условие появления ошибочных тасков
-	time.Sleep(taskCreatingDelay)
+	failCondition := time.Now().Nanosecond()%2 > 0 // Condition for the appearance of failed tasks
+	time.Sleep(taskCreatingDelay)                  // Pretend that the task is working too long
 	creationMtx.Unlock()
 
 	if failCondition {
@@ -92,7 +92,7 @@ func printTasks(tasks []*Task) {
 		failed = append(failed, t)
 	}
 
-	fmt.Println("\033[32mSuccess:")
+	fmt.Println("\033[32mSuccess:") // Green color console
 	for _, t := range success {
 		fmt.Printf(
 			"taskId: %d\t"+
@@ -101,7 +101,7 @@ func printTasks(tasks []*Task) {
 			t.id, t.creationTime.Format(time.RFC3339), t.executionTime.Format(time.RFC3339Nano))
 	}
 
-	fmt.Println("\033[31mFailed:")
+	fmt.Println("\033[31mFailed:") // Red color console
 	for _, t := range failed {
 		fmt.Printf(
 			"taskId: %d\t"+
@@ -124,13 +124,16 @@ func main() {
 		defer wg.Done()
 		startTime := time.Now()
 		for {
+			// If 10 seconds have passed
 			if time.Since(startTime) >= tasksCreatingDuration {
 				close(stopChan)
 				return
 			}
+			// Creation and handling tasks in goroutines
 			go func() {
 				task := createTask()
 				handleTask(task)
+				// Appending to slice with handled tasks concurrently
 				handlingMtx.Lock()
 				handledTasks = append(handledTasks, task)
 				handlingMtx.Unlock()
@@ -144,11 +147,13 @@ func main() {
 		defer ticker.Stop()
 		for {
 			select {
+			// Every time 3 seconds have passed
 			case <-ticker.C:
+				// Printing tasks concurrently
 				printingMtx.Lock()
 				printTasks(handledTasks)
 				printingMtx.Unlock()
-
+				// Clearing slice concurrently
 				handlingMtx.Lock()
 				handledTasks = handledTasks[:0]
 				handlingMtx.Unlock()
