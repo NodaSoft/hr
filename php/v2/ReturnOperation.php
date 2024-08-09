@@ -1,20 +1,28 @@
 <?php
 
+//declare cstrict type
+
 namespace NW\WebService\References\Operations\Notification;
 
+//final
+// Ах да, не увидел еще одну реализацию ReferencesOperation, может лкчше сделать inteface чем абстрактный класс
 class TsReturnOperation extends ReferencesOperation
 {
+    // Я бы консанты перенес в отдельный класс, и сделал как value object
     public const TYPE_NEW    = 1;
     public const TYPE_CHANGE = 2;
 
     /**
      * @throws \Exception
      */
-    public function doOperation(): void
+    public function doOperation(): void //изменить тип
     {
+        // Когда поулчаешь данные с http, 1ое, делаешь, сериализацию(мы же хотим в обьектам все держать), следом валидацию, как видим тут этого нет
         $data = (array)$this->getRequest('data');
         $resellerId = $data['resellerId'];
         $notificationType = (int)$data['notificationType'];
+
+        // Dto нужно сделать
         $result = [
             'notificationEmployeeByEmail' => false,
             'notificationClientByEmail'   => false,
@@ -29,35 +37,53 @@ class TsReturnOperation extends ReferencesOperation
             return $result;
         }
 
+        //уже int есть выше
         if (empty((int)$notificationType)) {
+            //Лучше делать ошибки более профильными. Если у тебя bundle/domain/модуль
+            //final class OrderOutOfBoundsException extends \OutOfBoundsException
+            //{
+            //} И уже использвоать
+            // Плюс тут просто exception нужно указать тип
+
             throw new \Exception('Empty notificationType', 400);
         }
 
+        //Seller::getById - вообще странный метод, ты хочишь получить айди, а и тебе возвращается обьект класса. сомнительно и не окэй
         $reseller = Seller::getById((int)$resellerId);
+        // Можно было задать нормальный констуктор в Seller или в базовом классе и тогда этого бы не понадобилось
         if ($reseller === null) {
             throw new \Exception('Seller not found!', 400);
         }
 
         $client = Contractor::getById((int)$data['clientId']);
+
+        //Если был бы констукртор этого бы не понадобилось $client === null || $client->type !== Contractor::TYPE_CUSTOMER
+        // $client->Seller->id !== $resellerId - по идеи вообще ничего не понимаю нахрена тут свойства Seller, сделать нормальный value object и просто вызвать гет и сравнить значения
         if ($client === null || $client->type !== Contractor::TYPE_CUSTOMER || $client->Seller->id !== $resellerId) {
             throw new \Exception('сlient not found!', 400);
         }
 
         $cFullName = $client->getFullName();
         if (empty($client->getFullName())) {
+            // Кек типо если взять полное имя и оно пусто, то вхять имя, но полное имя строиться из имени
             $cFullName = $client->name;
         }
 
+        // Можно было задать нормальный констуктор в Seller или в базовом классе и тогда этого бы не понадобилось
         $cr = Employee::getById((int)$data['creatorId']);
         if ($cr === null) {
+            //Лучше делать ошибки более профильными.
             throw new \Exception('Creator not found!', 400);
         }
 
+        // Можно было задать нормальный констуктор в Seller или в базовом классе и тогда этого бы не понадобилось
         $et = Employee::getById((int)$data['expertId']);
         if ($et === null) {
+            //Лучше делать ошибки более профильными.
             throw new \Exception('Expert not found!', 400);
         }
 
+        // Господи спаси и сохрани, что за такое __('NewPositionAdded') - Это типо так класс создается?
         $differences = '';
         if ($notificationType === self::TYPE_NEW) {
             $differences = __('NewPositionAdded', null, $resellerId);
@@ -68,6 +94,7 @@ class TsReturnOperation extends ReferencesOperation
                 ], $resellerId);
         }
 
+        //DTO сделать и полям указать конкретный тип, и тогда не нужно городить массив и ниже не нужна првоерка на налл
         $templateData = [
             'COMPLAINT_ID'       => (int)$data['complaintId'],
             'COMPLAINT_NUMBER'   => (string)$data['complaintNumber'],
@@ -84,16 +111,20 @@ class TsReturnOperation extends ReferencesOperation
             'DIFFERENCES'        => $differences,
         ];
 
-        // Если хоть одна переменная для шаблона не задана, то не отправляем уведомления
+        //DTO сделать и полям указать конкретный тип, и тогда не нужно городить массив и ниже не нужна првоерка на налл
         foreach ($templateData as $key => $tempData) {
             if (empty($tempData)) {
                 throw new \Exception("Template Data ({$key}) is empty!", 500);
             }
         }
 
-        $emailFrom = getResellerEmailFrom($resellerId);
+        $emailFrom = getResellerEmailFrom($resellerId); // Кеk это глобальная функция не принимает полей
         // Получаем email сотрудников из настроек
+        // Зачем тут аргуементы класса?
         $emails = getEmailsByPermit($resellerId, 'tsGoodsReturn');
+
+        // Сделать отдеьный класс или композит классов, который будет отправлять сособщения на почту или на мобилку
+        //Про синтаксис тоже промолчу __('complaintEmployeeEmailSubject)
         if (!empty($emailFrom) && count($emails) > 0) {
             foreach ($emails as $email) {
                 MessagesClient::sendMessage([
