@@ -3,7 +3,7 @@
 namespace NW\WebService\References\Operations\Notification;
 
 /**
- * @property Seller $Seller
+ * @property Seller $Expert
  */
 class Contractor
 {
@@ -57,12 +57,12 @@ abstract class ReferencesOperation
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit(): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
