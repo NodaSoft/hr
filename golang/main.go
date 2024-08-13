@@ -15,91 +15,111 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id  int
+	cT  string // время создания
+	fT  string // время выполнения
+	res []byte
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
+	taskCreator := func(taskChan chan Task) {
+		defer close(taskChan)
+		stop := time.NewTimer(10 * time.Second)
+
+		for {
+			select {
+			case <-stop.C:
+				return
+			default:
+				now := time.Now().Format(time.RFC3339)
+				if time.Now().Nanosecond()/100%2 > 0 { // вот такое условие появления ошибочных тасков
+					now = "Some error occurred"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				taskChan <- Task{cT: now, id: int(time.Now().Unix())} // передаем таск на выполнение
 			}
-		}()
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
+	taskChan := make(chan Task)
+	go taskCreator(taskChan)
 
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+	taskWorker := func(task Task) Task {
+		tt, err := time.Parse(time.RFC3339, task.cT)
+		if err != nil || !tt.After(time.Now().Add(-10*time.Second)) {
+			task.res = []byte("something went wrong")
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			task.res = []byte("task has been success")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
 
+		task.fT = time.Now().Format(time.RFC3339Nano)
 		time.Sleep(time.Millisecond * 150)
 
-		return a
+		return task
 	}
 
-	doneTasks := make(chan Ttype)
+	doneTasks := make(chan Task)
 	undoneTasks := make(chan error)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
+	taskSorter := func(task Task) {
+		if string(task.res) == "task has been success" {
+			doneTasks <- task
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneTasks <- fmt.Errorf("Task id: %d, time: %s, error: %s", task.id, task.cT, task.res)
 		}
 	}
 
 	go func() {
 		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+		defer close(doneTasks)
+		defer close(undoneTasks)
+
+		for t := range taskChan {
+			processedTask := taskWorker(t)
+			go taskSorter(processedTask)
 		}
-		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
+	var results []Task
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+		for task := range doneTasks {
+			results = append(results, task)
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	var arrOfErr []error
+	go func() {
+		for task := range undoneTasks {
+			arrOfErr = append(arrOfErr, task)
+		}
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+		stop := time.NewTimer(time.Second * 10)
+
+		tick := time.NewTicker(time.Second * 3)
+		defer tick.Stop()
+
+		for {
+			select {
+			case <-stop.C:
+				return
+			case <-tick.C:
+				fmt.Println("Errors:")
+				for _, err := range arrOfErr {
+					fmt.Println(err)
+				}
+
+				fmt.Println("Done tasks:")
+				for _, res := range results {
+					fmt.Printf("id: %d, ct: %s, ft: %s, res: %s\n", res.id, res.cT, res.fT, res.res)
+				}
+			}
+		}
+	}()
+	<-done
 }
