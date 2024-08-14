@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -15,91 +16,173 @@ import (
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Task represents a meaninglessness of our life
+type Task struct {
+	id           int
+	creationTime string // time of creation
+	execTime     string // time of execution
+	sucsses      bool   // result of task evaluation; was changed to bool due to lack of purpuse
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
+	ch := make(chan Task)
+	defer func() {
+		close(ch)
+		fmt.Println("Channel closed ch: ", ch)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
+	doneTasks := make(chan Task)
+	defer func() {
 		close(doneTasks)
-		close(undoneTasks)
+		fmt.Println("Channel closed dt: ", doneTasks)
 	}()
 
-	time.Sleep(time.Second * 3)
+	undoneTasks := make(chan Task)
+	defer func() {
+		close(undoneTasks)
+		fmt.Println("Channel closed undt: ", undoneTasks)
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
+	go logic(ch)
+	go taskSheduler(ch, doneTasks, undoneTasks)
+
+	var flMut sync.RWMutex
+	var scMut sync.RWMutex
+	sucssesed := make(map[int]Task)
+	failed := make(map[int]Task)
+
+	go taskWrite(failed, sucssesed, doneTasks, undoneTasks, &flMut, &scMut)
+
+	taskRead(failed, sucssesed, &flMut, &scMut)
+
+	fmt.Println("Programm finished!")
+}
+
+// Unchanged core logic.
+func logic(ch chan Task) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			fmt.Print("logic panic prevented: ", err)
+		}
+	}()
+
+	for {
+		t := time.Now().Format(time.RFC3339)
+		if time.Now().Nanosecond()%2 > 0 {
+			t = " Some error occured (logic level)"
+		}
+
+		ch <- Task{
+			creationTime: t,
+			id:           int(time.Now().Unix()),
+		}
+		//time.Sleep(time.Millisecond * 100) // for debug purpese
+	}
+}
+
+func taskEval(tsk Task) Task {
+	_, err := time.Parse(time.RFC3339, tsk.creationTime)
+	if err != nil {
+		return Task{
+			id:           tsk.id,
+			creationTime: tsk.creationTime,
+			execTime:     time.Now().Format(time.RFC3339Nano),
+			sucsses:      false,
+		}
 	}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+	return Task{
+		id:           tsk.id,
+		creationTime: tsk.creationTime,
+		execTime:     time.Now().Format(time.RFC3339Nano),
+		sucsses:      true,
+	}
+}
+
+func taskSheduler(ch chan Task, dTsk chan Task, uTsk chan Task) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			fmt.Print("taskSheduler panic prevented: ", err)
+		}
+	}()
+
+	for {
+		t, ok := <-ch
+		if !ok {
+			break
+		}
+
+		tEvl := taskEval(t)
+		if tEvl.sucsses {
+			dTsk <- tEvl
+			continue
+		}
+
+		uTsk <- tEvl
+	}
+}
+
+func taskWrite(
+	fl map[int]Task,
+	sc map[int]Task,
+	dTsk chan Task,
+	uTsk chan Task,
+	flMut *sync.RWMutex,
+	scMut *sync.RWMutex,
+) {
+	for {
+		select {
+		case t := <-uTsk:
+			{
+				flMut.Lock()
+				fl[t.id] = t
+				flMut.Unlock()
+			}
+		case t := <-dTsk:
+			{
+				scMut.Lock()
+				sc[t.id] = t
+				scMut.Unlock()
+			}
+		}
+	}
+}
+
+func taskRead(
+	fl map[int]Task,
+	sc map[int]Task,
+	flMut *sync.RWMutex,
+	scMut *sync.RWMutex,
+) {
+	tk := time.NewTicker(time.Second * 3)
+	done := time.NewTicker(time.Second * 10)
+
+	for {
+		select {
+		case <-tk.C:
+			{
+
+				flMut.RLock()
+				fmt.Println("Errors:")
+				for id, t := range fl {
+					fmt.Printf("Task id %v time %v, fail\n", id, t.creationTime)
+					delete(fl, id)
+				}
+				flMut.RUnlock()
+
+				scMut.RLock()
+				fmt.Println("Done tasks:")
+				for id, t := range sc {
+					fmt.Printf("Task id %v time %v, success\n", id, t.creationTime)
+					delete(sc, id)
+				}
+				scMut.RUnlock()
+			}
+		case <-done.C:
+			fmt.Println("Done!")
+			return
+		}
 	}
 }
