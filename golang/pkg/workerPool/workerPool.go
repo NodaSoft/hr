@@ -36,6 +36,10 @@ func New(workerCount int, ctx context.Context) *WorkerPool {
 	}
 }
 
+func (wp *WorkerPool) WithFactory(taskFactory func() Task) {
+	wp.taskFactory = taskFactory
+}
+
 func (wp *WorkerPool) StartFactory(errChan chan error) {
 	if wp.taskFactory == nil {
 		errChan <- fmt.Errorf("Task factory was not provided")
@@ -52,10 +56,6 @@ func (wp *WorkerPool) StartFactory(errChan chan error) {
 			wp.Tasks <- wp.taskFactory()
 		}
 	}
-}
-
-func (wp *WorkerPool) WithFactory(taskFactory func() Task) {
-	wp.taskFactory = taskFactory
 }
 
 func (wp *WorkerPool) ProcessAndSortTask() {
