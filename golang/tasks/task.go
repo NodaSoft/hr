@@ -2,9 +2,10 @@ package tasks
 
 import (
 	"context"
-	"errors"
 	"time"
 )
+
+const workDuration = 150 * time.Millisecond
 
 type Task struct {
 	ID         int
@@ -50,12 +51,12 @@ func work(task *Task) {
 	} else if task.CreatedAt.After(time.Now().Add(-20 * time.Second)) {
 		task.Result = []byte("task has been successed")
 	} else {
-		task.Err = errors.New("new error")
+		task.Err = ErrTaskFailed
 		task.Result = []byte("something went wrong")
 	}
 
 	task.FinishedAt = time.Now()
-	time.Sleep(time.Millisecond * 150)
+	time.Sleep(workDuration)
 }
 
 // Обработчик тасок
