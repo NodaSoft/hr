@@ -73,3 +73,32 @@ class NotificationEvents
     const CHANGE_RETURN_STATUS = 'changeReturnStatus';
     const NEW_RETURN_STATUS    = 'newReturnStatus';
 }
+
+class NotificationManager
+{
+    public static function send(
+        $resellerId,
+        $clientid,
+        $event,
+        $notificationSubEvent,
+        $templateData,
+        &$errorText,
+        $locale = null
+    ) {
+        // fakes the method
+        return true;
+    }
+}
+
+class MessagesClient
+{
+    static function sendMessage(
+        $sendMessages,
+        $resellerId = 0,
+        $customerId = 0,
+        $notificationEvent = 0,
+        $notificationSubEvent = ''
+    ) {
+        return '';
+    }
+}
