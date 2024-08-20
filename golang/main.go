@@ -1,105 +1,137 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
-// Приложение эмулирует получение и обработку неких тасков. Пытается и получать, и обрабатывать в многопоточном режиме.
-// Приложение должно генерировать таски 10 сек. Каждые 3 секунды должно выводить в консоль результат всех обработанных к этому моменту тасков (отдельно успешные и отдельно с ошибками).
-
-// ЗАДАНИЕ: сделать из плохого кода хороший и рабочий - as best as you can.
-// Важно сохранить логику появления ошибочных тасков.
-// Важно оставить асинхронные генерацию и обработку тасков.
-// Сделать правильную мультипоточность обработки заданий.
-// Обновленный код отправить через pull-request в github
-// Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
-
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A TType represents a meaninglessness of our life
+type TType struct {
+	id            int
+	createTime    time.Time // Время создания.
+	executionTime time.Time // Время выполнения.
+	taskRESULT    bool
 }
 
+var (
+	mu     sync.Mutex
+	lastID int
+)
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	// Канал для получаения задач.
+	superChan := make(chan TType, 10)
+	// Канал для успешных задач.
+	doneTasks := make(chan TType, 10)
+	// Канал для задач с ошибкой
+	undoneTasks := make(chan error, 10)
+	// Контекст который ограничивает время выполнения программы.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	go taskCreate(ctx, superChan)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go taskWorker(ctx, &wg, superChan, doneTasks, undoneTasks)
+	}
+
+	// Функция для вывода информации каждын 3 секунды.
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				printResults(doneTasks, undoneTasks)
+			case <-ctx.Done():
+				return
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
+	}()
 
 	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
+		wg.Wait()
+		close(doneTasks)
 		close(superChan)
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+	<-ctx.Done()
+}
+
+// Функция создания таски
+func taskCreate(ctx context.Context, superChan chan TType) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			ft := time.Now()
+			id := int(ft.UnixNano())
+			mu.Lock()
+			if id <= lastID {
+				mu.Unlock()
+				continue
+			}
+			lastID = id
+			mu.Unlock()
+
+			task := TType{
+				id:         id,
+				createTime: ft,
+				taskRESULT: time.Now().Nanosecond()%2 > 0, // Вот такое условие появления ошибочных тасков.
+			}
+			superChan <- task
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
+	}
+}
+
+// Функция в которой таски работают.
+func taskWorker(ctx context.Context, wg *sync.WaitGroup, taskChan <-chan TType, doneTasks chan<- TType, undoneTasks chan<- error) {
+	defer wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case task, ok := <-taskChan:
+			if !ok {
+				return
+			}
+			task.executionTime = time.Now()
+			if task.taskRESULT {
+				if task.createTime.After(time.Now().Add(-20 * time.Second)) {
+					doneTasks <- task
+				} else {
+					undoneTasks <- fmt.Errorf("Task id %d time %s failed", task.id, task.createTime)
+				}
+			} else {
+				undoneTasks <- fmt.Errorf("Task id %d time %s failed", task.id, task.createTime)
+			}
+			time.Sleep(150 * time.Millisecond)
 		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
 	}
+}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+// Функция для печати.
+func printResults(doneTasks <-chan TType, undoneTasks <-chan error) {
+	fmt.Println("Result:")
+	doneCount := 0
+	undoneCount := 0
+	fmt.Println("Done:")
+	for len(doneTasks) > 0 {
+		task := <-doneTasks
+		fmt.Println(task)
+		doneCount++
 	}
+	fmt.Println("Undone:")
+	for len(undoneTasks) > 0 {
+		err := <-undoneTasks
+		fmt.Println(err)
+		undoneCount++
+	}
+	fmt.Printf("Done: %d, Undone: %d\n", doneCount, undoneCount)
 }
