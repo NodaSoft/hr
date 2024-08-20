@@ -1,7 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"runtime"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -14,92 +18,162 @@ import (
 // Сделать правильную мультипоточность обработки заданий.
 // Обновленный код отправить через pull-request в github
 // Как видите, никаких привязок к внешним сервисам нет - полный карт-бланш на модификацию кода.
+// --------------------------------------------------------------------------------------------------
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
+// Код проверил race detector'ом
+// Все pull request в открытом доступе, я писал самостоятельно, не копировал
+// В данном случае "разносить код по папочкам" не вижу необходимым
+const (
+	timeLimit     = 10 * time.Second
+	printInterval = 3 * time.Second
+	proceedTime   = 150 * time.Millisecond
+	taskTimeout   = 2 * proceedTime
+)
+
+type MyTask struct {
 	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+	createTime time.Time
+	finishTime time.Time
+	succeed    bool
+	err        error
 }
 
+var mainWG sync.WaitGroup
+var workerWG sync.WaitGroup
+
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	// Читаем число максимума гошных процессеров для правильной параллельности
+	gomaxprocs := runtime.GOMAXPROCS(0)
+
+	// Если установить размер буффера каналов tasks, processedTasks равным GOMAXPROCS,
+	// воркеры не будут голодать и не будут ждать освобождения буффера канала
+	tasks := make(chan MyTask, gomaxprocs)
+	processedTasks := make(chan MyTask, gomaxprocs)
+	quit := make(chan struct{})
+
+	mainWG.Add(2)
+	go taskCreator(tasks)
+	workerWG.Add(gomaxprocs)
+	// запускаем worker pool
+	for i := 0; i < gomaxprocs; i++ {
+		// Очевидно с имитацией тасков можно запустить намного больше горутин
+		// Но для правильной параллельности использую GOMAXPROCS
+		go taskWorker(tasks, processedTasks)
+	}
+	go taskSorter(processedTasks, quit)
+
+	workerWG.Wait()
+	quit <- struct{}{}
+	close(processedTasks)
+	mainWG.Wait()
+}
+
+func taskCreator(tasks chan<- MyTask) {
+	defer mainWG.Done()
+	defer close(tasks)
+
+	//Таймер
+	timer := time.NewTimer(timeLimit)
+	for id := 0; ; id++ {
+		select {
+		case <-timer.C:
+			return
+		default:
+			currTime := time.Now().UTC()
+			task := MyTask{
+				id:         id,
+				createTime: currTime,
+				finishTime: time.Time{},
+				succeed:    false,
+				err:        nil,
 			}
-		}()
+			if time.Now().Nanosecond()>>2%2 > 0 {
+				// Не совсем понял под "Важно сохранить логику появления ошибочных тасков", могу ли я менять условие?
+				// поскольку time.Now() имеет разрешение 100 наносекунд, чтобы условие срабатывало
+				// я сдвинул биты, при этом, если таски не задерживаются при записи в канал, то они будут иметь
+				// одинаковое время создания, от чего ошибки нельзя навать случайными
+				task.err = errors.New("something went wrong")
+			}
+			tasks <- task
+		}
 	}
 
-	superChan := make(chan Ttype, 10)
+}
 
-	go taskCreturer(superChan)
+func taskWorker(tasks <-chan MyTask, doneTasks chan<- MyTask) {
+	defer workerWG.Done()
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+	for task := range tasks {
+		// Довольно непонятная проверка таймаута. Почему таймаут такой большой?
+		// Проверяю до обработки задачи
+		// Предполагаю, что перед обработкой большая часть задач будет простаивать времени
+		// чуть больше const proceedTime, но одна задача будет иметь простой 2*proceedTime
+		// поскольку будет ожидать освобождения канала tasks.
+		// Задача мнимая и непонятно что именно требуется сделать, и по какому условию считать таймаут
+		// но если такая проверка должна срабатывать, то я поставлю таймаут равным 2*proceedTime
+		// Если же нужно исключать задачи с аномально высоким простоем, я бы поставил 3*proceedTime,
+		// но в этом примере условие не будет срабатывать
+		timeout := !task.createTime.After(time.Now().UTC().Add(-taskTimeout))
+		if timeout {
+			task.err = errors.Join(task.err, errors.New("task timeout"))
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			// proceed imitation
+			time.Sleep(proceedTime)
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
 
-		time.Sleep(time.Millisecond * 150)
+		if task.err == nil {
+			task.succeed = true
+		}
+		task.finishTime = time.Now().UTC()
+		doneTasks <- task
+	}
+}
 
-		return a
+func taskSorter(doneTasks <-chan MyTask, quit <-chan struct{}) {
+	defer mainWG.Done()
+	succeedTasks := make([]MyTask, 0)
+	notSucceedTasks := make([]MyTask, 0)
+
+	ticker := time.NewTicker(printInterval)
+	defer ticker.Stop()
+	var task MyTask
+	for {
+		select {
+		case task = <-doneTasks:
+			if task.succeed {
+				succeedTasks = append(succeedTasks, task)
+			} else {
+				notSucceedTasks = append(notSucceedTasks, task)
+			}
+		case <-ticker.C:
+			mainWG.Add(1)
+			go printTasks(succeedTasks, notSucceedTasks)
+			succeedTasks = make([]MyTask, 0)
+			notSucceedTasks = make([]MyTask, 0)
+		case <-quit:
+			mainWG.Add(1)
+			printTasks(succeedTasks, notSucceedTasks)
+			return
+		}
+		// передаем ресурсы процессора другим горутинам
+		runtime.Gosched()
+	}
+}
+
+func printTasks(succeed, notSucceed []MyTask) {
+	defer mainWG.Done()
+	builder := strings.Builder{} // поменьше syscall
+
+	builder.WriteString("Succeeded tasks:\n")
+	for i := 0; i < len(succeed); i++ {
+		builder.WriteString(fmt.Sprintf("\tTask id: %d Time: %d nanoseconds\n",
+			succeed[i].id, succeed[i].finishTime.Sub(succeed[i].createTime).Nanoseconds()))
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
+	builder.WriteString("Not succeeded tasks:\n")
+	for i := 0; i < len(notSucceed); i++ {
+		builder.WriteString(fmt.Sprintf("\tTask id: %d Time: %d nanoseconds Err: %s\n",
+			notSucceed[i].id, notSucceed[i].finishTime.Sub(notSucceed[i].createTime).Nanoseconds(), notSucceed[i].err))
 	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	fmt.Print(builder.String())
 }
