@@ -7,6 +7,7 @@ namespace NW\WebService\References\Operations\Notification;
  */
 class Contractor
 {
+    //Не указано динамичное свойство класса $resellerId и нет конструктора класса
     const TYPE_CUSTOMER = 0;
     public $id;
     public $type;
@@ -14,21 +15,29 @@ class Contractor
 
     public static function getById(int $resellerId): self
     {
-        return new self($resellerId); // fakes the getById method
+        return new static($resellerId); // fakes the getById method
     }
 
+    public function getFullName(): string
+    {
+        return $this->id ? ($this->name . ' ' . $this->id) : $this->name;
+    }
+}
+
+class Seller extends Contractor
+{
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
     }
 }
 
-class Seller extends Contractor
-{
-}
-
 class Employee extends Contractor
 {
+    public function getFullName(): string
+    {
+        return $this->name . ' ' . $this->id;
+    }
 }
 
 class Status
