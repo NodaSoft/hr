@@ -32,83 +32,126 @@ type Ttype struct {
 	taskRESULT []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+func taskCreator(a chan<- Ttype) {
+	tiker := time.NewTicker(10 * time.Second)
+	defer tiker.Stop()
+	defer close(a)
+	for {
+
+		select {
+		case <-tiker.C:
+			return
+		default:
+			ft := time.Now().Format(time.RFC3339)
+			// На мом устройсте не получается генерировать ошибочные случаи из за промежутков генерации, для тестов заменял на Second()
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				ft = "Some error occured"
 			}
-		}()
+			a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+		}
 	}
+}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
+func handle(a Ttype) Ttype {
+	tt, err := time.Parse(time.RFC3339, a.cT)
+	/*
+		Добавлена обработка ошибки, как использование идеалогии Golang,
+		а так же для уменьшения времени вполнения функции (избегаем остальной работы с функциями пакета time)
+		Хотя решение при котором в случае ошибки устанавливается дефолтное время и таким образом устанавливается результат тоже красивое,
+		однако требует дополнительного времени на сравнение дат.
+	*/
+	if err != nil {
+		a.taskRESULT = []byte("something went wrong")
+	} else {
 		if tt.After(time.Now().Add(-20 * time.Second)) {
 			a.taskRESULT = []byte("task has been successed")
 		} else {
 			a.taskRESULT = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	a.fT = time.Now().Format(time.RFC3339Nano)
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
+	time.Sleep(time.Millisecond * 150)
+
+	return a
+}
+
+func handleAndSort(done chan<- Ttype, undone chan<- error, tasks <-chan Ttype) {
+	defer close(done)
+	defer close(undone)
+	for task := range tasks {
+		// Обрабатываем задачу
+		task := handle(task)
+		// Распределяем результат
+		if string(task.taskRESULT[14:]) == "successed" {
+			done <- task
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undone <- fmt.Errorf("Task id %d time %s, error %s", task.id, task.cT, task.taskRESULT)
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
+func main() {
+	superChan := make(chan Ttype, 10)
+	doneTasks := make(chan Ttype, 10)
+	undoneTasks := make(chan error, 10)
 
-	result := map[int]Ttype{}
+	go taskCreator(superChan)
+
+	/*
+		Совмещён функционал handle и sort для того чтобы не создавать ещё один промежуточный канал.
+		Код менее читаемый, зато не использует лишнего места.
+	*/
+	go handleAndSort(doneTasks, undoneTasks, superChan)
+
+	/*
+		Раасмотрена идея сохранять успешно выполненные таски в мапе по UnixTimestamp,
+		из зи того, что таски генерируются достаточно быстро и внутри результирующей мапы они будут накладываться друг на друга
+		и чать выполненных тасков будет затираться.
+		За этим мапа заменена на слайс тасков
+	*/
+	result := []Ttype{}
 	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
+	tiker := time.NewTicker(3 * time.Second)
+	defer tiker.Stop()
+
+	/*
+		Это можно вынести функцию для лучшей читаемости кода и для того чтобы продемонстрировать умение пользоваться sync.Waitgroup
+		однако я оставил так для меньших затрат памяти и для того чтобы не создавать ещё один объект
+	*/
+	for {
+		select {
+		case t, ok := <-doneTasks:
+			if !ok {
+				doneTasks = nil
+			} else {
+				result = append(result, t)
+			}
+		case e, ok := <-undoneTasks:
+			if !ok {
+				undoneTasks = nil
+			} else {
+				err = append(err, e)
+			}
+		case <-tiker.C:
+			// Изменено дабы видеть содержимое а не просто порядковые номера в слайсе
+			println("Errors:")
+			for _, r := range err {
+				println(r.Error())
+			}
+
+			println("Done tasks:")
+			for _, r := range result {
+				println(r.id)
+			}
+
+			result = []Ttype{}
+			err = []error{}
+
+			if doneTasks == nil && undoneTasks == nil {
+				return
+			}
 		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
 	}
 }
