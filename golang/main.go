@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,90 +28,125 @@ import (
 // Мы не даем комментариев по результатам тестового задания. Если в случае отказа вам нужен наш комментарий по результатам тестового задания, то просим об этом написать вместе с откликом.
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	ID         int
+	CreateTime string // время создания
+	RunTime    string // время выполнения
+	Result     []byte
 }
 
-func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+func StartTasksGeneration(timeout time.Duration, c chan Task, wg *sync.WaitGroup) {
+	defer close(c)
+	defer wg.Done()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			task := Task{
+				CreateTime: time.Now().Format(time.RFC3339),
+				ID:         int(time.Now().Unix()),
 			}
-		}()
-	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
+			if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
+				task.CreateTime = "Some error occured"
+			}
+			// передаем таск на выполнение
+			c <- task
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	}
+}
+
+func StartTaskHandler(genTasksChan chan Task, doneTasksChan chan Task, undoneTasksChan chan error, wg *sync.WaitGroup) {
+	defer close(doneTasksChan)
+	defer close(undoneTasksChan)
+
+	defer wg.Done()
+
+	for task := range genTasksChan {
+		task = composeTaskResult(task)
 
 		time.Sleep(time.Millisecond * 150)
 
-		return a
+		taskSortInChan(doneTasksChan, undoneTasksChan, task)
+	}
+}
+
+func taskSortInChan(doneTasksChan chan Task, undoneTasksChan chan error, t Task) {
+	if strings.Contains(string(t.Result), "successed") {
+		doneTasksChan <- t
+	} else {
+		undoneTasksChan <- fmt.Errorf("task id %d time %s, error %s", t.ID, t.CreateTime, t.Result)
+	}
+}
+
+func composeTaskResult(t Task) Task {
+	tt, _ := time.Parse(time.RFC3339, t.CreateTime)
+
+	t.Result = []byte("task has been successed")
+	if !tt.After(time.Now().Add(-20 * time.Second)) {
+		t.Result = []byte("something went wrong")
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	t.RunTime = time.Now().Format(time.RFC3339Nano)
+	return t
+}
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+func StartTaskReader(doneTasksChan chan Task, undoneTasksChan chan error, wg *sync.WaitGroup) {
+	taskResults := map[int]Task{}
+	taskErrors := []error{}
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	defer wg.Done()
+
+	for {
+		select {
+		case t, ok := <-doneTasksChan:
+			if !ok {
+				return
+			}
+			taskResults[t.ID] = t
+		case t, ok := <-undoneTasksChan:
+			if !ok {
+				return
+			}
+			taskErrors = append(taskErrors, t)
+		case <-ticker.C:
+			go WriteTasksResult(taskResults, taskErrors)
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
+func WriteTasksResult(taskResults map[int]Task, taskErrors []error) {
 	println("Errors:")
-	for r := range err {
-		println(r)
+	for t := range taskErrors {
+		fmt.Println(t)
 	}
 
 	println("Done tasks:")
-	for r := range result {
-		println(r)
+	for id, task := range taskResults {
+		fmt.Printf("task id %d, create time %s, run time %s, result %s\n", id, task.CreateTime, task.RunTime, task.Result)
 	}
+}
+
+func main() {
+	genTasksChan := make(chan Task, 10)
+	doneTasksChan := make(chan Task)
+	undoneTasksChan := make(chan error)
+
+	var wg sync.WaitGroup
+
+	wg.Add(3)
+	// Запуск генератора задач в фоне с указанием времени работы в указанное время, а именно 10 сек
+	go StartTasksGeneration(10*time.Second, genTasksChan, &wg)
+	// Запуск обработчика задач в фоне
+	go StartTaskHandler(genTasksChan, doneTasksChan, undoneTasksChan, &wg)
+	// Запуск ридера задач
+	go StartTaskReader(doneTasksChan, undoneTasksChan, &wg)
+	wg.Wait()
 }
