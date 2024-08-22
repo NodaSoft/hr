@@ -25,90 +25,121 @@ import (
 // Мы не даем комментариев по результатам тестового задания. Если в случае отказа вам нужен наш комментарий по результатам тестового задания, то просим об этом написать вместе с откликом.
 
 // A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+type Task struct {
+	id     int
+	cT     time.Time
+	fT     time.Time
+	result []byte // Результат задачи
+	error  error  // Ошибка задачи, удобнее хранить в отдельном поле
+}
+
+var (
+	// Сделаем буфер на 10 тасок, чтобы  сгладить колебания между генерацией и обработкой задач
+	superChan      = make(chan Task, 10)
+	doneTasks      = make(chan Task, 10)
+	undoneTasks    = make(chan Task, 10)
+	waitGroup      sync.WaitGroup
+	allDoneTasks   []Task // Срез для хранения всех завершенных задач
+	allUndoneTasks []Task // Срез для хранения всех задач с ошибками
+)
+
+func taskCreator(superChan chan<- Task) {
+	// Устанавливаем таймер на 10 секунд
+	timer := time.NewTimer(10 * time.Second) // может быть не очень эффективно с тз CPU, но в данном случае это не критично
+	defer close(superChan)                   // Безопасное закрытие канала по истечении таймера
+	for {
+		select {
+		case <-timer.C:
+			return
+		default:
+			currentTime := time.Now()
+			nanoStr := strings.TrimRight(strconv.Itoa(currentTime.Nanosecond()), "0") // Удаление незначащих нулей справа
+			nano, err := strconv.Atoi(nanoStr)
+			if err != nil {
+				fmt.Println("Error converting nanoseconds to int:", err)
+				return
+			}
+			task := Task{
+				id: int(currentTime.Unix()),
+				cT: currentTime,
+			}
+			if nano%2 > 0 { // Случайное условие для симуляции ошибки
+				task.error = fmt.Errorf("random error occurred")
+			}
+			superChan <- task
+			time.Sleep(time.Millisecond * 1000) // Небольшая задержка для замедления генерации
+		}
+	}
+}
+
+// taskWorker обрабатывает задачи из superChan, добавляя результаты в doneTasks или undoneTasks.
+func taskWorker(superChan <-chan Task) {
+	defer waitGroup.Done()
+	defer close(doneTasks)   
+	defer close(undoneTasks) 
+
+	for task := range superChan {
+		task.fT = time.Now()
+		if task.error == nil {
+			task.result = []byte(fmt.Sprintf("Task %d completed successfully", task.id))
+			doneTasks <- task
+		} else {
+			undoneTasks <- task
+		}
+		time.Sleep(time.Millisecond * 150) // Имитация обработки задачи
+	}
+}
+
+// taskSorter выводит результаты каждые 3 секунды и завершает работу после закрытия канала результатов.
+func taskSorter(quit <-chan struct{}) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-quit:
+			return
+		case <-ticker.C:
+			appendTasks(doneTasks, &allDoneTasks)
+			appendTasks(undoneTasks, &allUndoneTasks)
+
+			fmt.Println("Errors:")
+			for _, task := range allUndoneTasks {
+				fmt.Printf("Task ID: %d, Created: %s, Error: %v\n", task.id, task.cT, task.error)
+			}
+
+			fmt.Println("Done tasks:")
+			for _, task := range allDoneTasks {
+				fmt.Printf("Task ID: %d, Created: %s, Finished: %s\n", task.id, task.cT, task.fT)
+			}
+		}
+	}
+}
+
+func appendTasks(taskChan <-chan Task, allTasks *[]Task) {
+	for {
+		select {
+		case task, ok := <-taskChan:
+			if !ok {
+				return // Выходим, если канал закрыт
+			}
+			*allTasks = append(*allTasks, task)
+		default:
+			return // Выходим, когда в канале временно нет задач
+		}
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	quit := make(chan struct{})
 
-	superChan := make(chan Ttype, 10)
+	go taskCreator(superChan)
 
-	go taskCreturer(superChan)
+	waitGroup.Add(1)
+	go taskWorker(superChan)
+	go taskSorter(quit)
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	waitGroup.Wait() // Дожидаемся завершения taskWorker
+	close(quit)      // Сигнализируем taskSorter о завершении работы
 }
+
