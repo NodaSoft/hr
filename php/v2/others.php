@@ -19,7 +19,8 @@ class Contractor
 
     public function getFullName(): string
     {
-        return $this->name . ' ' . $this->id;
+        $name = $this->name . ' ' . $this->id;
+        return strlen(trim($name)) > 0 ? $name : $this->name;
     }
 }
 
@@ -49,11 +50,71 @@ class Status
 
 abstract class ReferencesOperation
 {
+    public const TYPE_NEW = 1;
+    public const TYPE_CHANGE = 2;
+
+    private static function validateRequest(array $request): array
+    {
+        $keys = [
+            'reseller_id',
+            'notificationType',
+            'clientId',
+            'creatorId',
+            'expertId',
+            'complaintId',
+            'complaintNumber',
+            'consumptionId',
+            'consumptionNumber',
+            'agreementNumber'
+        ];
+        foreach ($keys as $key) {
+            //просто проверим, что они есть, чтобы получить требуемые модели и гарантировано сделать $templateData
+            if (!isset($request[$key]) || intval($request[$key]) <= 0 || is_array($request[$key])) {
+                throw new \InvalidArgumentException("Incorrect {$key}", 422);
+            }
+        }
+        if ($request['notificationType'] === self::TYPE_CHANGE) {
+            foreach (['from', 'to'] as $key) {
+                if (!isset($request['differences'][$key]) ||
+                    intval($request['differences'][$key]) <= 0 ||
+                    is_array($request['differences'][$key])) {
+                    throw new \InvalidArgumentException('Incorrect difference id', 422);
+                }
+            }
+        }
+        return $request;
+    }
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private static function escapeRequestValue($value)
+    {
+        if (is_array($value)) {
+            foreach ($value as $k => $v) {
+                $value[$k] = self::escapeRequestValue($v);
+            }
+        } elseif (is_string($value)) {
+            $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        }
+
+        return $value;
+    }
+
     abstract public function doOperation(): array;
 
-    public function getRequest($pName)
+    protected function getRequest($pName): array
     {
-        return $_REQUEST[$pName];
+        $request = [];
+        if (isset($_REQUEST[$pName])) {
+            foreach ($_REQUEST[$pName] as $k => $v) {
+                $request[$k] = self::escapeRequestValue($v);
+            }
+        } else {
+            throw new \Exception("Request not contain '{$pName} or empty request'");
+        }
+
+        return self::validateRequest($request);
     }
 }
 
