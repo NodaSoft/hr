@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,91 +27,147 @@ import (
 
 // Мы не даем комментариев по результатам тестового задания. Если в случае отказа вам нужен наш комментарий по результатам тестового задания, то просим об этом написать вместе с откликом.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+// A Sisyphus represents a meaninglessness of our life
+type Sisyphus struct {
+	ID                 int
+	CreationTimeStamp  string // время создания
+	ExecutionTimeStamp string // время выполнения
+	TaskResult         []byte
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
+	taskQueue := make(chan Sisyphus, 10)
+	doneTasks := make(chan Sisyphus, 10)
+	undoneTasks := make(chan Sisyphus, 10)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	taskCreator := func(a chan Sisyphus, ctx context.Context) {
+		go func(a chan Sisyphus, ctx context.Context) {
 			for {
 				ft := time.Now().Format(time.RFC3339)
 				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
 					ft = "Some error occured"
 				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+				a <- Sisyphus{CreationTimeStamp: ft, ID: int(time.Now().Unix())} // передаем таск на выполнение
+
+				select {
+				case <-ctx.Done():
+					close(a)
+					return
+				default:
+					a <- Sisyphus{CreationTimeStamp: ft, ID: int(time.Now().Unix())} // передаем таск на выполнение
+				}
 			}
-		}()
+		}(a, ctx)
 	}
 
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
+	taskWorker := func(a Sisyphus) Sisyphus {
+		tt, _ := time.Parse(time.RFC3339, a.CreationTimeStamp)
 		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
+			a.TaskResult = []byte("task has been successed")
 		} else {
-			a.taskRESULT = []byte("something went wrong")
+			a.TaskResult = []byte("something went wrong")
 		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
+		a.ExecutionTimeStamp = time.Now().Format(time.RFC3339Nano)
 
 		return a
 	}
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	taskSorter := func(doneCh, undoneCh chan Sisyphus, t Sisyphus, mu *sync.Mutex) {
+		mu.Lock()
+		defer mu.Unlock()
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
+		if strings.Contains(string(t.TaskResult), "success") {
+			doneCh <- t
 		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			undoneCh <- t
 		}
 	}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
+	worker := func(ctx context.Context, mu *sync.Mutex) {
+		for t := range taskQueue {
+			processedTask := taskWorker(t)
+			taskSorter(doneTasks, undoneTasks, processedTask, mu)
 		}
-		close(superChan)
+	}
+
+	taskPrinter := func(doneTasks, undoneTasks chan Sisyphus, ctx context.Context, wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+
+		doneComplete := false
+		undoneComplete := false
+
+		for {
+			if doneComplete != false || undoneComplete != false {
+
+			}
+			select {
+			case <-ctx.Done():
+
+				close(doneTasks)
+				close(undoneTasks)
+				return
+			case <-ticker.C:
+				fmt.Println("Done Tasks:")
+				for {
+					select {
+					case doneTask, ok := <-doneTasks:
+						if !ok {
+							doneComplete = true
+							continue
+						}
+						fmt.Printf("Sisyphus ID: %d, Created: %s, Executed: %s, Result: %v\n", doneTask.ID, doneTask.CreationTimeStamp, doneTask.ExecutionTimeStamp, string(doneTask.TaskResult))
+					default:
+						doneComplete = true
+					}
+					if doneComplete == true {
+						break
+					}
+				}
+
+				fmt.Println("Undone Tasks:")
+				for {
+					select {
+					case undoneTask, ok := <-undoneTasks:
+						if !ok {
+							undoneComplete = true
+							continue
+						}
+						fmt.Printf("Sisyphus ID: %d, Created: %s, Executed: %s, Result: %v\n", undoneTask.ID, undoneTask.CreationTimeStamp, undoneTask.ExecutionTimeStamp, string(undoneTask.TaskResult))
+					default:
+						undoneComplete = true
+					}
+					if undoneComplete == true {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	wg.Add(3)
+	go func() {
+		taskCreator(taskQueue, ctx)
+		wg.Done()
 	}()
 
-	result := map[int]Ttype{}
-	err := []error{}
 	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
+		worker(ctx, &mu)
+		wg.Done()
 	}()
 
-	time.Sleep(time.Second * 3)
+	go func() {
+		taskPrinter(doneTasks, undoneTasks, ctx, &wg)
+		wg.Done()
+	}()
 
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	wg.Wait()
 }
