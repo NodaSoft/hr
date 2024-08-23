@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -33,82 +34,124 @@ type Ttype struct {
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
+	taskChannel := make(chan Ttype, 10)
+	doneTasks := make(chan Ttype, 10)
+	errorTasks := make(chan Ttype, 10)
+	stopTaskGeneration := make(chan struct{})
+	stopPrinting := make(chan struct{})
+
+	var wg sync.WaitGroup
+
+	// Start task generation
+	go taskGenerator(taskChannel, stopTaskGeneration)
+
+	// Start task processing
+	wg.Add(1)
+	go taskProcessor(taskChannel, doneTasks, errorTasks, &wg)
+
+	// Start printing results every 3 seconds
+	wg.Add(1)
+	go printResults(doneTasks, errorTasks, stopPrinting)
+
+	// Generate tasks for 10 seconds
+	time.Sleep(10 * time.Second)
+	close(stopTaskGeneration)
+	close(taskChannel)
+
+	// Wait for task processing to complete
+	wg.Wait()
+	close(doneTasks)
+	close(errorTasks)
+	close(stopPrinting)
+
+	fmt.Println("All tasks are processed.")
+}
+
+// taskGenerator generates tasks and sends them to the taskChannel
+func taskGenerator(taskChannel chan<- Ttype, stop <-chan struct{}) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+			cT := time.Now().Format(time.RFC3339)
+			if time.Now().Nanosecond()%2 > 0 { // condition for erroneous tasks
+				cT = "Some error occurred"
 			}
-		}()
-	}
-
-	superChan := make(chan Ttype, 10)
-
-	go taskCreturer(superChan)
-
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
-
-		time.Sleep(time.Millisecond * 150)
-
-		return a
-	}
-
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
-
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
+			task := Ttype{cT: cT, id: int(time.Now().UnixNano())}
+			taskChannel <- task
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
+}
 
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
+// taskProcessor processes tasks from the taskChannel and sends results to doneTasks and errorTasks
+func taskProcessor(taskChannel <-chan Ttype, doneTasks chan<- Ttype, errorTasks chan<- Ttype, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for task := range taskChannel {
+		processTask(task, doneTasks, errorTasks)
 	}
+}
 
-	println("Done tasks:")
-	for r := range result {
-		println(r)
+// processTask handles individual task processing
+func processTask(t Ttype, doneTasks chan<- Ttype, errorTasks chan<- Ttype) {
+	tt, err := time.Parse(time.RFC3339, t.cT)
+	if err != nil || tt.After(time.Now().Add(-20*time.Second)) {
+		t.taskRESULT = []byte("task has been successed")
+		doneTasks <- t
+	} else {
+		t.taskRESULT = []byte("something went wrong")
+		errorTasks <- t
+	}
+	t.fT = time.Now().Format(time.RFC3339Nano)
+	time.Sleep(150 * time.Millisecond)
+}
+
+// printResults prints the results from doneTasks and errorTasks every 3 seconds
+func printResults(doneTasks <-chan Ttype, errorTasks <-chan Ttype, stop <-chan struct{}) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Println("Done tasks:")
+			printDoneTasks(doneTasks)
+
+			fmt.Println("Errors:")
+			printErrorTasks(errorTasks)
+		case <-stop:
+			return
+		}
+	}
+}
+
+// printDoneTasks prints all completed tasks
+func printDoneTasks(doneTasks <-chan Ttype) {
+	for {
+		select {
+		case task, ok := <-doneTasks:
+			if !ok {
+				return
+			}
+			fmt.Printf("Task ID: %d, Creation Time: %s, Finish Time: %s, Result: %s\n", task.id, task.cT, task.fT, string(task.taskRESULT))
+		default:
+			return
+		}
+	}
+}
+
+// printErrorTasks prints all tasks with errors
+func printErrorTasks(errorTasks <-chan Ttype) {
+	for {
+		select {
+		case task, ok := <-errorTasks:
+			if !ok {
+				return
+			}
+			fmt.Printf("Task ID: %d, Creation Time: %s, Error: %s\n", task.id, task.cT, string(task.taskRESULT))
+		default:
+			return
+		}
 	}
 }
