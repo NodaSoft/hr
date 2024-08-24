@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -24,91 +27,156 @@ import (
 
 // Мы не даем комментариев по результатам тестового задания. Если в случае отказа вам нужен наш комментарий по результатам тестового задания, то просим об этом написать вместе с откликом.
 
-// A Ttype represents a meaninglessness of our life
-type Ttype struct {
-	id         int
-	cT         string // время создания
-	fT         string // время выполнения
-	taskRESULT []byte
+const (
+	workingTime = 10
+	tickTime    = 3
+)
+
+type Task struct {
+	id int
+
+	creationTime time.Time
+	elapsedTime  time.Duration
+
+	error error
+}
+
+type Hub struct {
+	taskChan chan *Task
+
+	successTasks map[int]struct{}
+	failTasks    map[error]struct{}
+
+	wg sync.WaitGroup
+	mu sync.Mutex
+}
+
+func newTaskHub() *Hub {
+	return &Hub{
+		taskChan:     make(chan *Task),
+		successTasks: make(map[int]struct{}),
+		failTasks:    map[error]struct{}{},
+	}
+}
+
+func (h *Hub) generateTasks(ctx context.Context) {
+	defer h.wg.Done()
+	defer close(h.taskChan)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			task := &Task{
+				id: int(time.Now().Unix()),
+			}
+
+			task.creationTime = time.Now()
+
+			if time.Now().Nanosecond()%2 > 0 {
+				task.error = errors.New("some error occurred")
+			}
+
+			h.taskChan <- task
+		}
+	}
+}
+
+func (h *Hub) startLog(ctx context.Context) {
+	ticker := time.NewTicker(tickTime * time.Second)
+
+	defer h.wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.mu.Lock()
+
+			fmt.Println("=========== Show statistics ===========")
+
+			fmt.Println("Errors:")
+			for err, _ := range h.failTasks {
+				fmt.Println(err)
+			}
+
+			fmt.Println("Done tasks ids:")
+			for id, _ := range h.successTasks {
+				fmt.Println(id)
+			}
+
+			h.failTasks = make(map[error]struct{})
+			h.successTasks = make(map[int]struct{})
+
+			h.mu.Unlock()
+		}
+	}
+}
+
+func processTask(task *Task) (bool, error) {
+	if task.error != nil {
+		return false, fmt.Errorf("processTask: %w", task.error)
+	}
+
+	if !task.creationTime.After(time.Now().Add(-20 * time.Second)) {
+		return false, errors.New("something went wrong")
+
+	}
+
+	return true, nil
+}
+
+func (h *Hub) runWorker() {
+	//Не добавлял ограничений по кол-ву воркеров, но если бы нужно было:
+	//Или запустить n воркеров и передать в них контекст
+	//Или сделать буферизированный канал и читать/писать в него, ограничивая кол-во возможных воркеров.
+	for t := range h.taskChan {
+		h.wg.Add(1)
+
+		go func() {
+			defer h.wg.Done()
+
+			success, err := processTask(t)
+			if err != nil {
+				h.mu.Lock()
+				defer h.mu.Unlock()
+
+				h.failTasks[fmt.Errorf("task id: %d, time: %s, processTaskerror: %w", t.id, t.creationTime.Format(time.RFC3339), err)] = struct{}{}
+
+				return
+			}
+
+			if success {
+				h.mu.Lock()
+				defer h.mu.Unlock()
+
+				h.successTasks[t.id] = struct{}{}
+			}
+		}()
+
+		time.Sleep(time.Millisecond * 150)
+	}
 }
 
 func main() {
-	taskCreturer := func(a chan Ttype) {
-		go func() {
-			for {
-				ft := time.Now().Format(time.RFC3339)
-				if time.Now().Nanosecond()%2 > 0 { // вот такое условие появления ошибочных тасков
-					ft = "Some error occured"
-				}
-				a <- Ttype{cT: ft, id: int(time.Now().Unix())} // передаем таск на выполнение
-			}
-		}()
-	}
+	fmt.Println("Starting work...")
 
-	superChan := make(chan Ttype, 10)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(workingTime*time.Second))
+	defer cancel()
 
-	go taskCreturer(superChan)
+	hub := newTaskHub()
 
-	task_worker := func(a Ttype) Ttype {
-		tt, _ := time.Parse(time.RFC3339, a.cT)
-		if tt.After(time.Now().Add(-20 * time.Second)) {
-			a.taskRESULT = []byte("task has been successed")
-		} else {
-			a.taskRESULT = []byte("something went wrong")
-		}
-		a.fT = time.Now().Format(time.RFC3339Nano)
+	hub.wg.Add(1)
+	go hub.generateTasks(ctx)
 
-		time.Sleep(time.Millisecond * 150)
+	hub.wg.Add(1)
+	go hub.startLog(ctx)
 
-		return a
-	}
+	go hub.runWorker()
 
-	doneTasks := make(chan Ttype)
-	undoneTasks := make(chan error)
+	hub.wg.Wait()
 
-	tasksorter := func(t Ttype) {
-		if string(t.taskRESULT[14:]) == "successed" {
-			doneTasks <- t
-		} else {
-			undoneTasks <- fmt.Errorf("Task id %d time %s, error %s", t.id, t.cT, t.taskRESULT)
-		}
-	}
-
-	go func() {
-		// получение тасков
-		for t := range superChan {
-			t = task_worker(t)
-			go tasksorter(t)
-		}
-		close(superChan)
-	}()
-
-	result := map[int]Ttype{}
-	err := []error{}
-	go func() {
-		for r := range doneTasks {
-			go func() {
-				result[r.id] = r
-			}()
-		}
-		for r := range undoneTasks {
-			go func() {
-				err = append(err, r)
-			}()
-		}
-		close(doneTasks)
-		close(undoneTasks)
-	}()
-
-	time.Sleep(time.Second * 3)
-
-	println("Errors:")
-	for r := range err {
-		println(r)
-	}
-
-	println("Done tasks:")
-	for r := range result {
-		println(r)
-	}
+	fmt.Println("Work Done!")
 }
