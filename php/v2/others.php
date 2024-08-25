@@ -3,23 +3,91 @@
 namespace NW\WebService\References\Operations\Notification;
 
 /**
- * @property Seller $Seller
+ * @property Seller $seller
  */
 class Contractor
 {
-    const TYPE_CUSTOMER = 0;
-    public $id;
-    public $type;
-    public $name;
+    public const TYPE_CUSTOMER = 0;
+    public int $id;
+    public int $type;
+    public string $name;
 
-    public static function getById(int $resellerId): self
+    /**
+     * @return int
+     */
+    public function getId(): int
     {
-        return new self($resellerId); // fakes the getById method
+        return $this->id;
+    }
+
+    /**
+     * @param int $id
+     * @return Contractor
+     */
+    public function setId(int $id): Contractor
+    {
+        $this->id = $id;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getType(): int
+    {
+        return $this->type;
+    }
+
+    /**
+     * @param int $type
+     * @return Contractor
+     */
+    public function setType(int $type): Contractor
+    {
+        $this->type = $type;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    /**
+     * @param string $name
+     * @return Contractor
+     */
+    public function setName(string $name): Contractor
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+    /**
+     * @param int $resellerId
+     * @return static
+     */
+    public static function getById(int $resellerId)
+    {
+        return new static($resellerId); // fakes the getById method
     }
 
     public function getFullName(): string
     {
         return $this->name . ' ' . $this->id;
+    }
+
+    public function isCustomer(): bool
+    {
+        return $this->getType() === self::TYPE_CUSTOMER;
+    }
+
+    public function getSeller(): Seller
+    {
+        return $this->seller;
     }
 }
 
@@ -33,9 +101,10 @@ class Employee extends Contractor
 
 class Status
 {
-    public $id, $name;
+    public int $id;
+    public string $status;
 
-    public static function getName(int $id): string
+    public static function getStatus(int $id): string
     {
         $a = [
             0 => 'Completed',
@@ -57,12 +126,12 @@ abstract class ReferencesOperation
     }
 }
 
-function getResellerEmailFrom()
+function getResellerEmailFrom(): string
 {
     return 'contractor@example.com';
 }
 
-function getEmailsByPermit($resellerId, $event)
+function getEmailsByPermit($resellerId, $event): array
 {
     // fakes the method
     return ['someemeil@example.com', 'someemeil2@example.com'];
