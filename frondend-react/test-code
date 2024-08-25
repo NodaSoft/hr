@@ -5,16 +5,43 @@
 // Укажите правильные типы.
 // По возможности пришлите Ваш вариант в https://codesandbox.io
 
+// Не имотртировать весь реакт, что бы уменьшить бандл
 import React, { useState } from "react";
+
+// понятно что в одельный файл нужно вынести
+const useThrottle = <T>(value: T, limit: number): T => {
+  const [throttledValue, setThrottledValue] = useState<T>(value);
+  const lastRan = useRef(Date.now());
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (Date.now() - lastRan.current >= limit) {
+        setThrottledValue(value);
+        lastRan.current = Date.now();
+      }
+    }, limit - (Date.now() - lastRan.current));
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, limit]);
+
+  return throttledValue;
+};
+
 
 const URL = "https://jsonplaceholder.typicode.com/users";
 
+// в этом файле я бы везде использовать интрефейсы а не типы, тут описана конкретная структура,
+// для меня типы более утилитарная вещь
 type Company = {
   bs: string;
   catchPhrase: string;
   name: string;
 };
 
+// по моему мнению тут описана структура с близким к избыточному кол-ву пропов, в целом можно оставить и так,
+// но если будет больше, стоит задуматься над разбиением
 type User = {
   id: number;
   email: string;
@@ -23,15 +50,24 @@ type User = {
   username: string;
   website: string;
   company: Company;
+  // any категорически нельзя использовать, 
+  // в карайнем случае можно использовать их в дженериках как заглушки для изначальных значений
+  // хотя бы поставить тут unknown
   address: any
 };
 
 interface IButtonProps {
+  // опять any, хотя бы () => void 
   onClick: any;
 }
 
+// У реакта есть утилитарный тип для объявления функциональных компонентов
+// const Button: FC<IButtonProps> = ({ onClick }) => {
+// и в подавляющем числе случаях, 1 файл 1 компонент
+// и при экспорте этого компонента можно использовать memo
 function Button({ onClick }: IButtonProps): JSX.Element {
   return (
+    // просто упомяну про аттрибуты role и data-testid
     <button type="button" onClick={onClick}>
       get random user
     </button>
@@ -42,6 +78,7 @@ interface IUserInfoProps {
   user: User;
 }
 
+// так же FС, memo, и в отдельный файл
 function UserInfo({ user }: IUserInfoProps): JSX.Element {
   return (
     <table>
@@ -62,29 +99,43 @@ function UserInfo({ user }: IUserInfoProps): JSX.Element {
 }
 
 function App(): JSX.Element {
+  // значение не соответвует типу стейта, и item абстрактное название
   const [item, setItem] = useState<Record<number, User>>(null);
+  const [userId, setUserId] = useState(1)
 
-  const receiveRandomUser = async () => {
-    const id = Math.floor(Math.random() * (10 - 1)) + 1;
-    const response = await fetch(`${URL}/${id}`);
-    const _user = (await response.json()) as User;
-    setItem(_user);
-  };
+  const randomazeUserId = () => {
+    setUserId(Math.floor(Math.random() * (10 - 1)) + 1)
+  }
 
-  const handleButtonClick = (
+  const receiveRandomUser = useCallback(() => {
+    // по хорошему вынести константу URL, сам фетчер и протипизировать, по идеальному сгенерить типы по сваггер схеме бэка
+    // на счёт кеша изобретать велосипед не стоит, нужно использовать какой то useQuery от @tanstack/react-query например
+    return fetch(`${URL}/${userId}`).then(response => response.json());
+  }, [userId]);
+  
+  const throttledReceiveRandomUser = useThrottle(receiveRandomUser, 200)
+
+  const handleButtonClick = async (
     event: React.MouseEvent<HTMLButtonElement, MouseEvent>
   ) => {
     event.stopPropagation();
-    receiveRandomUser();
+    randomazeUserId()
+    // когда будет кеш, не будет запроса каждый вызов 
+    const newUser = await throttledReceiveRandomUser();
+    setItem(newUser)
   };
 
   return (
     <div>
+      // сомневаюсь в целесообразности использовать здесь данный семантический тег
       <header>Get a random user</header>
       <Button onClick={handleButtonClick} />
+      // сюда бы suspense и errorboundary
       <UserInfo user={item} />
     </div>
   );
 }
 
 export default App;
+
+// надеюсь ничего не упустил, создавать codesandbox почитал избыточным, с комментами куда легче будет это просмотреть
