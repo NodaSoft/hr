@@ -1,0 +1,49 @@
+@import '~@blueprintjs/core/src/common/variables';
+
+// card
+.MainCard {
+  max-width: 400px;
+  min-width: 400px;
+}
+
+.GrowCard {
+  flex-grow: 1;
+}
+
+.InfoCard {
+  min-width: 300px;
+}
+
+.TableCard {
+  width: 100%;
+  border-spacing: 10px 0;
+
+  td {
+    box-shadow: none !important;
+
+    & + td {
+      max-width: 220px;
+    }
+  }
+
+  td:first-child {
+    width: 50%;
+  }
+}
+
+.SkeletonRow {
+  display: flex;
+  width: 100%;
+  height: 35px;
+  margin-bottom: 5px;
+}
+
+.DetailsTable {
+  width: 100%;
+  border: none;
+
+  td {
+    width: 50%;
+    box-shadow: none !important;
+  }
+}

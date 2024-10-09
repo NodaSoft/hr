@@ -1,0 +1,57 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+@import 'core/styles/mixins';
+
+.TextAreaField {
+  min-height: 60px;
+  max-height: 400px;
+  min-width: 270px;
+
+  &_vertical {
+    resize: vertical;
+  }
+
+  &_horizontal {
+    resize: horizontal;
+  }
+
+  &_both {
+    resize: both;
+  }
+
+  &_none {
+    resize: none;
+  }
+}
+
+.UploadFileField {
+  span::after {
+    width: auto;
+    padding: 0 5px;
+  }
+}
+
+.Column {
+  display: flex;
+  flex-direction: column;
+}
+
+.FileViewerField {
+  margin-top: 10px !important;
+}
+
+.RadioButtonAsPlainButton {
+  display: inline-flex;
+  margin-right: 10px;
+  padding-left: 10px !important;
+  margin-bottom: 0;
+
+  span {
+    display: none !important;
+  }
+}
+
+.DateRangeRelatedField {
+  :global(.#{$ns}-form-content) {
+    position: relative;
+  }
+}

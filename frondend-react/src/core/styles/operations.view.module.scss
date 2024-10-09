@@ -1,0 +1,59 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+@import 'core/styles/variables.scss';
+
+.Section {
+  height: 100%;
+  width: 100%;
+  min-width: 1080px;
+  overflow: hidden;
+  display: flex;
+  flex-flow: column nowrap;
+}
+
+.Content {
+  height: calc(100% - 50px);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.Stat {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: right;
+  margin-bottom: 5px;
+}
+
+.QuickFilters {
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+
+  & > * {
+    margin-top: 5px;
+  }
+}
+
+.NavbarQuickFiltersAndStat {
+  height: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-gap: 5px;
+  align-items: start;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.Tab {
+  margin: 16px 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: $pt-border-radius;
+  background: $white;
+  width: auto;
+  box-shadow: $pt-elevation-shadow-1;
+  :global(.bp3-dark) & {
+    background: $dark-gray4;
+    box-shadow: $pt-dark-elevation-shadow-1;
+  }
+}

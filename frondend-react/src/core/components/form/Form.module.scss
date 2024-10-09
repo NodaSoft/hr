@@ -1,0 +1,25 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+
+.Form {
+  width: $pt-grid-size * 40;
+  &.is_fill {
+    width: 100%;
+  }
+}
+
+.FormButtons {
+  width: 100%;
+  margin-top: $pt-grid-size * 2;
+}
+
+:global(.#{$ns}-icon):local(.FormAsterisk) {
+  vertical-align: text-top;
+}
+
+.Absolute {
+  position: relative;
+
+  & > span {
+    position: absolute;
+  }
+}

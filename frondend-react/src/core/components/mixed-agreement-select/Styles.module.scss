@@ -1,0 +1,11 @@
+@import '~core/styles/mixins';
+
+.Popover {
+  ul {
+    max-width: 800px !important;
+  }
+}
+
+.ItemTag {
+  @include item-list(row, 4px);
+}

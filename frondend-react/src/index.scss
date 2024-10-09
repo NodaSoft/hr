@@ -1,0 +1,14 @@
+@import '~core/styles/bp3-react-virtualized';
+@import '~core/styles/bp3-global';
+@import '~@blueprintjs/popover2/lib/css/blueprint-popover2.css';
+@import '~@blueprintjs/core/lib/scss/variables';
+@import '~normalize.css';
+@import '~@blueprintjs/core/lib/css/blueprint.css';
+@import '~@blueprintjs/icons/lib/css/blueprint-icons.css';
+@import '~@blueprintjs/datetime/lib/css/blueprint-datetime.css';
+
+.#{$ns}-button:focus-visible,
+.#{$ns}-checkbox input:focus-visible ~ .#{$ns}-control-indicator {
+  outline: 2px auto rgba(19, 124, 189, 0.6) !important;
+  outline-offset: 2px;
+}

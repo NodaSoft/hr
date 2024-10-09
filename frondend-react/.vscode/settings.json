@@ -1,0 +1,14 @@
+{
+  "editor.formatOnSave": true,
+  "javascript.validate.enable": false,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "prettier.configPath": ".prettierrc",
+  "cSpell.ignoreRegExpList": ["[\u0400-\u04FF]+"],
+  "eslint.options": {
+    "overrideConfigFile": ".eslintrc.js"
+  },
+  "[handlebars]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false
+  }
+}

@@ -1,0 +1,23 @@
+@import 'core/styles/variables.scss';
+
+.Container {
+  display: flex;
+  flex-direction: column;
+  width: $content-min-width;
+  padding: 0 $content-padding;
+}
+
+.Responsive {
+  max-width: $content-max-width;
+  min-width: $content-min-width;
+  width: 100%;
+}
+
+.FullWidth {
+  max-width: 100%;
+  width: 100%;
+}
+
+.FullHeight {
+  height: 100%;
+}
