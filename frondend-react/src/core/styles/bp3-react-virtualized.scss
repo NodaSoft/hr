@@ -1,0 +1,349 @@
+@import "~@blueprintjs/core/lib/scss/variables";
+
+$pt-intent-colors: (
+  "primary": $pt-intent-primary,
+  "success": $pt-intent-success,
+  "warning": $pt-intent-warning,
+  "danger": $pt-intent-danger
+) !default;
+
+// returns the padding necessary to center text in a container of the given height.
+// default line-height is that of base typography, 18px assuming 14px font-size.
+@function centered-text($height, $line-height: floor($pt-font-size * $pt-line-height)) {
+  @return floor(($height - $line-height) / 2);
+}
+$table-row-height: $pt-grid-size * 4 !default;
+$table-row-height-small: $pt-grid-size * 3 !default;
+$table-border-width: 1px !default;
+$table-border-color: $pt-divider-black !default;
+$dark-table-border-color: $pt-dark-divider-white !default;
+
+/* Table default theme */
+.ReactVirtualized__Table,
+.ReactVirtualized__Table__Grid {
+  font-size: $pt-font-size;
+}
+
+.ReactVirtualized__Table__headerRow {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  box-shadow: inset 0 $table-border-width * -1 0 $table-border-color;
+
+  .#{$ns}-dark & {
+    box-shadow: inset 0 $table-border-width * -1 0 $dark-table-border-color;
+  }
+}
+
+.ReactVirtualized__Table__row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+
+  &.border {
+    box-shadow: inset 0 -0.25px 0 $table-border-color;
+  }
+
+  &.odd {
+    &:not([class*="#{$ns}-intent-"]) {
+      background: rgba($gray5, 0.15);
+    }
+  }
+
+  &.disabled {
+    opacity: 0.3;
+  }
+
+  .#{$ns}-dark & {
+    &.border {
+      box-shadow: inset 0 -0.25px 0 $dark-table-border-color;
+    }
+  }
+
+  &:focus {
+    box-shadow: inset 0 0 0 2px $table-border-color;
+    outline: none;
+
+    .#{$ns}-dark & {
+      box-shadow: inset 0 0 0 2px $dark-table-border-color;
+    }
+
+    .#{$ns}-focus-disabled & {
+      box-shadow: none;
+    }
+  }
+
+  @each $intent, $color in $pt-intent-colors {
+    &.#{$ns}-intent-#{$intent} {
+      background-color: rgba($color, 0.2);
+
+      &.active {
+        box-shadow:
+          inset 2px 0 0 $color,
+          inset 0 -1px 2px 0 rgba($color, 0.2),
+          inset 0 1px 2px 0 rgba($color, 0.2);
+      }
+
+      &:not([class*="#{$ns}-intent-primary"]) {
+        background-color: rgba($color, 0.15);
+      }
+
+      &:focus {
+        box-shadow: inset 0 0 0 2px rgba($color, 0.4);
+        .#{$ns}-focus-disabled & {
+          box-shadow: none;
+        }
+      }
+
+      .#{$ns}-dark & {
+        background-color: rgba($color, 0.25);
+
+        &.active {
+          box-shadow:
+            inset 2px 0 0 $color,
+            inset 0 -1px 2px 0 rgba($color, 0.25),
+            inset 0 1px 2px 0 rgba($color, 0.25);
+        }
+
+        &:not([class*="#{$ns}-intent-primary"]) {
+          background-color: rgba($color, 0.18);
+        }
+
+        &:focus {
+          box-shadow: inset 0 0 0 2px rgba($color, 0.5);
+          .#{$ns}-focus-disabled & {
+            box-shadow: none;
+          }
+        }
+      }
+    }
+  }
+}
+
+.ReactVirtualized__Table__headerTruncatedText {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-weight: 600;
+}
+.ReactVirtualized__Table__headerColumn {
+  color: $pt-heading-color;
+}
+.ReactVirtualized__Table__headerColumn,
+.ReactVirtualized__Table__rowColumn {
+  min-width: 0px;
+  text-align: left;
+  &.#{$ns}-align-right {
+    text-align: right;
+  }
+}
+
+.ReactVirtualized__Table__rowColumn {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: $pt-text-color;
+
+  @each $intent, $color in $pt-intent-colors {
+    &.#{$ns}-intent-#{$intent} {
+      background-color: rgba($color, 0.15);
+
+      &.active {
+        box-shadow:
+          inset 2px 0 0 $color,
+          inset 0 -1px 2px 0 rgba($color, 0.15),
+          inset 0 1px 2px 0 rgba($color, 0.15);
+      }
+
+      &:not([class*="#{$ns}-intent-primary"]) {
+        background-color: rgba($color, 0.1);
+      }
+
+      &:focus {
+        box-shadow: inset 0 0 0 2px rgba($color, 0.4);
+        .#{$ns}-focus-disabled & {
+          box-shadow: none;
+        }
+      }
+
+      .#{$ns}-dark & {
+        background-color: rgba($color, 0.25);
+
+        &:not([class*="#{$ns}-intent-primary"]) {
+          background-color: rgba($color, 0.18);
+        }
+
+        &:focus {
+          box-shadow: inset 0 0 0 2px rgba($color, 0.5);
+          .#{$ns}-focus-disabled & {
+            box-shadow: none;
+          }
+        }
+      }
+    }
+  }
+}
+
+.#{$ns}-dark {
+  .ReactVirtualized__Table__headerColumn {
+    color: $pt-dark-heading-color;
+  }
+
+  .ReactVirtualized__Table__rowColumn {
+    color: $pt-dark-text-color;
+  }
+}
+
+.ReactVirtualized__Table__sortableHeaderColumn {
+  cursor: pointer;
+}
+
+.ReactVirtualized__Table__sortableHeaderIconContainer {
+  display: flex;
+  align-items: center;
+}
+.ReactVirtualized__Table__sortableHeaderIcon {
+  flex: 0 0 24px;
+  height: 1em;
+  width: 1em;
+  fill: currentColor;
+}
+
+.ReactVirtualized__Table {
+  &.#{$ns}-html-table-condensed,
+  &.#{$ns}-small {
+    $small-vertical-padding: centered-text($table-row-height-small);
+  }
+
+  &.#{$ns}-html-table-striped {
+    .ReactVirtualized__Table__row_odd {
+      &:not([class*="#{$ns}-intent-"]) {
+        background: rgba($gray5, 0.15);
+      }
+    }
+  }
+
+  &.#{$ns}-html-table-bordered {
+    .ReactVirtualized__Table__headerColumn:not(:first-child) {
+      box-shadow: inset $table-border-width 0 0 0 $table-border-color;
+    }
+
+    .ReactVirtualized__Table__rowColumn {
+      &:not(:first-child) {
+        box-shadow: inset $table-border-width 0 0 0 $table-border-color;
+      }
+    }
+
+    &.#{$ns}-html-table-striped {
+      .ReactVirtualized__Table__row:not(:first-child) .ReactVirtualized__Table__rowColumn {
+        box-shadow: none;
+
+        &:not(:first-child) {
+          box-shadow: inset $table-border-width 0 0 0 $table-border-color;
+        }
+      }
+    }
+  }
+
+  &.#{$ns}-interactive {
+    .ReactVirtualized__Table__row {
+      cursor: pointer;
+
+      &.focused {
+        background-color: rgba($pt-intent-primary, 0.15);
+
+        .#{$ns}-dark & {
+          background-color: rgba($pt-intent-primary, 0.2);
+        }
+      }
+
+      @each $intent, $color in $pt-intent-colors {
+        &.#{$ns}-intent-#{$intent} {
+          &:hover {
+            background-color: rgba($color, 0.12);
+          }
+
+          &.focused {
+            background-color: rgba($color, 0.2) !important;
+          }
+
+          &.active {
+            background-color: rgba($color, 0.25) !important;
+          }
+
+          .#{$ns}-dark & {
+            &:hover {
+              background-color: rgba($color, 0.2);
+            }
+
+            &.focused {
+              background-color: rgba($color, 0.25) !important;
+            }
+
+            &.active {
+              background-color: rgba($color, 0.3) !important;
+            }
+          }
+        }
+      }
+
+      &:not([class*="#{$ns}-intent-"]) {
+        &:hover {
+          background-color: rgba($gray5, 0.3);
+        }
+
+        &.focused {
+          background-color: rgba($pt-intent-primary, 0.15) !important;
+        }
+
+        &.active {
+          background-color: rgba($gray5, 0.4) !important;
+        }
+      }
+    }
+  }
+
+  .#{$ns}-dark & {
+    &.#{$ns}-html-table-striped {
+      .ReactVirtualized__Table__row_odd:not([class*="#{$ns}-intent-"]) {
+        background: rgba($gray1, 0.15);
+      }
+    }
+
+    &.#{$ns}-html-table-bordered {
+      .ReactVirtualized__Table__headerColumn:not(:first-child) {
+        box-shadow: inset $table-border-width 0 0 0 $dark-table-border-color;
+      }
+
+      .ReactVirtualized__Table__rowColumn:not(:first-child) {
+        box-shadow: inset $table-border-width 0 0 0 $dark-table-border-color;
+      }
+
+      &.#{$ns}-html-table-striped {
+        .ReactVirtualized__Table__row:not(:first-child) .ReactVirtualized__Table__rowColumn {
+          box-shadow: inset $table-border-width 0 0 0 $dark-table-border-color;
+          &:first-child {
+            box-shadow: none;
+          }
+        }
+      }
+    }
+
+    &.#{$ns}-interactive {
+      .ReactVirtualized__Table__row {
+        cursor: pointer;
+
+        &:not([class*="#{$ns}-intent-"]) {
+          &:hover {
+            background-color: rgba($gray1, 0.3);
+          }
+
+          &:active {
+            background-color: rgba($gray1, 0.4);
+          }
+        }
+      }
+    }
+  }
+}

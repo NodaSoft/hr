@@ -1,0 +1,5 @@
+.HotkeyTable {
+  & div[aria-label='grid']:focus-within {
+    box-shadow: inset 0px 0px 3px rgba(19, 124, 189, 0.8);
+  }
+}

@@ -1,0 +1,10 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+
+.Head {
+  display: flex;
+  margin-bottom: $pt-grid-size 0;
+  > * {
+    margin-left: 0;
+    margin-right: $pt-grid-size;
+  }
+}

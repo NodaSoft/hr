@@ -1,0 +1,13 @@
+@import 'core/styles/variables.scss';
+
+.Page {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 $page-layout-padding $common-padding;
+}
+
+.PageOverflowed {
+  overflow: hidden;
+  padding: 0 $page-layout-padding;
+}

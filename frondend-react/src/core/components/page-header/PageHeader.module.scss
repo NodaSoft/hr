@@ -1,0 +1,12 @@
+@import '@blueprintjs/core/lib/scss/variables';
+@import 'core/styles/variables.scss';
+
+.PageHeader {
+  margin: $common-padding 0;
+  > *:last-child {
+    margin-bottom: 0;
+  }
+  > * {
+    margin-bottom: $pt-grid-size;
+  }
+}

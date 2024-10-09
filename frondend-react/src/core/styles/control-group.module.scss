@@ -1,0 +1,19 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+
+.ForceLeftControl {
+  border-top-left-radius: $pt-border-radius !important;
+  border-bottom-left-radius: $pt-border-radius !important;
+}
+
+.ForceRightControl {
+  border-top-right-radius: $pt-border-radius !important;
+  border-bottom-right-radius: $pt-border-radius !important;
+}
+
+.ForceSingleControl {
+  border-radius: $pt-border-radius !important;
+}
+
+.ForceBothControl {
+  border-radius: 0 !important;
+}

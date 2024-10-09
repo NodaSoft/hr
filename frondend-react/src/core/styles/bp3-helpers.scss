@@ -1,0 +1,7 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+
+%headless-table {
+  &:global(.#{$ns}-html-table) tbody tr:first-child td {
+    box-shadow: none !important;
+  }
+}

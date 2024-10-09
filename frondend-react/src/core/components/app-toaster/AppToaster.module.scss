@@ -1,0 +1,5 @@
+.AppToaster {
+  &:global(.bp3-toast-container) {
+    z-index: 110;
+  }
+}

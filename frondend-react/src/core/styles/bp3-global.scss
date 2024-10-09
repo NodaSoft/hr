@@ -1,0 +1,46 @@
+@import '~@blueprintjs/core/lib/scss/variables';
+
+.#{$ns}-running-text table th.#{$ns}-align-right,
+table.#{$ns}-html-table th.#{$ns}-align-right,
+.#{$ns}-running-text table td.#{$ns}-align-right,
+table.#{$ns}-html-table td.#{$ns}-align-right {
+  text-align: right;
+}
+
+.#{$ns}-intent-warning > th,
+.#{$ns}-intent-warning > td,
+.#{$ns}-intent-primary > th,
+.#{$ns}-intent-primary > td,
+.#{$ns}-intent-danger > th,
+.#{$ns}-intent-danger > td {
+  background-color: unset;
+}
+
+table.#{$ns}-html-table {
+  width: 100%;
+}
+
+table.#{$ns}-html-table td,
+table.#{$ns}-html-table th {
+  padding: 0;
+}
+
+.#{$ns}-menu-item {
+  &.#{$ns}-intent-primary {
+    .#{$ns}-text-muted {
+      color: $pt-dark-text-color-muted;
+    }
+  }
+}
+
+.#{$ns}-ui-text {
+  @each $intent, $color in $pt-intent-colors {
+    &.#{$ns}-intent-#{$intent} {
+      color: $color;
+    }
+  }
+}
+
+.#{$ns}-alert-contents {
+  width: 100%;
+}

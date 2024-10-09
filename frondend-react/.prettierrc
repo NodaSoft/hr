@@ -1,0 +1,11 @@
+{
+  "trailingComma": "es5",
+  "tabWidth": 2,
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 80,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": ["^react", "^@blueprintjs/(.*)$", "<THIRD_PARTY_MODULES>", "^core/(.*)$", "^[./]"],
+  "importOrderSeparation": true,
+  "importOrderCaseInsensitive": true
+}
